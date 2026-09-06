@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-06
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 85bbac4
-latest_code_commit: dd0c746
-flashed_source_commit: dd0c746
-flash_record_commit: 85bbac4
-deployed_tag: deployed/2026-09-06-fixed-sensor-sampling
+repository_head_at_update: 77ab510
+latest_code_commit: 9f08275
+flashed_source_commit: 9f08275
+flash_record_commit: 77ab510
+deployed_tag: deployed/2026-09-06-sample-handoff-boundary
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 69608
-flashed_bin_sha256: A95878A226A8C2A3A5DC7F061B97359C582BCEC64A03B0122AD477A987D9AD82
-flashed_hex_sha256: 1BDF8CDA595AF17CB8AB4D4A53423BEBFA9A119FD897D0C30665201EB4BB756D
-ground_test_status: fixed_sensor_sampling_flashed_ground_test_pending_buzzer_passed
+formal_bin_size_bytes: 69688
+flashed_bin_sha256: 8256082FC722B4F0E02C69B15F7A176A34EC54030B22E695C2F8DF50D66CC3EA
+flashed_hex_sha256: 03AB400D37D2C5875BC4FAFF1C44CB4967115F05E3E34C06280A5B4EE095D1C6
+ground_test_status: sample_handoff_boundary_flashed_ground_test_pending_buzzer_passed
 k210_status: removed
-candidate_source_commit: dd0c746
-candidate_bin_size_bytes: 69608
-candidate_bin_sha256: A95878A226A8C2A3A5DC7F061B97359C582BCEC64A03B0122AD477A987D9AD82
-candidate_hex_sha256: 1BDF8CDA595AF17CB8AB4D4A53423BEBFA9A119FD897D0C30665201EB4BB756D
+candidate_source_commit: 9f08275
+candidate_bin_size_bytes: 69688
+candidate_bin_sha256: 8256082FC722B4F0E02C69B15F7A176A34EC54030B22E695C2F8DF50D66CC3EA
+candidate_hex_sha256: 03AB400D37D2C5875BC4FAFF1C44CB4967115F05E3E34C06280A5B4EE095D1C6
 user_reported_flash: tool_verified_current_candidate
 ```
 
@@ -38,24 +38,24 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest firmware source commit: `dd0c746` (`fix(line): preserve short sensor hits across main-loop stalls`), now flashed. It integrates the requested worker commit `69a6b55` on top of the active direction-refresh history, retaining single-edge direction memory, corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
-- Flash/readback record: `85bbac4` (`Record fixed sensor-sampling firmware flash`).
+- Latest firmware source commit: `9f08275` (`fix(line): retain sensor samples arriving at queue handoff`), now flashed. It integrates the requested worker commit `777c6ef` on top of fixed-period sensor sampling and active direction refresh, retaining single-edge direction memory, corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
+- Flash/readback record: `77ab510` (`Record sample-handoff firmware flash`).
 - The formal BIN above was rebuilt from the clean integration checkout, then
   written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
-  57600 baud. Selective erase covered 34 firmware pages, preserved the final
-  calibration page, wrote and read back 69608 bytes with `VERIFY OK`, and
+  57600 baud. Selective erase covered 35 firmware pages, preserved the final
+  calibration page, wrote and read back 69688 bytes with `VERIFY OK`, and
   completed `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
 - Current formal BIN/HEX were built in this integration checkout from
-  `dd0c746`. The preceding adaptive-search build remains under
+  `9f08275`. The preceding adaptive-search build remains under
   `manual-build-adaptive-line-search`.
   Previous isolated candidates remain under the validation directory.
-- Immediate rollback tag: `rollback/2026-09-06-before-fixed-sensor-sampling`
-  points to `3768d6c`. The previous active direction-refresh rollback,
-  single-edge direction-memory rollback, buzzer GPIO fix and earlier
-  adaptive-search rollback points remain available.
+- Immediate rollback tag: `rollback/2026-09-06-before-sample-handoff-boundary`
+  points to `68886bb`. The previous fixed-sampling and active
+  direction-refresh rollbacks, single-edge direction-memory rollback, buzzer
+  GPIO fix and earlier adaptive-search rollback points remain available.
 
 ## Current mode map
 
@@ -77,7 +77,7 @@ Latest user observations before this deployment (2026-09-05): KEY2 could emit
 The user then explicitly requested continued searching and fault observation
 instead of stopping the line mode.
 
-The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
+The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
 
 - On line loss it briefly brakes, then continuously rotates in the most recent
   reliable direction; without a hint it defaults left. Search uses equal and
@@ -145,6 +145,12 @@ The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
   filtering, but it cannot replay old motor commands or falsely complete line
   capture. Samples older than 200 ms are ignored; queue overwrite clears stale
   normal-mode direction candidates and retains the newest bounded history.
+- Each control iteration now freezes its queue-consumption time boundary before
+  draining. A sensor sample arriving from the tick ISR immediately after a pop
+  remains queued for the next iteration, and the observation watermark cannot
+  advance past that unconsumed evidence. This closes the previous queue-handoff
+  race without raising the sampling frequency or widening the IRQ critical
+  section.
 - During search, middle capture now needs at least two valid observations
   spanning 4 ms with gaps no greater than 30 ms. Confirmation immediately
   enters low-speed rejoin without inserting a stop. After at least 500 ms,
@@ -161,7 +167,7 @@ The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
 
 ## Current line-turn load assistance
 
-- Commit `63dbfe6`, retained in `dd0c746`, keeps the requested four-wheel CPS targets and adds a
+- Commit `63dbfe6`, retained in `9f08275`, keeps the requested four-wheel CPS targets and adds a
   bounded PWM supplement only to an accepted line-tracking differential or
   counter-rotation command. Straight travel, wide-line travel, stop, encoder
   position retrace/rollback and non-line modes do not receive this supplement.
@@ -207,7 +213,7 @@ The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
 
 ## Current position-control handoff
 
-- Commit `b424189`, retained in `dd0c746`, fixes the shared DriveBase transition from continuous
+- Commit `b424189`, retained in `9f08275`, fixes the shared DriveBase transition from continuous
   position-control PWM to the short-pulse region used near a target.
 - When an individual wheel enters that low-speed region, its previous
   continuous PWM is first set to zero and a fresh stop-settle window is
@@ -241,7 +247,7 @@ The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
 - The serial `b` command remains an equivalent one-shot diagnostic entry.
 - After flashing `0d31f10`, the user short-pressed the intended sound button
   and explicitly confirmed audible output (`响了`). The same fix remains in
-  deployed `dd0c746`.
+  deployed `9f08275`.
 
 ## Confirmed hardware facts
 
@@ -258,22 +264,23 @@ The persistent recovery in deployed `dd0c746` changes KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated formal `dd0c746`; BIN is 69608 bytes; ELF uses the strong `HAL_IncTick` from `line_sensor_clock.c` and contains `LineSensorSample_Tick`; buzzer fix retained |
-| host regression | passed | real tick/GPIO simulation preserves 1-ms left/right edges across 5/20/35/50/65/80-ms main-loop stalls; ordered transverse filtering, active-recovery correction, queue overwrite/reset/wrap, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and RAM log pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
-| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 34-page selective erase; calibration page preserved; 69608-byte write and readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | integrated formal `9f08275`; BIN is 69688 bytes; ELF uses the strong `HAL_IncTick` and contains `LineSensorSample_Tick` plus `LineSensorSample_PopThrough`; buzzer fix retained |
+| host regression | passed | ISR-after-pop tests pass for empty/nonempty queues in 80 repeated handoffs and across tick wrap; real tick/GPIO simulation preserves 1-ms left/right edges across 5/20/35/50/65/80-ms main-loop stalls; ordered transverse filtering, active-recovery correction, queue overwrite/reset, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and RAM log pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
+| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 69688-byte write and readback; `VERIFY OK`; `GO OK` |
 | physical buzzer | passed | user explicitly confirmed `响了` after the PG12 initialization fix; fix retained in current firmware |
 | wheels off ground | not performed this turn | diagnostic image compilation is not a lifted-wheel test |
-| ground driving | current fixed-sensor-sampling firmware untested | physical short-edge capture, corrected search direction, transverse classification, corner continuity and motor heating require controlled observation |
+| ground driving | current sample-handoff-boundary firmware untested | physical short-edge capture at the queue handoff, corrected search direction, transverse classification, corner continuity and motor heating require controlled observation |
 
 ## Open issue and next safe step
 
-The requested fixed-period line-sensor sampling integration, formal build, all
-host regressions, flash, readback verification and GO are complete.
+The requested line-sensor queue-handoff integration, formal build, all host
+regressions, flash, readback verification and GO are complete.
 Physical buzzer output was confirmed on an earlier firmware; the new ground
 behavior is unverified. With the remote STOP ready, test a fast straight run in
 which only the last outer sensor briefly touches the line before all four go
-white, and confirm that search follows that sampled side instead of defaulting
-left. Also recheck transverse marks and the active-search middle/edge sequence.
+white, especially around visible OLED/serial updates, and confirm that search
+follows that sampled side instead of defaulting left. Also recheck transverse
+marks and the active-search middle/edge sequence.
 After abnormal wheel behavior, press `0` and keep power connected so the RAM
 log can be exported with `f`. Do not leave a stalled motor energized. Use the
 immediate rollback point if unsafe.
