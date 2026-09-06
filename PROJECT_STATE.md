@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-06
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 48a2e8e
-latest_code_commit: ae820e1
+repository_head_at_update: ec858dc
+latest_code_commit: ec858dc
 flashed_source_commit: ae820e1
 flash_record_commit: 48a2e8e
 deployed_tag: deployed/2026-09-06-key1-turn-assist-cap
@@ -21,13 +21,13 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 71292
 flashed_bin_sha256: FFAAD5AD2818CC323E8D6571EE5533099CE49451828B60B440A42DD8289C09AA
 flashed_hex_sha256: 1C69F6DEB20C4F5903EDA92B572423D1F43430F7DDC9711E6DC6A1BBE8FC78F8
-ground_test_status: key1_turn_assist_cap_flashed_ground_test_pending_buzzer_passed
+ground_test_status: key1_turn_assist_cap_flashed_ground_test_pending_bounded_wait_candidate_built_unflashed
 k210_status: removed
-candidate_source_commit: ae820e1
-candidate_bin_size_bytes: 71292
-candidate_bin_sha256: FFAAD5AD2818CC323E8D6571EE5533099CE49451828B60B440A42DD8289C09AA
-candidate_hex_sha256: 1C69F6DEB20C4F5903EDA92B572423D1F43430F7DDC9711E6DC6A1BBE8FC78F8
-user_reported_flash: tool_verified_current_candidate
+candidate_source_commit: ec858dc
+candidate_bin_size_bytes: 72296
+candidate_bin_sha256: E6A2897B5FB4BBFEBF431BFCF30199AD09AC9B46D368D4C61DE05011E82384F4
+candidate_hex_sha256: 0E5D731D55F3BF162A5DBA70CAFFFF6A2A6FB6A7D1581630907870501CC487F7
+user_reported_flash: candidate_not_flashed_ch340k_missing
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -38,7 +38,8 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest firmware source commit: `ae820e1` (`fix(line): preserve turn assistance after KEY1 speed limiting`), now flashed. It integrates the requested worker commit `5388b6a` on top of crossing-exit hints, search logging, fixed-period sampling and active direction refresh, retaining corner continuity, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
+- Latest firmware source commit: `ec858dc` (`fix(line): bound automatic stops with timed recovery and retry`), built but not flashed. It integrates the requested worker commit `14845ba` on top of the currently deployed KEY1 turn-assist source `ae820e1`.
+- Deployed firmware source remains `ae820e1` (`fix(line): preserve turn assistance after KEY1 speed limiting`). The CH340K programmer disappeared before this candidate's erase/write stage; COM13 was not substituted.
 - Flash/readback record: `48a2e8e` (`Record KEY1 turn-assist firmware flash`).
 - The formal BIN above was rebuilt from the clean integration checkout, then
   written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
@@ -48,15 +49,35 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
-- Current formal BIN/HEX were built in this integration checkout from
-  `ae820e1`. The preceding adaptive-search build remains under
+- Current local formal BIN/HEX were rebuilt from unflashed candidate `ec858dc`.
+  Their candidate hashes are recorded separately from the deployed `ae820e1`
+  image. The preceding adaptive-search build remains under
   `manual-build-adaptive-line-search`.
   Previous isolated candidates remain under the validation directory.
-- Immediate rollback tag: `rollback/2026-09-06-before-key1-turn-assist-cap`
-  points to `3089ccd`. The previous crossing-exit, sample-handoff,
+- Candidate rollback tag: `rollback/2026-09-06-before-bounded-auto-wait`
+  points to `642b79f`. The deployed-image rollback remains
+  `rollback/2026-09-06-before-key1-turn-assist-cap`; previous crossing-exit, sample-handoff,
   fixed-sampling and active direction-refresh rollbacks, single-edge
   direction-memory rollback, buzzer GPIO fix and earlier adaptive-search
   rollback points remain available.
+
+## Built but unflashed bounded-wait candidate
+
+- In KEY1/KEY2, a continuously stopped, braking or faulted DriveBase remains
+  under its current controller for 800 ms. If still paused, the candidate logs
+  the reason, releases bypass/position ownership, clears the drive fault and
+  performs 1200 ms of four-wheel counter-rotation before stopping and retrying
+  the normal controller.
+- Recovery direction first avoids a currently detected infrared obstacle, then
+  uses an unambiguous outer line sensor or existing recovery direction; without
+  evidence it defaults left. It commands rotation only, not forward/reverse.
+- Operator STOP, mode changes and power-on STOP reset the guard and never start
+  timed recovery. The recovery deliberately overrides unresolved automatic
+  ultrasonic, bypass or drive stops for its fixed window, so ground testing
+  requires the remote `0` immediately available.
+- `LSEARCH` source 5 records automatic wait recovery with pause reason and the
+  drive/bypass fault masks. This code has passed host tests and formal build,
+  but has not been written to the board because CH340K is absent.
 
 ## Current mode map
 
@@ -294,24 +315,20 @@ The persistent recovery in deployed `ae820e1` changes KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated formal `ae820e1`; BIN is 71292 bytes; ELF contains shared final line-command application, fixed tick sampling, bounded queue pop and search-decision logging symbols; buzzer fix retained |
-| host regression | passed | KEY1 left/right capped curves keep identical final targets and restore bounded turn assistance from comparison PWM 2577 to 3177; zero cap stops, braking and `valid=0` ownership remain; crossing tails, `LSEARCH`, ISR handoff, blocked-main sampling, active correction, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and `LFAULT` pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
-| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 71292-byte write and readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | unflashed candidate `ec858dc`; BIN is 72296 bytes; ELF contains `LineWaitGuard_Update`, `LineWaitGuard_Drive`, shared final line-command application, tick sampling and search logging; buzzer fix retained |
+| host regression | passed | 799/800-ms wait and 1199/1200-ms recovery boundaries, repeated automatic stops, tick wrap, real DriveBase fault release and manual-STOP disable pass; KEY1 capped assistance, crossing tails, `LSEARCH`, ISR handoff, blocked-main sampling, active correction, all 16 masks, persistent search/audio, no-motion effort, fault fallback, STOP and `LFAULT` pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
+| flash/readback/GO | candidate not performed | CH340K programmer was absent from repeated live port enumerations; no erase or write was attempted for `ec858dc`; board remains at programmer-verified `ae820e1` |
 | physical buzzer | passed | user explicitly confirmed `响了` after the PG12 initialization fix; fix retained in current firmware |
 | wheels off ground | not performed this turn | diagnostic image compilation is not a lifted-wheel test |
-| ground driving | current KEY1 capped-turn-assist firmware untested | physical KEY1 turn effort under ultrasonic limiting, crossing-tail direction, corrected search direction, corner continuity and motor heating require controlled observation |
+| ground driving | deployed KEY1 capped-turn-assist firmware untested; bounded-wait candidate unflashed | physical timed-recovery safety, KEY1 turn effort, crossing-tail direction, corner continuity and motor heating require controlled observation |
 
 ## Open issue and next safe step
 
-The requested KEY1 capped-line turn-assistance integration, formal build, all
-host regressions, flash, readback verification and GO are complete.
-Physical buzzer output was confirmed on an earlier firmware; the new ground
-behavior is unverified. With the remote STOP ready, test KEY1 on a curve while
-the ultrasonic path applies a nonzero forward-speed cap, and compare it with
-KEY2 on the same line. A zero/unsafe ultrasonic cap and an active bypass or
-drive fault can still legitimately stop KEY1. If search chooses the wrong side,
-STOP without resetting and dump through `LSEARCH END` before changing another
-timing parameter.
+The requested bounded automatic-wait source is integrated and all computer
+tests pass, but flashing is blocked because the CH340K programming interface is
+not connected. Reconnect the programming USB cable until `USB-SERIAL CH340K`
+appears, then rerun the preserved candidate; do not use the ordinary CH340
+COM13 as a substitute. Until then the board remains on `ae820e1`.
 After abnormal wheel behavior, press `0` and keep power connected so the RAM
 log can be exported with `f`. Do not leave a stalled motor energized. Use the
 immediate rollback point if unsafe.
