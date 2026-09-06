@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-06
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 18ef9c8
-latest_code_commit: b0f851c
-flashed_source_commit: b0f851c
-flash_record_commit: 18ef9c8
-deployed_tag: deployed/2026-09-06-crossing-exit-hint-search-log
+repository_head_at_update: 48a2e8e
+latest_code_commit: ae820e1
+flashed_source_commit: ae820e1
+flash_record_commit: 48a2e8e
+deployed_tag: deployed/2026-09-06-key1-turn-assist-cap
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 71016
-flashed_bin_sha256: E7239BE9EB17FCB2DFAAF7D69B92E27E2C84A41B6C51FF72F9BCDCAA836E28EE
-flashed_hex_sha256: 3CFBAE8343660309C7084D672548C4E4B376584DCCB48FA940B697DF99EA5547
-ground_test_status: crossing_exit_hint_search_log_flashed_ground_test_pending_buzzer_passed
+formal_bin_size_bytes: 71292
+flashed_bin_sha256: FFAAD5AD2818CC323E8D6571EE5533099CE49451828B60B440A42DD8289C09AA
+flashed_hex_sha256: 1C69F6DEB20C4F5903EDA92B572423D1F43430F7DDC9711E6DC6A1BBE8FC78F8
+ground_test_status: key1_turn_assist_cap_flashed_ground_test_pending_buzzer_passed
 k210_status: removed
-candidate_source_commit: b0f851c
-candidate_bin_size_bytes: 71016
-candidate_bin_sha256: E7239BE9EB17FCB2DFAAF7D69B92E27E2C84A41B6C51FF72F9BCDCAA836E28EE
-candidate_hex_sha256: 3CFBAE8343660309C7084D672548C4E4B376584DCCB48FA940B697DF99EA5547
+candidate_source_commit: ae820e1
+candidate_bin_size_bytes: 71292
+candidate_bin_sha256: FFAAD5AD2818CC323E8D6571EE5533099CE49451828B60B440A42DD8289C09AA
+candidate_hex_sha256: 1C69F6DEB20C4F5903EDA92B572423D1F43430F7DDC9711E6DC6A1BBE8FC78F8
 user_reported_flash: tool_verified_current_candidate
 ```
 
@@ -38,24 +38,25 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest firmware source commit: `b0f851c` (`fix(line): retain crossing exit hints and log search decisions`), now flashed. It integrates the requested worker commit `761775b` on top of the sample-handoff fix, fixed-period sensor sampling and active direction refresh, retaining corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
-- Flash/readback record: `18ef9c8` (`Record crossing-exit-hint firmware flash`).
+- Latest firmware source commit: `ae820e1` (`fix(line): preserve turn assistance after KEY1 speed limiting`), now flashed. It integrates the requested worker commit `5388b6a` on top of crossing-exit hints, search logging, fixed-period sampling and active direction refresh, retaining corner continuity, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
+- Flash/readback record: `48a2e8e` (`Record KEY1 turn-assist firmware flash`).
 - The formal BIN above was rebuilt from the clean integration checkout, then
   written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
   57600 baud. Selective erase covered 35 firmware pages, preserved the final
-  calibration page, wrote and read back 71016 bytes with `VERIFY OK`, and
+  calibration page, wrote and read back 71292 bytes with `VERIFY OK`, and
   completed `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
 - Current formal BIN/HEX were built in this integration checkout from
-  `b0f851c`. The preceding adaptive-search build remains under
+  `ae820e1`. The preceding adaptive-search build remains under
   `manual-build-adaptive-line-search`.
   Previous isolated candidates remain under the validation directory.
-- Immediate rollback tag: `rollback/2026-09-06-before-crossing-exit-hint`
-  points to `162324b`. The previous sample-handoff, fixed-sampling and active
-  direction-refresh rollbacks, single-edge direction-memory rollback, buzzer
-  GPIO fix and earlier adaptive-search rollback points remain available.
+- Immediate rollback tag: `rollback/2026-09-06-before-key1-turn-assist-cap`
+  points to `3089ccd`. The previous crossing-exit, sample-handoff,
+  fixed-sampling and active direction-refresh rollbacks, single-edge
+  direction-memory rollback, buzzer GPIO fix and earlier adaptive-search
+  rollback points remain available.
 
 ## Current mode map
 
@@ -77,7 +78,7 @@ Latest user observations before this deployment (2026-09-05): KEY2 could emit
 The user then explicitly requested continued searching and fault observation
 instead of stopping the line mode.
 
-The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
+The persistent recovery in deployed `ae820e1` changes KEY1/KEY2 as follows:
 
 - On line loss it briefly brakes, then continuously rotates in the most recent
   reliable direction; without a hint it defaults left. Search uses equal and
@@ -187,7 +188,7 @@ The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
 
 ## Current line-turn load assistance
 
-- Commit `63dbfe6`, retained in `b0f851c`, keeps the requested four-wheel CPS targets and adds a
+- Commit `63dbfe6`, retained in `ae820e1`, keeps the requested four-wheel CPS targets and adds a
   bounded PWM supplement only to an accepted line-tracking differential or
   counter-rotation command. Straight travel, wide-line travel, stop, encoder
   position retrace/rollback and non-line modes do not receive this supplement.
@@ -204,6 +205,15 @@ The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
   PI and turn supplement so high ground resistance does not reduce effort.
   Wheel-speed feedback is not current or torque feedback, so traction remains
   untested.
+- KEY1 and KEY2 now use the same final line-command application path. KEY1
+  first applies its existing ultrasonic forward-speed cap proportionally to
+  both sides, then rebinds bounded turn assistance to those final CPS targets;
+  KEY2 supplies the full PWM-period limit. This avoids DriveBase rejecting a
+  pre-cap assistance claim whose targets no longer match.
+- The ultrasonic speed cap, left/right target ratio, PWM hardware ceiling and
+  assistance ceiling are unchanged. A zero KEY1 forward cap remains an
+  explicit coast stop; `valid=0` recovery retains motor ownership, and active
+  braking, position control and drive faults still take priority.
 
 ## Current line-drive fault observation
 
@@ -233,7 +243,7 @@ The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
 
 ## Current position-control handoff
 
-- Commit `b424189`, retained in `b0f851c`, fixes the shared DriveBase transition from continuous
+- Commit `b424189`, retained in `ae820e1`, fixes the shared DriveBase transition from continuous
   position-control PWM to the short-pulse region used near a target.
 - When an individual wheel enters that low-speed region, its previous
   continuous PWM is first set to zero and a fresh stop-settle window is
@@ -267,7 +277,7 @@ The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
 - The serial `b` command remains an equivalent one-shot diagnostic entry.
 - After flashing `0d31f10`, the user short-pressed the intended sound button
   and explicitly confirmed audible output (`响了`). The same fix remains in
-  deployed `b0f851c`.
+  deployed `ae820e1`.
 
 ## Confirmed hardware facts
 
@@ -284,24 +294,24 @@ The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated formal `b0f851c`; BIN is 71016 bytes; ELF contains strong tick sampling, bounded queue pop and search-decision logging symbols; buzzer fix retained |
-| host regression | passed | real-time and queued left/right crossing tails retain the matching search direction at 2493/1870 CPS; later wide, centered and expired cases clear it; independent 16-entry `LSEARCH` ring covers overwrite, STOP-only output, interrupted/repeated dump; ISR handoff, blocked-main sampling, active correction, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and `LFAULT` pass; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
-| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 71016-byte write and readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | integrated formal `ae820e1`; BIN is 71292 bytes; ELF contains shared final line-command application, fixed tick sampling, bounded queue pop and search-decision logging symbols; buzzer fix retained |
+| host regression | passed | KEY1 left/right capped curves keep identical final targets and restore bounded turn assistance from comparison PWM 2577 to 3177; zero cap stops, braking and `valid=0` ownership remain; crossing tails, `LSEARCH`, ISR handoff, blocked-main sampling, active correction, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and `LFAULT` pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
+| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 71292-byte write and readback; `VERIFY OK`; `GO OK` |
 | physical buzzer | passed | user explicitly confirmed `响了` after the PG12 initialization fix; fix retained in current firmware |
 | wheels off ground | not performed this turn | diagnostic image compilation is not a lifted-wheel test |
-| ground driving | current crossing-exit-hint firmware untested | physical crossing-tail direction, corrected search direction, transverse classification, corner continuity and motor heating require controlled observation |
+| ground driving | current KEY1 capped-turn-assist firmware untested | physical KEY1 turn effort under ultrasonic limiting, crossing-tail direction, corrected search direction, corner continuity and motor heating require controlled observation |
 
 ## Open issue and next safe step
 
-The requested crossing-exit-hint and search-decision-log integration, formal
-build, all host regressions, flash, readback verification and GO are complete.
+The requested KEY1 capped-line turn-assistance integration, formal build, all
+host regressions, flash, readback verification and GO are complete.
 Physical buzzer output was confirmed on an earlier firmware; the new ground
-behavior is unverified. With the remote STOP ready, test a fast straight run in
-which only the last outer sensor briefly touches the line before all four go
-white, especially after three/four-sensor or non-adjacent wide input, and confirm
-that search follows that sampled side without turning during the 100 ms crossing
-protection. If it still chooses the wrong side, STOP without resetting and dump
-through `LSEARCH END` before changing another timing parameter.
+behavior is unverified. With the remote STOP ready, test KEY1 on a curve while
+the ultrasonic path applies a nonzero forward-speed cap, and compare it with
+KEY2 on the same line. A zero/unsafe ultrasonic cap and an active bypass or
+drive fault can still legitimately stop KEY1. If search chooses the wrong side,
+STOP without resetting and dump through `LSEARCH END` before changing another
+timing parameter.
 After abnormal wheel behavior, press `0` and keep power connected so the RAM
 log can be exported with `f`. Do not leave a stalled motor energized. Use the
 immediate rollback point if unsafe.
