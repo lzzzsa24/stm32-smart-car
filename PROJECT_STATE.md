@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-06
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 901178c
-latest_code_commit: 0706342
-flashed_source_commit: 0706342
-flash_record_commit: 901178c
-deployed_tag: deployed/2026-09-06-transverse-priority-narrow-capture
+repository_head_at_update: 6e899fb
+latest_code_commit: fedd7ad
+flashed_source_commit: fedd7ad
+flash_record_commit: 6e899fb
+deployed_tag: deployed/2026-09-06-single-edge-direction-memory
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 67904
-flashed_bin_sha256: 34C8A8599239AE74E729ECA5F4C860C3416965937D608934424CD8A50B9ABD7A
-flashed_hex_sha256: 5A080EA1D12146DC05E468FFB4EB02303CC3EF79A818B5265F5B34038454A25D
-ground_test_status: transverse_priority_narrow_capture_flashed_ground_test_pending_buzzer_passed
+formal_bin_size_bytes: 68012
+flashed_bin_sha256: 8482E1EE16858A8A9AAABF9523E551C912D285E5227C5165950251240A65D7A2
+flashed_hex_sha256: 0484680ECA1832EB0DB8385F0B045154CDE12FCB83A853BDED40C117896D3EDA
+ground_test_status: single_edge_direction_memory_flashed_ground_test_pending_buzzer_passed
 k210_status: removed
-candidate_source_commit: 0706342
-candidate_bin_size_bytes: 67904
-candidate_bin_sha256: 34C8A8599239AE74E729ECA5F4C860C3416965937D608934424CD8A50B9ABD7A
-candidate_hex_sha256: 5A080EA1D12146DC05E468FFB4EB02303CC3EF79A818B5265F5B34038454A25D
+candidate_source_commit: fedd7ad
+candidate_bin_size_bytes: 68012
+candidate_bin_sha256: 8482E1EE16858A8A9AAABF9523E551C912D285E5227C5165950251240A65D7A2
+candidate_hex_sha256: 0484680ECA1832EB0DB8385F0B045154CDE12FCB83A853BDED40C117896D3EDA
 user_reported_flash: tool_verified_current_candidate
 ```
 
@@ -38,22 +38,22 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest firmware source commit: `0706342` (`Prioritize transverse interference and capture narrow line windows without stopping`), now flashed. It integrates the requested `65acc30` on top of the current persistent-search/fault-log history, retaining corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
-- Flash/readback record: `901178c` (`Record transverse-priority narrow-capture firmware flash`).
+- Latest firmware source commit: `fedd7ad` (`fix(line): remember single sampled outer edge for loss search`), now flashed. It integrates the requested `1772dac` on top of the current transverse-priority/persistent-search history, retaining corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
+- Flash/readback record: `6e899fb` (`Record single-edge direction-memory firmware flash`).
 - The formal BIN above was rebuilt from the clean integration checkout, then
   written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
   57600 baud. Selective erase covered 34 firmware pages, preserved the final
-  calibration page, wrote and read back 67904 bytes with `VERIFY OK`, and
+  calibration page, wrote and read back 68012 bytes with `VERIFY OK`, and
   completed `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
 - Current formal BIN/HEX were built in this integration checkout from
-  `0706342`. The preceding adaptive-search build remains under
+  `fedd7ad`. The preceding adaptive-search build remains under
   `manual-build-adaptive-line-search`.
   Previous isolated candidates remain under the validation directory.
-- Immediate rollback tag: `rollback/2026-09-06-before-transverse-priority-capture`
-  points to `6f61f4c`. The buzzer GPIO fix and earlier adaptive-search rollback
+- Immediate rollback tag: `rollback/2026-09-06-before-single-edge-direction-memory`
+  points to `be3e656`. The buzzer GPIO fix and earlier adaptive-search rollback
   points remain available.
 
 ## Current mode map
@@ -76,7 +76,7 @@ Latest user observations before this deployment (2026-09-05): KEY2 could emit
 The user then explicitly requested continued searching and fault observation
 instead of stopping the line mode.
 
-The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as follows:
+The persistent recovery retained in deployed `fedd7ad` changes KEY1/KEY2 as follows:
 
 - On line loss it briefly brakes, then continuously rotates in the most recent
   reliable direction; without a hint it defaults left. Search uses equal and
@@ -116,6 +116,16 @@ The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as foll
 - A single outer edge must remain valid for 12 ms, with no sampling gap above
   30 ms, before continuous corner rotation is locked. This filters a transverse
   line whose first contact briefly appears on only one side.
+- Direction memory is now separate from immediate turn locking. One
+  unambiguous outer-edge or same-side adjacent pair sampled during normal or
+  low-speed tracking immediately records that side, while the 12 ms turn
+  debounce still applies. If the line becomes all-white after the short-gap
+  windows expire, search follows this remembered side rather than defaulting
+  left.
+- A later opposite outer edge can replace the hint. Transverse/ambiguous input
+  clears it and its following 100 ms tail ignores edge hints; stable centered
+  input for 80 ms, 200 ms expiry and mode reset also clear it. A physical LED
+  flash that falls entirely between software samples still cannot be recovered.
 - During search, middle capture now needs at least two valid observations
   spanning 4 ms with gaps no greater than 30 ms. Confirmation immediately
   enters low-speed rejoin without inserting a stop. After at least 500 ms,
@@ -129,7 +139,7 @@ The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as foll
 
 ## Current line-turn load assistance
 
-- Commit `63dbfe6`, retained in `0706342`, keeps the requested four-wheel CPS targets and adds a
+- Commit `63dbfe6`, retained in `fedd7ad`, keeps the requested four-wheel CPS targets and adds a
   bounded PWM supplement only to an accepted line-tracking differential or
   counter-rotation command. Straight travel, wide-line travel, stop, encoder
   position retrace/rollback and non-line modes do not receive this supplement.
@@ -175,7 +185,7 @@ The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as foll
 
 ## Current position-control handoff
 
-- Commit `b424189`, retained in `0706342`, fixes the shared DriveBase transition from continuous
+- Commit `b424189`, retained in `fedd7ad`, fixes the shared DriveBase transition from continuous
   position-control PWM to the short-pulse region used near a target.
 - When an individual wheel enters that low-speed region, its previous
   continuous PWM is first set to zero and a fresh stop-settle window is
@@ -209,7 +219,7 @@ The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as foll
 - The serial `b` command remains an equivalent one-shot diagnostic entry.
 - After flashing `0d31f10`, the user short-pressed the intended sound button
   and explicitly confirmed audible output (`响了`). The same fix remains in
-  deployed `0706342`.
+  deployed `fedd7ad`.
 
 ## Confirmed hardware facts
 
@@ -226,24 +236,24 @@ The persistent recovery retained in deployed `0706342` changes KEY1/KEY2 as foll
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated formal `0706342`; BIN is 67904 bytes; buzzer fix retained |
-| host regression | passed | all 16 sensor masks and transverse priority in five states pass; three-black input produces 2200/2200 forward output, edge debounce and 4-ms middle capture pass at 2493/1870 CPS; persistent corner/search/audio, no-motion effort, fault fallback, STOP and RAM log tests pass; geometry self-test passes; MSVC /W4 /WX |
-| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 34-page selective erase; calibration page preserved; 67904-byte write and readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | integrated formal `fedd7ad`; BIN is 68012 bytes; buzzer fix retained |
+| host regression | passed | one-sample left/right outer hints select the matching later search direction in four configurations without immediately locking a turn; transverse tail, centered/expired/reset clearing, all 16 masks, 4-ms middle capture, persistent corner/search/audio, no-motion effort, fault fallback, STOP and RAM log tests pass; geometry self-test passes; MSVC /W4 /WX |
+| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 34-page selective erase; calibration page preserved; 68012-byte write and readback; `VERIFY OK`; `GO OK` |
 | physical buzzer | passed | user explicitly confirmed `响了` after the PG12 initialization fix; fix retained in current firmware |
 | wheels off ground | not performed this turn | diagnostic image compilation is not a lifted-wheel test |
-| ground driving | current transverse-priority/narrow-capture firmware untested | transverse classification, narrow capture, corner continuity, drift and motor heating require controlled observation |
+| ground driving | current single-edge-direction-memory firmware untested | sampled hint direction, transverse classification, narrow capture, corner continuity and motor heating require controlled observation |
 
 ## Open issue and next safe step
 
-The requested transverse-priority and narrow-window capture integration,
-formal build, all host regressions, flash, readback verification and GO are
-complete. Physical buzzer output was confirmed on an earlier firmware; the new
-ground behavior is unverified. Test transverse marks, narrow middle-line
-windows and left/right bends with the remote STOP ready. Check that wide or
-three-black interference travels forward, while a stable genuine outer edge
-still enters and holds the correct turn. After abnormal wheel behavior, press
-`0` and keep power connected so the RAM log can be exported with `f`. Do not
-leave a stalled motor energized. Use the immediate rollback point if unsafe.
+The requested single-sample outer-edge direction-memory integration, formal
+build, all host regressions, flash, readback verification and GO are complete.
+Physical buzzer output was confirmed on an earlier firmware; the new ground
+behavior is unverified. Test brief left/right edge contact followed by all-white
+with the remote STOP ready, checking that search follows the last sampled edge
+without a single sample itself causing an abrupt turn. Also recheck transverse
+marks and narrow middle-line capture. After abnormal wheel behavior, press `0`
+and keep power connected so the RAM log can be exported with `f`. Do not leave
+a stalled motor energized. Use the immediate rollback point if unsafe.
 
 ## Update protocol
 
