@@ -69,5 +69,15 @@ int main(void)
   assert(LineFaultLog_Count()==1 && LineFaultLog_Get(0,&out) && out.occurrences==2 && out.last_ms==9);
   LineFaultLog_Init(); assert(!LineFaultLog_Count());
   puts("PASS: RAM fault history, coalescing, ring overwrite, wrap, deferred/restartable serial dump");
+  {
+    LineSearchRecord waited={0};
+    waited.source=LINE_SEARCH_WAIT_RECOVERY; waited.chosen_side=-1;
+    waited.pause_reason=1; waited.drive_fault=32; waited.bypass_fault=64;
+    LineFaultLog_RecordSearch(&waited);
+    used=0; text[0]=0; LineFaultLog_RequestDump();
+    for(i=0;i<10;++i) LineFaultLog_Task(1);
+    assert(strstr(text,"source=5") && strstr(text,"pause=1 drive_fault=32 bypass_fault=64"));
+    assert(strstr(text,"LSEARCH END"));
+  }
   return 0;
 }

@@ -11,6 +11,8 @@
 #include "main.h"
 #include "line_tracking.h"
 #include "motion_advanced.h"
+#include "line_wait_guard.h"
+#include "line_search_model.h"
 #include "buzzer_phrase_40077493715.h"
 #include "line_fault_log.h"
 #include "diagnostic_uart.h"
@@ -165,6 +167,63 @@ static void test_integrated_line_cap(void)
   DriveBase_Stop(DRIVE_STOP_COAST); line_tracking_reset();
   line_tracking_set_turn_gain_percent(100);
   puts("PASS: KEY1 final cap retains line assistance; zero cap and braking ownership preserved");
+}
+static void test_bounded_automatic_waits(void)
+{
+  LineWaitGuard guard={0};
+  LineWaitAction action;
+  DriveBaseTelemetry t;
+  int32_t zero[4]={0};
+  unsigned ms,w,begins=0,active_ticks=0;
+  assert(LineWaitGuard_Update(&guard,1,1,0)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,1,1,799)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,1,1,800)==LINE_WAIT_BEGIN_RECOVERY);
+  assert(LineWaitGuard_Update(&guard,1,0,1999)==LINE_WAIT_RECOVERING);
+  assert(LineWaitGuard_Update(&guard,1,0,2000)==LINE_WAIT_END_RECOVERY);
+  assert(LineWaitGuard_Update(&guard,1,1,2799)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,1,1,2800)==LINE_WAIT_BEGIN_RECOVERY);
+  assert(LineWaitGuard_Update(&guard,0,1,2801)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,0,1,100000)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,1,1,100001)==LINE_WAIT_NONE);
+  LineWaitGuard_Reset(&guard);
+  assert(LineWaitGuard_Update(&guard,1,1,UINT32_MAX-400)==LINE_WAIT_NONE);
+  assert(LineWaitGuard_Update(&guard,1,1,399)==LINE_WAIT_BEGIN_RECOVERY);
+  assert(LineWaitGuard_Update(&guard,1,0,1599)==LINE_WAIT_END_RECOVERY);
+  /* Real DriveBase, with a sensor controller repeatedly reissuing stop.
+     The supervisor still commands full counter-rotation on every deadline. */
+  line_tracking_reset(); reset(); LineWaitGuard_Reset(&guard);
+  for(ms=0;ms<10000;++ms)
+  {
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick); DriveBase_GetTelemetry(&t);
+    action=LineWaitGuard_Update(&guard,1,
+        (uint8_t)(t.mode==DRIVE_BASE_STOPPED || t.mode==DRIVE_BASE_BRAKING || t.fault_mask),tick);
+    if(action==LINE_WAIT_BEGIN_RECOVERY)
+    { ++begins; DriveBase_Stop(DRIVE_STOP_COAST); DriveBase_ClearFault(); line_tracking_reset(); }
+    if(action==LINE_WAIT_BEGIN_RECOVERY || action==LINE_WAIT_RECOVERING)
+    {
+      LineWaitGuard_Drive(begins%2?1:-1); ++active_ticks;
+      DriveBase_GetTelemetry(&t);
+      assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
+      assert(t.requested_cps[0]==t.requested_cps[1] && t.requested_cps[2]==t.requested_cps[3]);
+      assert(t.requested_cps[0]==-t.requested_cps[2] && t.requested_cps[0]!=0);
+    }
+    else DriveBase_Stop(DRIVE_STOP_BRAKE);
+  }
+  assert(begins==5 && active_ticks>=5900);
+  LineWaitGuard_Reset(&guard); DriveBase_Stop(DRIVE_STOP_COAST);
+  for(ms=0;ms<5000;++ms)
+  { ++tick; assert(LineWaitGuard_Update(&guard,0,1,tick)==LINE_WAIT_NONE); }
+  DriveBase_GetTelemetry(&t); assert(t.mode==DRIVE_BASE_STOPPED && !t.requested_cps[0]);
+  /* Real latched drive fault is cleared only at the explicit recovery boundary. */
+  line_tracking_reset(); reset(); command(2500,2500,0);
+  for(ms=0;ms<100;++ms) sample(zero);
+  assert(DriveBase_GetFaultMask()!=0);
+  DriveBase_ClearFault(); line_tracking_reset(); LineWaitGuard_Drive(1);
+  DriveBase_GetTelemetry(&t);
+  assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED && t.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  DriveBase_Stop(DRIVE_STOP_COAST); line_tracking_reset();
+  puts("PASS: bounded 800-ms waits, 1200-ms recovery, repeated STOP callbacks, latched fault, manual STOP, wrap");
 }
 static void test_position_coast_handoff(int32_t direction)
 {
@@ -576,6 +635,7 @@ int main(void)
   test_real_white_search();
   test_real_corner_chatter();
   test_integrated_line_cap();
+  test_bounded_automatic_waits();
   test_real_exit_direction_correction();
   test_no_motion_keeps_turn_effort();
   test_observe_faults();

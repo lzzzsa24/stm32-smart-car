@@ -360,7 +360,7 @@ static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
 }
 static void record_search(uint32_t now, LineSearchSource source)
 {
-  LineSearchRecord r;
+  LineSearchRecord r = {0};
   r.time_ms = now;
   r.edge_mask = last_edge_mask; r.wide_mask = last_wide_mask;
   r.edge_age_ms = last_edge_mask ? now - last_edge_ms : UINT32_MAX;

@@ -6,13 +6,14 @@
 #define LINE_SEARCH_LOG_CAPACITY 16U
 typedef enum { LINE_SEARCH_DEFAULT=0, LINE_SEARCH_HINT=1,
                LINE_SEARCH_REJOIN=2, LINE_SEARCH_CORNER=3,
-               LINE_SEARCH_CORRECTION=4 } LineSearchSource;
+               LINE_SEARCH_CORRECTION=4, LINE_SEARCH_WAIT_RECOVERY=5 } LineSearchSource;
 typedef struct
 {
   uint32_t time_ms, edge_age_ms, wide_age_ms, queue_overwritten;
   uint8_t edge_mask, wide_mask;
   int8_t chosen_side, hint;
   LineSearchSource source;
+  uint8_t pause_reason, drive_fault, bypass_fault;
 } LineSearchRecord;
 /* Decisions persist across mode reset/STOP, independently of motor faults. */
 void LineFaultLog_RecordSearch(const LineSearchRecord *record);

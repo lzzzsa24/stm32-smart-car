@@ -34,6 +34,8 @@
 #include "ir_remote.h"
 #include "line_obstacle_bypass.h"
 #include "line_tracking.h"
+#include "line_recovery.h"
+#include "line_wait_guard.h"
 #if defined(LINE_TRACKING_LIFT_TEST)
 #include "line_tracking_lift_test.h"
 #endif
@@ -129,6 +131,8 @@ static uint8_t bypass_ir_clear_samples;
 static uint32_t bypass_rearm_not_before_ms;
 static uint8_t bypass_ir_trigger_candidate;
 static uint32_t bypass_ir_trigger_since_ms;
+static LineWaitGuard line_wait_guard;
+static int8_t line_wait_side;
 
 #define BYPASS_REARM_DELAY_MS          1000U
 #define BYPASS_REARM_CLEAR_SAMPLES       10U
@@ -997,6 +1001,69 @@ static void experiment7_integrated_once(void)
   }
 }
 
+/* A running line mode may wait, but no automatic owner may park forever.
+   Called before fault/ultrasonic/bypass early returns, after operator mode
+   changes. The timeout recovery issues rotation only, then retries owners. */
+static uint8_t service_bounded_line_wait(AppMode mode)
+{
+  DriveBaseTelemetry telemetry;
+  LineWaitAction action;
+  uint32_t now = HAL_GetTick();
+  uint8_t enabled = mode == APP_MODE_INTEGRATED || mode == APP_MODE_LINE_ONLY;
+  uint8_t paused;
+  DriveBase_GetTelemetry(&telemetry);
+  paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||
+      telemetry.mode == DRIVE_BASE_FAULT || telemetry.fault_mask != 0U;
+  action = LineWaitGuard_Update(&line_wait_guard, enabled, paused, now);
+  if (action == LINE_WAIT_BEGIN_RECOVERY)
+  {
+    LineSearchRecord record = {0};
+    LineTrackingReading line = line_tracking_read();
+    IrAvoidReading infrared = ir_avoid_read();
+    line_wait_side = LineRecovery_GetDirection();
+    if (infrared.left_obstacle || infrared.right_obstacle)
+      line_wait_side = choose_bypass_direction(&infrared);
+    else if (line.x4_black && !line.x1_black && !line.x2_black) line_wait_side = 1;
+    else if (line.x2_black && !line.x3_black && !line.x4_black) line_wait_side = -1;
+    if (line_wait_side == 0) line_wait_side = -1;
+    record.time_ms = now; record.source = LINE_SEARCH_WAIT_RECOVERY;
+    record.chosen_side = line_wait_side;
+    record.edge_age_ms = record.wide_age_ms = UINT32_MAX;
+    record.drive_fault = telemetry.fault_mask;
+    record.bypass_fault = LineObstacleBypass_GetFaultMask();
+    record.pause_reason = record.drive_fault ? 1U : (record.bypass_fault ? 2U :
+        ((mode == APP_MODE_INTEGRATED && UltrasonicAvoid_GetState() != ULTRASONIC_AVOID_FORWARD) ? 3U : 4U));
+    LineFaultLog_RecordSearch(&record); /* Preserve reason before clearing it. */
+    WheelSpeedObserver_Stop();
+    LineObstacleBypass_Stop();
+    DriveBase_Stop(DRIVE_STOP_COAST); /* ClearFault deliberately rejects active braking. */
+    DriveBase_ClearFault();
+    cancel_vision_action();
+    line_tracking_reset();
+    BuzzerPhrase400_Start(1U);
+  }
+  if (action == LINE_WAIT_BEGIN_RECOVERY || action == LINE_WAIT_RECOVERING)
+  {
+    LineWaitGuard_Drive(line_wait_side);
+    return 1U;
+  }
+  if (action == LINE_WAIT_END_RECOVERY)
+  {
+    DriveBase_Stop(DRIVE_STOP_COAST);
+    BuzzerPhrase400_Stop();
+    line_tracking_reset();
+    if (mode == APP_MODE_INTEGRATED)
+    {
+      bypass_rearm_pending = 1U; bypass_ir_clear_samples = 0U;
+      bypass_ir_trigger_candidate = 0U;
+      bypass_rearm_not_before_ms = now + BYPASS_REARM_DELAY_MS;
+      configure_ultrasonic_avoid();
+    }
+    WheelSpeedObserver_Start();
+    last_fast_speed_cps = 0U; last_fast_speed_ms = now;
+  }
+  return 0U;
+}
 int main(void)
 {
   AppMode app_mode = APP_MODE_STOPPED;
@@ -1092,6 +1159,7 @@ int main(void)
 
     if (requested_mode != app_mode)
     {
+      LineWaitGuard_Reset(&line_wait_guard);
       WheelSpeedObserver_Stop();
       LineObstacleBypass_Stop();
       bypass_rearm_pending = 0U;
@@ -1197,6 +1265,11 @@ int main(void)
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
+    if (service_bounded_line_wait(app_mode))
+    {
+      HAL_Delay(1U);
+      continue;
+    }
 
     if (DriveBase_GetFaultMask() != 0U &&
         (app_mode == APP_MODE_INTEGRATED ||
