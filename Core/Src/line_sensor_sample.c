@@ -38,12 +38,14 @@ void LineSensorSample_Tick(uint32_t now)
   head = (uint16_t)((head + 1U) % LINE_SENSOR_QUEUE_SIZE);
   ++count;
 }
-uint8_t LineSensorSample_Pop(LineSensorSample *sample)
+static uint8_t pop_sample(LineSensorSample *sample, uint8_t bounded, uint32_t through_ms)
 {
   uint32_t irq = __get_PRIMASK();
   uint8_t available;
   __disable_irq();
   available = count != 0U;
+  if (available && bounded && (int32_t)(samples[tail].time_ms - through_ms) > 0)
+    available = 0U;
   if (available)
   {
     sample->time_ms = samples[tail].time_ms;
@@ -54,4 +56,8 @@ uint8_t LineSensorSample_Pop(LineSensorSample *sample)
   __set_PRIMASK(irq);
   return available;
 }
+uint8_t LineSensorSample_Pop(LineSensorSample *sample)
+{ return pop_sample(sample, 0U, 0U); }
+uint8_t LineSensorSample_PopThrough(LineSensorSample *sample, uint32_t through_ms)
+{ return pop_sample(sample, 1U, through_ms); }
 uint32_t LineSensorSample_Overwritten(void) { return overwritten; }

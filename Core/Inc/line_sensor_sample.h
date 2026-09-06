@@ -8,5 +8,7 @@ void LineSensorSample_Reset(void);
 /* Called only from the HAL millisecond tick; never drives motors or prints. */
 void LineSensorSample_Tick(uint32_t now);
 uint8_t LineSensorSample_Pop(LineSensorSample *sample);
+/* Leave samples newer than this control iteration in the queue. */
+uint8_t LineSensorSample_PopThrough(LineSensorSample *sample, uint32_t through_ms);
 uint32_t LineSensorSample_Overwritten(void);
 #endif

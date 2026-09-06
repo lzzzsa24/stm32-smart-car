@@ -292,9 +292,45 @@ static void test_sampling_during_blocked_main(void)
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   puts("PASS: real tick/GPIO, accelerated straight, 1-ms edges in 5..80-ms main stalls, ordered filtering, overflow/reset/wrap");
 }
+static unsigned interrupt_edge;
+static void enqueue_edge_on_irq_restore(void)
+{
+  test_irq_restore_hook=0;
+  background_sample(interrupt_edge,1);
+}
+static void test_queue_handoff_interrupt(void)
+{
+  unsigned side,queued,repeat;
+  LineSensorSample observation;
+  LineSensorSample_Start();
+  for(side=0;side<2;++side) for(queued=0;queued<2;++queued)
+  {
+    reset(0,1); hold(5,1000);
+    for(repeat=0;repeat<20;++repeat)
+    {
+      if(queued) background_sample(5,1);
+      interrupt_edge=side?8:2;
+      test_irq_restore_hook=enqueue_edge_on_irq_restore;
+      sample(0,0,3000); /* ISR runs after a queue pop releases its critical section. */
+      assert(!test_irq_restore_hook);
+      background_sample(0,1); sample(0,0,3000); hold(0,180);
+      assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      hold(5,800);
+    }
+  }
+  reset(0,0); tick=UINT32_MAX-1;
+  background_sample(8,1); background_sample(0,1);
+  assert(LineSensorSample_PopThrough(&observation,UINT32_MAX));
+  assert(observation.mask==8 && observation.time_ms==UINT32_MAX);
+  assert(!LineSensorSample_PopThrough(&observation,UINT32_MAX));
+  assert(LineSensorSample_PopThrough(&observation,0));
+  assert(observation.mask==0 && observation.time_ms==0);
+  puts("PASS: ISR after empty/nonempty pop, 80 repeated handoffs, bounded queue across tick wrap");
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_queue_handoff_interrupt();
   test_sampling_during_blocked_main();
   test_direction_after_unconfirmed_middle();
   test_single_outer_flash_search_direction();

@@ -334,7 +334,7 @@ static void observe_crossing(uint32_t now)
   smooth_filter_valid = smooth_centered_active = 0U;
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
 }
-static void consume_sampled_evidence(void)
+static void consume_sampled_evidence(uint32_t through_ms)
 {
   LineSensorSample sample;
   unsigned budget = LINE_SENSOR_QUEUE_SIZE;
@@ -346,12 +346,12 @@ static void consume_sampled_evidence(void)
     direction_center_active = 0U;
     sample_overwritten = lost;
   }
-  while (budget-- && LineSensorSample_Pop(&sample))
+  while (budget-- && LineSensorSample_PopThrough(&sample, through_ms))
   {
     LineTrackingReading r;
     uint8_t n;
     if ((int32_t)(sample.time_ms - last_observation_ms) <= 0) continue;
-    if (HAL_GetTick() - sample.time_ms > TRACKING_HINT_MAX_AGE_MS) continue;
+    if (through_ms - sample.time_ms > TRACKING_HINT_MAX_AGE_MS) continue;
     r.x1_black = sample.mask & 1U;
     r.x2_black = (sample.mask >> 1) & 1U;
     r.x3_black = (sample.mask >> 2) & 1U;
@@ -416,8 +416,10 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     return LINE_ACTION_STOP;
   }
   if (recovery_state == LINE_RECOVERY_STOPPED) return LINE_ACTION_STOP;
-  consume_sampled_evidence();
-  now = HAL_GetTick();
+  /* Freeze the observation boundary before draining. A tick can enqueue a
+     short hit immediately after the last pop; leave it for the next cycle,
+     never advance the discard watermark past evidence not yet consumed. */
+  consume_sampled_evidence(now);
   last_observation_ms = now;
   /* Wide or non-adjacent black detections override a previously latched turn.
      In particular X2+X1+X3 (only rightmost white) must never keep spinning. */

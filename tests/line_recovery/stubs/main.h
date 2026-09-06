@@ -4,7 +4,9 @@
 /* Host IRQ operations are no-ops; production uses CMSIS PRIMASK primitives. */
 #define __get_PRIMASK() 0U
 #define __disable_irq() ((void)0)
-#define __set_PRIMASK(value) ((void)(value))
+extern void (*test_irq_restore_hook)(void);
+void Test_RestoreIrq(uint32_t value);
+#define __set_PRIMASK(value) Test_RestoreIrq(value)
 typedef int GPIO_TypeDef;
 typedef struct { uint32_t Mode, Pull, Speed, Pin; } GPIO_InitTypeDef;
 #define GPIO_MODE_INPUT 0
