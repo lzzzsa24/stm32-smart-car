@@ -6,6 +6,7 @@
 #include "line_tracking.h"
 #include "line_recovery.h"
 #include "line_search_model.h"
+#include "line_sensor_sample.h"
 #include "drive_base.h"
 #include "buzzer_phrase_40077493715.h"
 static uint32_t tick, brake_started;
@@ -14,8 +15,9 @@ static LineTrackingCommand output;
 static GPIO_PinState buzzer;
 static unsigned attacks, spins, reversals, brakes;
 static int32_t previous_spin;
+static unsigned gpio_mask;
 uint32_t HAL_GetTick(void) { return tick; }
-int HAL_GPIO_ReadPin(GPIO_TypeDef *p,uint16_t n) { (void)p; (void)n; return 1; }
+int HAL_GPIO_ReadPin(GPIO_TypeDef *p,uint16_t n) { (void)p; return (gpio_mask & n)?0:1; }
 void HAL_GPIO_Init(GPIO_TypeDef *p,GPIO_InitTypeDef *g) { (void)p; (void)g; }
 void HAL_GPIO_WritePin(GPIO_TypeDef *p,uint16_t n,GPIO_PinState s)
 { assert(p==Buzzer_GPIO_Port && n==Buzzer_Pin); if(s && !buzzer) ++attacks; buzzer=s; }
@@ -244,9 +246,56 @@ static void test_direction_after_unconfirmed_middle(void)
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   puts("PASS: active corner, 100 failed captures without reset, guarded correction, capture handoff, braking");
 }
+static void background_sample(unsigned mask, unsigned ms)
+{
+  gpio_mask=mask; uwTick=tick;
+  while(ms--) { HAL_IncTick(); tick=uwTick; }
+}
+static void test_sampling_during_blocked_main(void)
+{
+  unsigned side,delay,repeat;
+  LineSensorSample captured;
+  /* Exercise the real HAL tick override and GPIO acquisition, not injected
+     controller input, while the main loop cannot call line_tracking_compute. */
+  LineSensorSample_Start();
+  for(side=0;side<2;++side) for(delay=5;delay<=80;delay+=15)
+  {
+    reset(0,1); hold(5,1000); /* Fully accelerated straight run. */
+    for(repeat=0;repeat<10;++repeat)
+    {
+      background_sample(side?8:2,1); background_sample(0,delay);
+      sample(0,0,3000); hold(0,180);
+      assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      hold(5,800);
+    }
+  }
+  /* Preserve ordering; do not OR a narrow edge together with a transverse mark. */
+  reset(0,1); hold(5,1000);
+  background_sample(8,1); background_sample(7,1); background_sample(8,1); background_sample(0,10);
+  sample(0,0,3000);
+  assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
+  hold(0,250); assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  /* A whole middle/white/right/white sequence missed by main corrects active search. */
+  reset(0,0); hold(0,100);
+  background_sample(5,1); background_sample(0,10); background_sample(8,1); background_sample(0,10);
+  sample(0,0,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  assert(!output.valid && BuzzerPhrase400_IsPlaying()); /* History does not fake capture. */
+  /* Reset discards queued motion evidence; overflow keeps newest bounded history. */
+  background_sample(8,1); reset(0,0); assert(!LineSensorSample_Pop(&captured));
+  background_sample(8,1); background_sample(0,300);
+  assert(LineSensorSample_Overwritten()==45U);
+  sample(0,0,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  tick=UINT32_MAX-5; reset(0,1); background_sample(8,1); background_sample(0,20);
+  sample(0,0,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  puts("PASS: real tick/GPIO, accelerated straight, 1-ms edges in 5..80-ms main stalls, ordered filtering, overflow/reset/wrap");
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_sampling_during_blocked_main();
   test_direction_after_unconfirmed_middle();
   test_single_outer_flash_search_direction();
   test_three_black_cancels_corner();

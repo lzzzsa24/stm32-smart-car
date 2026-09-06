@@ -94,19 +94,10 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
   audio_requested = 0U;
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
 }
-LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
-                                     LineTrackingCommand *command, uint32_t now)
+void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
 {
-  DriveBaseTelemetry telemetry;
-  /* An outer+inner pair is still an edge, not a completed turn. */
   uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
-  command->valid = 0U;
-  command->left_cps = command->right_cps = 0;
-  command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
-  DriveBase_Task(now);
-  if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
-  if (phase == REC_FAULT) return LINE_RECOVERY_FAILED;
-  if (phase == REC_CAPTURED) return LINE_RECOVERY_CAPTURED;
+  if (phase != REC_SEARCH && phase != REC_BRAKE_SEARCH) return;
   /* A short middle crossing may not complete capture, yet it starts a new
      line exit. Remember its last unambiguous edge until all-white. After
      consuming that evidence, outer-only chatter cannot reverse us again. */
@@ -125,6 +116,26 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
         (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
     if (edge) { exit_side = edge; exit_edge_seen = 1U; exit_last_ms = now; }
   }
+  if (phase == REC_SEARCH && exit_direction_armed && exit_edge_seen &&
+      !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
+  {
+    side = exit_side;
+    exit_direction_armed = 0U;
+  }
+}
+LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
+                                     LineTrackingCommand *command, uint32_t now)
+{
+  DriveBaseTelemetry telemetry;
+  uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
+  command->valid = 0U;
+  command->left_cps = command->right_cps = 0;
+  command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
+  DriveBase_Task(now);
+  if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
+  if (phase == REC_FAULT) return LINE_RECOVERY_FAILED;
+  if (phase == REC_CAPTURED) return LINE_RECOVERY_CAPTURED;
+  LineRecovery_ObserveDirection(r, now);
   if (!(r->x1_black || r->x2_black || r->x3_black || r->x4_black)) audio_requested = 1U;
   if (audio_requested) search_audio(now);
   DriveBase_GetTelemetry(&telemetry);
@@ -138,12 +149,7 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   }
   if (phase == REC_SEARCH)
   {
-    if (exit_direction_armed && exit_edge_seen &&
-        !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
-    {
-      side = exit_side;
-      exit_direction_armed = 0U;
-    }
+    LineRecovery_ObserveDirection(r, now);
     command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
     if (!visible) center_candidate = 0U;
     else

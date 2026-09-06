@@ -8,6 +8,7 @@
 
 #include "line_tracking.h"
 #include "line_recovery.h"
+#include "line_sensor_sample.h"
 
 #include "drive_base.h"
 #include "main.h"
@@ -47,6 +48,8 @@ static uint8_t crossing_active, middle_recent_valid;
 static uint32_t crossing_last_ms, middle_last_ms;
 static int8_t corner_candidate;
 static uint32_t corner_since_ms, corner_last_ms;
+static uint32_t sample_overwritten;
+static uint32_t last_observation_ms;
 
 #define TRACKING_HINT_CONFIRM_MS                4U
 #define TRACKING_CROSS_CLEAR_MS               100U
@@ -235,10 +238,14 @@ void line_tracking_init(void)
   HAL_GPIO_Init(TRACK_X4_GPIO_Port, &gpio);
 
   line_tracking_reset();
+  LineSensorSample_Start();
 }
 
 void line_tracking_reset(void)
 {
+  LineSensorSample_Reset();
+  sample_overwritten = 0U;
+  last_observation_ms = HAL_GetTick();
   DriveBase_SetLineFaultObservation(0U, 0U, 0U);
   LineRecovery_Reset();
   crossing_active = middle_recent_valid = 0U;
@@ -306,6 +313,61 @@ LineTrackingReading line_tracking_read(void)
   return reading;
 }
 
+static uint8_t transverse(const LineTrackingReading *r)
+{
+  uint8_t n = (uint8_t)(r->x1_black + r->x2_black + r->x3_black + r->x4_black);
+  return n >= 3U || (r->x2_black && r->x4_black) ||
+      (r->x2_black && r->x3_black) || (r->x1_black && r->x4_black);
+}
+static void observe_crossing(uint32_t now)
+{
+  DriveBaseTelemetry telemetry;
+  LineRecovery_Commit();
+  DriveBase_GetTelemetry(&telemetry);
+  if (telemetry.mode == DRIVE_BASE_BRAKING) DriveBase_Stop(DRIVE_STOP_COAST);
+  recovery_state = LINE_RECOVERY_NORMAL;
+  crossing_active = 1U;
+  crossing_last_ms = now;
+  middle_recent_valid = 0U;
+  corner_candidate = predicted_turn_direction = recovery_turn_direction = direction_candidate = 0;
+  direction_center_active = 0U;
+  smooth_filter_valid = smooth_centered_active = 0U;
+  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+}
+static void consume_sampled_evidence(void)
+{
+  LineSensorSample sample;
+  unsigned budget = LINE_SENSOR_QUEUE_SIZE;
+  uint32_t lost = LineSensorSample_Overwritten();
+  if (lost != sample_overwritten)
+  {
+    /* Missing history cannot support an old normal-mode directional hint. */
+    predicted_turn_direction = direction_candidate = corner_candidate = 0;
+    direction_center_active = 0U;
+    sample_overwritten = lost;
+  }
+  while (budget-- && LineSensorSample_Pop(&sample))
+  {
+    LineTrackingReading r;
+    uint8_t n;
+    if ((int32_t)(sample.time_ms - last_observation_ms) <= 0) continue;
+    if (HAL_GetTick() - sample.time_ms > TRACKING_HINT_MAX_AGE_MS) continue;
+    r.x1_black = sample.mask & 1U;
+    r.x2_black = (sample.mask >> 1) & 1U;
+    r.x3_black = (sample.mask >> 2) & 1U;
+    r.x4_black = (sample.mask >> 3) & 1U;
+    n = (uint8_t)(r.x1_black + r.x2_black + r.x3_black + r.x4_black);
+    if (n) line_has_been_seen = 1U;
+    if (transverse(&r)) { observe_crossing(sample.time_ms); continue; }
+    if ((r.x1_black || r.x3_black) && !r.x2_black && !r.x4_black)
+    { middle_recent_valid = 1U; middle_last_ms = sample.time_ms; }
+    if (crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS) continue;
+    if (recovery_state == LINE_RECOVERY_ACTIVE)
+      LineRecovery_ObserveDirection(&r, sample.time_ms);
+    else
+      update_direction_hint(&r, n, sample.time_ms);
+  }
+}
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command)
@@ -354,24 +416,14 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     return LINE_ACTION_STOP;
   }
   if (recovery_state == LINE_RECOVERY_STOPPED) return LINE_ACTION_STOP;
+  consume_sampled_evidence();
+  now = HAL_GetTick();
+  last_observation_ms = now;
   /* Wide or non-adjacent black detections override a previously latched turn.
      In particular X2+X1+X3 (only rightmost white) must never keep spinning. */
-  if (active_count >= 3U || (reading->x2_black && reading->x4_black) ||
-      (reading->x2_black && reading->x3_black) || (reading->x1_black && reading->x4_black))
+  if (transverse(reading))
   {
-    DriveBaseTelemetry telemetry;
-    LineRecovery_Commit();
-    DriveBase_GetTelemetry(&telemetry);
-    if (telemetry.mode == DRIVE_BASE_BRAKING) DriveBase_Stop(DRIVE_STOP_COAST);
-    recovery_state = LINE_RECOVERY_NORMAL;
-    crossing_active = 1U;
-    crossing_last_ms = now;
-    middle_recent_valid = 0U;
-    corner_candidate = predicted_turn_direction = recovery_turn_direction = direction_candidate = 0;
-    direction_center_active = 0U;
-    smooth_filter_valid = 0U;
-    smooth_centered_active = 0U;
-    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+    observe_crossing(now);
     command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
     return command->action;
   }
