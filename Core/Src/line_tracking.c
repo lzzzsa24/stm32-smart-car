@@ -9,6 +9,7 @@
 #include "line_tracking.h"
 #include "line_recovery.h"
 #include "line_sensor_sample.h"
+#include "line_fault_log.h"
 
 #include "drive_base.h"
 #include "main.h"
@@ -50,6 +51,9 @@ static int8_t corner_candidate;
 static uint32_t corner_since_ms, corner_last_ms;
 static uint32_t sample_overwritten;
 static uint32_t last_observation_ms;
+static uint8_t last_edge_mask, last_wide_mask;
+static uint32_t last_edge_ms, last_wide_ms;
+static int8_t last_logged_side;
 
 #define TRACKING_HINT_CONFIRM_MS                4U
 #define TRACKING_CROSS_CLEAR_MS               100U
@@ -245,6 +249,8 @@ void line_tracking_reset(void)
 {
   LineSensorSample_Reset();
   sample_overwritten = 0U;
+  last_edge_mask = last_wide_mask = 0U;
+  last_logged_side = 0;
   last_observation_ms = HAL_GetTick();
   DriveBase_SetLineFaultObservation(0U, 0U, 0U);
   LineRecovery_Reset();
@@ -319,6 +325,32 @@ static uint8_t transverse(const LineTrackingReading *r)
   return n >= 3U || (r->x2_black && r->x4_black) ||
       (r->x2_black && r->x3_black) || (r->x1_black && r->x4_black);
 }
+static uint8_t unambiguous_edge(const LineTrackingReading *r)
+{
+  return (r->x2_black && !r->x3_black && !r->x4_black) ||
+      (r->x4_black && !r->x1_black && !r->x2_black);
+}
+static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
+{
+  uint8_t mask = (uint8_t)(r->x1_black | (r->x2_black << 1) |
+      (r->x3_black << 2) | (r->x4_black << 3));
+  if (unambiguous_edge(r)) { last_edge_mask = mask; last_edge_ms = now; }
+  if (transverse(r)) { last_wide_mask = mask; last_wide_ms = now; }
+}
+static void record_search(uint32_t now, LineSearchSource source)
+{
+  LineSearchRecord r;
+  r.time_ms = now;
+  r.edge_mask = last_edge_mask; r.wide_mask = last_wide_mask;
+  r.edge_age_ms = last_edge_mask ? now - last_edge_ms : UINT32_MAX;
+  r.wide_age_ms = last_wide_mask ? now - last_wide_ms : UINT32_MAX;
+  r.queue_overwritten = LineSensorSample_Overwritten();
+  r.hint = predicted_turn_direction;
+  r.chosen_side = recovery_turn_direction > 0 ? 1 : -1;
+  last_logged_side = r.chosen_side;
+  r.source = source;
+  LineFaultLog_RecordSearch(&r);
+}
 static void observe_crossing(uint32_t now)
 {
   DriveBaseTelemetry telemetry;
@@ -357,11 +389,18 @@ static void consume_sampled_evidence(uint32_t through_ms)
     r.x3_black = (sample.mask >> 2) & 1U;
     r.x4_black = (sample.mask >> 3) & 1U;
     n = (uint8_t)(r.x1_black + r.x2_black + r.x3_black + r.x4_black);
+    observe_raw_position(&r, sample.time_ms);
     if (n) line_has_been_seen = 1U;
     if (transverse(&r)) { observe_crossing(sample.time_ms); continue; }
     if ((r.x1_black || r.x3_black) && !r.x2_black && !r.x4_black)
     { middle_recent_valid = 1U; middle_last_ms = sample.time_ms; }
-    if (crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS) continue;
+    if (crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
+    {
+      /* Crossing suppresses turn commands, but a later all-white search still
+         needs the last side rather than an unconditional default-left. */
+      if (unambiguous_edge(&r)) update_direction_hint(&r, n, sample.time_ms);
+      continue;
+    }
     if (recovery_state == LINE_RECOVERY_ACTIVE)
       LineRecovery_ObserveDirection(&r, sample.time_ms);
     else
@@ -382,6 +421,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   uint8_t middle_only;
   int8_t edge_side;
   uint8_t settling = 0U;
+  LineSearchSource search_source = LINE_SEARCH_DEFAULT;
   uint32_t now = HAL_GetTick();
 
   if (command == 0 || reading == 0)
@@ -421,6 +461,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
      never advance the discard watermark past evidence not yet consumed. */
   consume_sampled_evidence(now);
   last_observation_ms = now;
+  observe_raw_position(reading, now);
   /* Wide or non-adjacent black detections override a previously latched turn.
      In particular X2+X1+X3 (only rightmost white) must never keep spinning. */
   if (transverse(reading))
@@ -434,6 +475,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   {
     if (now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
+      if (unambiguous_edge(reading)) update_direction_hint(reading, active_count, now);
       command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
       return command->action;
     }
@@ -451,6 +493,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     if (now - corner_since_ms >= TRACKING_CORNER_CONFIRM_MS)
     {
       recovery_turn_direction = edge_side;
+      record_search(now, LINE_SEARCH_CORNER);
       smooth_filter_valid = smooth_centered_active = 0U;
       smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
       LineRecovery_BeginCorner(recovery_turn_direction, now);
@@ -468,6 +511,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   if (recovery_state == LINE_RECOVERY_ACTIVE)
   {
     LineRecoveryResult result = LineRecovery_Step(reading, command, now);
+    if (result != LINE_RECOVERY_FAILED && LineRecovery_GetDirection() != last_logged_side)
+    {
+      recovery_turn_direction = LineRecovery_GetDirection();
+      record_search(now, LINE_SEARCH_CORRECTION);
+    }
     if (result == LINE_RECOVERY_CAPTURED)
     {
       /* Recovery can correct its side after a brief middle crossing. Transfer
@@ -508,8 +556,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     if (predicted_turn_direction != 0 && now - direction_last_seen_ms <= TRACKING_HINT_MAX_AGE_MS)
     {
       recovery_turn_direction = predicted_turn_direction;
+      search_source = LINE_SEARCH_HINT;
     }
     else if (recovery_state == LINE_RECOVERY_NORMAL) recovery_turn_direction = 0;
+    else search_source = LINE_SEARCH_REJOIN;
+    record_search(now, search_source);
     LineRecovery_Begin(recovery_turn_direction, now);
     recovery_state = LINE_RECOVERY_ACTIVE;
     /* Begin applied active braking; the caller must not overwrite it with

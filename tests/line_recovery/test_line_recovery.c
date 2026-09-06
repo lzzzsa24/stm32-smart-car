@@ -7,6 +7,11 @@
 #include "line_recovery.h"
 #include "line_search_model.h"
 #include "line_sensor_sample.h"
+#include "line_fault_log.h"
+#include "diagnostic_uart.h"
+void DiagnosticUart_WriteString(const char *s) { (void)s; }
+void DiagnosticUart_WriteUnsigned(uint32_t v) { (void)v; }
+void DiagnosticUart_WriteSigned(int32_t v) { (void)v; }
 #include "drive_base.h"
 #include "buzzer_phrase_40077493715.h"
 static uint32_t tick, brake_started;
@@ -192,10 +197,10 @@ static void test_single_outer_flash_search_direction(void)
   reset(0,0); hold(0,100); sample(1,1,3000); sample(1,4,3000);
   sample(8,1,3000); hold(0,180);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
-  /* Wide evidence and its ignored trailing edge cannot seed a right hint. */
+  /* Wide evidence clears earlier hints; a later tail supplies the exit side. */
   reset(0,0); hold(5,100); sample(8,1,3000); sample(7,1,3000);
   hold(0,40); sample(8,1,3000); hold(0,220);
-  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   /* A sustained return to centre, an expired hint, or mode reset invalidates it. */
   reset(0,0); sample(8,1,3000); hold(5,100); hold(0,180);
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
@@ -209,11 +214,14 @@ static void test_single_outer_flash_search_direction(void)
 static void test_direction_after_unconfirmed_middle(void)
 {
   unsigned i,before;
+  LineSearchRecord decision;
   reset(0,0); hold(2,100); /* Earlier left corner still owns recovery. */
   sample(8,1,3000); hold(0,100);
   printf("locked left, last right edge: left=%ld\n",(long)telemetry.requested_cps[0]);
   fflush(stdout);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_CORRECTION && decision.chosen_side==1);
   before=brakes;
   /* Repeated failed captures without reset must not retain the first side. */
   for(i=0;i<100;++i)
@@ -274,7 +282,7 @@ static void test_sampling_during_blocked_main(void)
   background_sample(8,1); background_sample(7,1); background_sample(8,1); background_sample(0,10);
   sample(0,0,3000);
   assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
-  hold(0,250); assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  hold(0,250); assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   /* A whole middle/white/right/white sequence missed by main corrects active search. */
   reset(0,0); hold(0,100);
   background_sample(5,1); background_sample(0,10); background_sample(8,1); background_sample(0,10);
@@ -327,9 +335,48 @@ static void test_queue_handoff_interrupt(void)
   assert(observation.mask==0 && observation.time_ms==0);
   puts("PASS: ISR after empty/nonempty pop, 80 repeated handoffs, bounded queue across tick wrap");
 }
+static void test_fast_exit_after_transverse(void)
+{
+  unsigned side,buffered;
+  LineSearchRecord decision;
+  LineSensorSample_Start();
+  for(side=0;side<2;++side) for(buffered=0;buffered<2;++buffered)
+  {
+    reset(0,1); hold(5,1000);
+    if(buffered)
+    {
+      background_sample(7,1); background_sample(side?8:2,1); background_sample(0,20);
+      sample(0,0,3000);
+    }
+    else { sample(7,1,3000); sample(side?8:2,1,3000); hold(0,20); }
+    assert(output.valid && output.left_cps>0 && output.left_cps==output.right_cps);
+    assert(!BuzzerPhrase400_IsPlaying());
+    hold(0,200);
+    printf("cross tail side=%u queued=%u: left=%ld\n",side,buffered,(long)telemetry.requested_cps[0]);
+    fflush(stdout);
+    assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_HINT && decision.chosen_side==(side?1:-1));
+    assert(decision.edge_mask==(side?8:2) && decision.wide_mask==7);
+  }
+  /* A later broad mark still invalidates a previously seen edge. The log
+     distinguishes discarded evidence from never seeing an edge at all. */
+  reset(0,1); hold(5,1000); sample(8,1,3000); sample(7,1,3000); hold(0,220);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_mask==8 && decision.wide_mask==7);
+  assert(decision.edge_age_ms>decision.wide_age_ms && decision.chosen_side==-1);
+  reset(0,1); hold(5,1000); sample(7,1,3000); sample(8,1,3000); hold(5,500); hold(0,180);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_DEFAULT); /* Stable centre invalidates tail direction. */
+  reset(0,1); hold(5,1000); sample(7,1,3000); sample(8,1,3000); sample(0,250,3000); hold(0,100);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_age_ms>=250);
+  { uint32_t preserved=LineFaultLog_SearchCount(); line_tracking_reset(); assert(LineFaultLog_SearchCount()==preserved); }
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_fast_exit_after_transverse();
   test_queue_handoff_interrupt();
   test_sampling_during_blocked_main();
   test_direction_after_unconfirmed_middle();

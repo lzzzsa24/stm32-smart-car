@@ -5,12 +5,30 @@ static LineFaultRecord records[LINE_FAULT_LOG_CAPACITY];
 static uint32_t count, next, sequence, overwritten;
 static uint8_t dump_pending, dump_active, dump_part;
 static uint32_t dump_index;
+static LineSearchRecord searches[LINE_SEARCH_LOG_CAPACITY];
+static uint32_t search_count, search_next, search_overwritten;
 
 void LineFaultLog_Init(void)
 {
   count = next = sequence = overwritten = 0U;
   dump_pending = dump_active = dump_part = 0U;
   dump_index = 0U;
+  search_count = search_next = search_overwritten = 0U;
+}
+uint32_t LineFaultLog_SearchCount(void) { return search_count; }
+void LineFaultLog_RecordSearch(const LineSearchRecord *r)
+{
+  if (!r) return;
+  searches[search_next] = *r;
+  search_next = (search_next + 1U) % LINE_SEARCH_LOG_CAPACITY;
+  if (search_count < LINE_SEARCH_LOG_CAPACITY) ++search_count;
+  else if (search_overwritten != UINT32_MAX) ++search_overwritten;
+}
+uint8_t LineFaultLog_GetSearch(uint32_t index, LineSearchRecord *r)
+{
+  if (!r || index >= search_count) return 0U;
+  *r = searches[(search_next + LINE_SEARCH_LOG_CAPACITY - search_count + index) % LINE_SEARCH_LOG_CAPACITY];
+  return 1U;
 }
 uint32_t LineFaultLog_Count(void) { return count; }
 uint32_t LineFaultLog_Overwritten(void) { return overwritten; }
@@ -70,9 +88,27 @@ void LineFaultLog_Task(uint8_t stopped)
     return;
   }
   if (!dump_active) return;
+  if (dump_active == 2U)
+  {
+    DiagnosticUart_WriteString("LSEARCH BEGIN v=1 sources=0:default,1:hint,2:rejoin,3:corner,4:correction");
+    u(" count=", search_count); u(" overwritten=", search_overwritten);
+    DiagnosticUart_WriteString("\r\n"); dump_index = 0U; dump_active = 3U; return;
+  }
+  if (dump_active == 3U)
+  {
+    LineSearchRecord decision;
+    if (!LineFaultLog_GetSearch(dump_index, &decision))
+    { DiagnosticUart_WriteString("LSEARCH END\r\n"); dump_active = 0U; return; }
+    DiagnosticUart_WriteString("LSEARCH"); u(" ms=", decision.time_ms);
+    s(" side=", decision.chosen_side); u(" source=", (uint32_t)decision.source);
+    s(" hint=", decision.hint); u(" edge=", decision.edge_mask); u(" edge_age=", decision.edge_age_ms);
+    u(" wide=", decision.wide_mask); u(" wide_age=", decision.wide_age_ms);
+    u(" queue_overwritten=", decision.queue_overwritten);
+    DiagnosticUart_WriteString("\r\n"); ++dump_index; return;
+  }
   if (!LineFaultLog_Get(dump_index, &r))
   {
-    DiagnosticUart_WriteString("LFAULT END\r\n"); dump_active = 0U; return;
+    DiagnosticUart_WriteString("LFAULT END\r\n"); dump_active = 2U; return;
   }
   DiagnosticUart_WriteString("LFAULT"); u(" seq=", r.sequence);
   if (!dump_part)
