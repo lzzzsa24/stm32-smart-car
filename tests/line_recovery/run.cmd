@@ -12,7 +12,7 @@ cl /nologo /W4 /WX /utf-8 /std:c11 /DLINE_SEARCH_NOMINAL_YAW_MDEG_S=90000 /Itest
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-line-host-test\test_line_recovery_slow.exe
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\line_recovery\test_line_turn_load.c Core\Src\drive_base.c Core\Src\motion_advanced.c Core\Src\line_wait_guard.c Core\Src\line_turn_load.c Core\Src\line_tracking.c Core\Src\line_sensor_sample.c Core\Src\line_sensor_clock.c tests\line_recovery\tick_stub.c Core\Src\line_recovery.c Core\Src\line_fault_log.c Core\Src\buzzer_phrase_40077493715.c /Fomanual-build-line-host-test\ /Femanual-build-line-host-test\test_line_turn_load.exe
+cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\line_recovery\test_line_turn_load.c Core\Src\drive_base.c Core\Src\encoder_turn.c Core\Src\encoder_linear.c Core\Src\line_obstacle_bypass.c Core\Src\line_bypass_turn.c Core\Src\motion_advanced.c Core\Src\line_wait_guard.c Core\Src\line_turn_load.c Core\Src\line_tracking.c Core\Src\line_sensor_sample.c Core\Src\line_sensor_clock.c tests\line_recovery\tick_stub.c Core\Src\line_recovery.c Core\Src\line_fault_log.c Core\Src\buzzer_phrase_40077493715.c /Fomanual-build-line-host-test\ /Femanual-build-line-host-test\test_line_turn_load.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-line-host-test\test_line_turn_load.exe
 if not "%errorlevel%"=="0" exit /b 1

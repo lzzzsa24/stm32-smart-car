@@ -16,6 +16,10 @@
 #include "buzzer_phrase_40077493715.h"
 #include "line_fault_log.h"
 #include "diagnostic_uart.h"
+#include "line_bypass_turn.h"
+#include "line_obstacle_bypass.h"
+#include "encoder_linear.h"
+#include "encoder_turn.h"
 
 void DiagnosticUart_WriteString(const char *s) { (void)s; }
 void DiagnosticUart_WriteUnsigned(uint32_t v) { (void)v; }
@@ -536,6 +540,140 @@ static void test_observe_faults(void)
   }
   puts("PASS: line faults log and continue; bounded fallback; capture/STOP; other owners still stop");
 }
+static void test_bypass_continuous_turn(int32_t direction, int32_t angle)
+{
+  DriveBaseTelemetry t;
+  int32_t creep[4]={-direction,-direction,direction,direction};
+  int32_t zero[4]={0};
+  int32_t target=(int32_t)(((int64_t)angle * LINE_SEARCH_EFFECTIVE_TRACK_MM *
+      LINE_SEARCH_COUNTS_PER_REV + LINE_SEARCH_CPS_DENOMINATOR/2) /
+      LINE_SEARCH_CPS_DENOMINATOR);
+  unsigned i,w;
+  LineBypassTurn_Stop(); reset();
+  assert(LineBypassTurn_Start(direction*angle,1800));
+  for(i=0;i<30;++i)
+  {
+    LineBypassTurn_Task(); sample(creep);
+    DriveBase_GetTelemetry(&t);
+    assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
+    for(w=0;w<4;++w)
+    {
+      assert(t.requested_cps[w]==(w<2?-direction:direction)*1800);
+      /* Slow but legal wheel motion: no staggered coast/pulse tail. */
+      assert(pins[w]*(w<2?-direction:direction)>0);
+    }
+  }
+  assert(absolute(pins[0])>2300); /* bounded PI + lag assistance */
+  /* Even after one wheel finishes early, all wheels keep a continuous target. */
+  counts[0]=-direction*target;
+  LineBypassTurn_Task();
+  DriveBase_GetTelemetry(&t);
+  assert(t.mode==DRIVE_BASE_SPEED && t.requested_cps[0]==-direction*1800);
+  counts[0]=counts[1]=-direction*(target+5);
+  counts[2]=counts[3]=direction*(target+5);
+  LineBypassTurn_Task();
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING);
+  counts[0]-=direction*5; counts[1]-=direction*5;
+  counts[2]+=direction*5; counts[3]+=direction*5;
+  for(i=0;i<8;++i) { sample(zero); LineBypassTurn_Task(); }
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_DONE);
+  assert(LineBypassTurn_GetAchievedAngleMdeg()*direction>angle);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  printf("PASS: continuous bypass angle=%ld direction=%ld, four-wheel effort and settled travel\n",
+      (long)angle,(long)direction);
+  LineBypassTurn_Stop();
+}
+
+static void test_bypass_turn_limits(void)
+{
+  DriveBaseTelemetry t;
+  int32_t zero[4]={0}, creep[4]={-1,-1,1,1};
+  unsigned i;
+  reset(); EncoderTurn_Init();
+  assert(EncoderTurn_Start(15000,0,1800));
+  assert(!LineBypassTurn_Start(15000,1800)); /* position owner wins */
+  counts[0]=counts[1]=-100; counts[2]=counts[3]=100;
+  tick+=20; EncoderTurn_Task(); DriveBase_GetTelemetry(&t);
+  assert(t.mode==DRIVE_BASE_POSITION);
+  assert(absolute(t.requested_cps[0])<1412);
+  printf("Legacy 15-degree bypass: remaining=%ld, reduced target=%ld CPS\n",
+      (long)absolute(t.position_remaining_counts[0]),(long)absolute(t.requested_cps[0]));
+  EncoderTurn_Stop(); reset();
+  assert(!LineBypassTurn_Start(0,1800));
+  assert(!LineBypassTurn_Start(15000,0));
+  assert(!LineBypassTurn_Start(INT32_MIN,1800));
+  assert(LineBypassTurn_Start(15000,1800));
+  assert(!LineBypassTurn_Start(-15000,1800));
+  DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTurn_Task();
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_FAULT);
+  for(i=0;i<4;++i) assert(pins[i]==0);
+  LineBypassTurn_Stop(); reset();
+  assert(LineBypassTurn_Start(45000,1800));
+  for(i=0;i<200 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+  { LineBypassTurn_Task(); sample(creep); }
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_FAULT);
+  assert(LineBypassTurn_GetFaultMask()==0x10); /* too little progress, bounded */
+  LineBypassTurn_Stop(); reset();
+  assert(LineBypassTurn_Start(15000,1800));
+  for(i=0;i<140 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+  { LineBypassTurn_Task(); sample(zero); }
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_FAULT);
+  assert(LineBypassTurn_GetFaultMask()&0x0f); /* real stall remains identifiable */
+  LineBypassTurn_Stop(); reset();
+  assert(LineBypassTurn_Start(15000,1800));
+  counts[0]=0; counts[1]=-1000; counts[2]=counts[3]=1000;
+  LineBypassTurn_Task();
+  DriveBase_GetTelemetry(&t);
+  assert(t.mode==DRIVE_BASE_SPEED); /* three moving wheels cannot hide M1 */
+  LineBypassTurn_Stop();
+  for(i=0;i<4;++i) assert(pins[i]==0);
+  puts("PASS: legacy low-speed tail reproduced; bypass ownership, stall, progress timeout and cancellation");
+}
+
+static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
+{
+  LineObstacleBypassConfig config;
+  LineObstacleBypassInput input={0};
+  LineObstacleBypassTelemetry bypass;
+  DriveBaseTelemetry drive;
+  unsigned i;
+  reset(); EncoderLinear_Init(); LineObstacleBypass_GetDefaultConfig(&config);
+  config.stop_time_ms=0; config.direction_guard_ms=0;
+  LineObstacleBypass_Init(&config);
+  input.infrared_valid=1;
+  input.left_ir_adc=input.right_ir_adc=3000;
+  input.left_ir_threshold=input.right_ir_threshold=1500;
+  input.left_ir_hysteresis=input.right_ir_hysteresis=200;
+  assert(LineObstacleBypass_Start(direction));
+  for(i=0;i<20 && LineObstacleBypass_GetState()!=LINE_BYPASS_TURNING;++i)
+  { LineObstacleBypass_Task(&input); tick+=20; }
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_TURNING);
+  DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_SPEED);
+  /* IR sees the flank before any encoder travel; default 3-sample filter.
+     Previous code classified this valid early completion as fault 0x10. */
+  if(early_ir) input.left_ir_adc=input.right_ir_adc=1700;
+  for(i=0;i<100 && LineObstacleBypass_GetState()==LINE_BYPASS_TURNING;++i)
+  {
+    DriveBase_GetTelemetry(&drive);
+    if(!early_ir && drive.mode==DRIVE_BASE_SPEED)
+    {
+      counts[0]+=direction*36; counts[1]+=direction*36;
+      counts[2]-=direction*36; counts[3]-=direction*36;
+    }
+    LineObstacleBypass_Task(&input); tick+=20;
+  }
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_DRIVING);
+  assert(!LineObstacleBypass_GetFaultMask());
+  LineObstacleBypass_GetTelemetry(&bypass);
+  if(early_ir) assert(bypass.net_turn_mdeg==0);
+  else assert(bypass.net_turn_mdeg * -direction>=45000);
+  LineObstacleBypass_Stop();
+  DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_STOPPED);
+  for(i=0;i<4;++i) assert(pins[i]==0);
+  printf("PASS: real KEY1 bypass direction=%d early_IR=%u transfers turn to translation\n",
+      (int)direction,(unsigned)early_ir);
+}
+
 int main(void)
 {
   LineTurnLoadState s={0};
@@ -639,6 +777,15 @@ int main(void)
   test_real_exit_direction_correction();
   test_no_motion_keeps_turn_effort();
   test_observe_faults();
+  test_bypass_turn_limits();
+  test_bypass_continuous_turn(1,15000);
+  test_bypass_continuous_turn(-1,45000);
+  tick=UINT32_MAX-200;
+  test_bypass_continuous_turn(-1,15000);
+  test_bypass_state_machine(1,1);
+  test_bypass_state_machine(-1,1);
+  test_bypass_state_machine(1,0);
+  test_bypass_state_machine(-1,0);
   (void)trace(2500,-2500,0,1);
   for(i=0;i<4;++i) sample(creep);
   assert(pins[0]<3000);
