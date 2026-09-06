@@ -167,6 +167,17 @@ static void update_direction_hint(const LineTrackingReading *reading,
                        reading->x3_black + 3 * reading->x4_black;
   int8_t side = position < 0 ? -1 : (position > 0 ? 1 : 0);
 
+  /* One sampled unambiguous outer hit is enough to remember where the line
+     exited. This does not start a turn: its 12-ms command gate is separate.
+     The caller has already rejected transverse patterns and their tail. */
+  if ((reading->x2_black && !reading->x3_black && !reading->x4_black) ||
+      (reading->x4_black && !reading->x1_black && !reading->x2_black))
+  {
+    predicted_turn_direction = direction_candidate = side;
+    direction_last_seen_ms = direction_candidate_since_ms = now;
+    direction_center_active = 0U;
+    return;
+  }
   if (reading->x2_black && reading->x4_black)
   {
     predicted_turn_direction = 0;
@@ -374,7 +385,8 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     }
     crossing_active = 0U;
   }
-  if (recovery_state == LINE_RECOVERY_NORMAL) update_direction_hint(reading, active_count, now);
+  if (recovery_state == LINE_RECOVERY_NORMAL || recovery_state == LINE_RECOVERY_SETTLE)
+    update_direction_hint(reading, active_count, now);
   edge_side = reading->x2_black && !reading->x3_black && !reading->x4_black ? -1 :
               (reading->x4_black && !reading->x1_black && !reading->x2_black ? 1 : 0);
   if ((recovery_state == LINE_RECOVERY_NORMAL || recovery_state == LINE_RECOVERY_SETTLE) && edge_side)
@@ -434,12 +446,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       command_set_pwm(command, base_speed, base_speed, LINE_ACTION_FORWARD);
       return LINE_ACTION_FORWARD;
     }
-    if (recovery_state == LINE_RECOVERY_NORMAL)
+    if (predicted_turn_direction != 0 && now - direction_last_seen_ms <= TRACKING_HINT_MAX_AGE_MS)
     {
       recovery_turn_direction = predicted_turn_direction;
-      if (now - direction_last_seen_ms > TRACKING_HINT_MAX_AGE_MS)
-        recovery_turn_direction = 0;
     }
+    else if (recovery_state == LINE_RECOVERY_NORMAL) recovery_turn_direction = 0;
     LineRecovery_Begin(recovery_turn_direction, now);
     recovery_state = LINE_RECOVERY_ACTIVE;
     /* Begin applied active braking; the caller must not overwrite it with

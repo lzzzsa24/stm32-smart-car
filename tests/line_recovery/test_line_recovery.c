@@ -170,9 +170,44 @@ static void test_patterns_and_narrow_windows(void)
   line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying());
   puts("PASS: all 16 masks, transverse override in 5 states, edge debounce, 4-ms middle and finite gaps");
 }
+static void test_single_outer_flash_search_direction(void)
+{
+  unsigned side,smooth,forward;
+  for(side=1;side<3;++side) for(smooth=0;smooth<2;++smooth) for(forward=0;forward<2;++forward)
+  {
+    unsigned mask=side==1?8:2;
+    reset((uint8_t)forward,(uint8_t)smooth); hold(5,300);
+    sample(mask,1,3000); /* Exactly one sampled outer hit, below 4/12-ms gates. */
+    assert(output.valid && output.left_cps>0 && output.right_cps>0);
+    hold(0,180);
+    printf("single outer=%u then loss: left=%ld right=%ld\n",mask,
+           (long)telemetry.requested_cps[0],(long)telemetry.requested_cps[2]);
+    fflush(stdout);
+    assert_search();
+    assert(telemetry.requested_cps[0]==(side==1?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+  }
+  /* A fresh opposite flash also wins over the previous recovery direction. */
+  reset(0,0); hold(0,100); sample(1,1,3000); sample(1,4,3000);
+  sample(8,1,3000); hold(0,180);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  /* Wide evidence and its ignored trailing edge cannot seed a right hint. */
+  reset(0,0); hold(5,100); sample(8,1,3000); sample(7,1,3000);
+  hold(0,40); sample(8,1,3000); hold(0,220);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  /* A sustained return to centre, an expired hint, or mode reset invalidates it. */
+  reset(0,0); sample(8,1,3000); hold(5,100); hold(0,180);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  reset(0,0); sample(8,1,3000); sample(0,250,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  reset(0,0); sample(8,1,3000); reset(0,0); hold(0,100);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  tick=UINT32_MAX-20; reset(0,0); sample(8,1,3000); hold(0,180);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_single_outer_flash_search_direction();
   test_three_black_cancels_corner();
   test_patterns_and_narrow_windows();
   test_corner_edge_chatter();
