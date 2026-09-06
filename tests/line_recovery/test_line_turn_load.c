@@ -250,15 +250,19 @@ static void test_real_corner_chatter(void)
       LineTrackingReading r;
       for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
       ++tick; DriveBase_Task(tick);
-      if(ms<300 || ms>=2100) mask=5;
+      if(ms<300 || ms>=2220) mask=5;
+      else if(ms>=2100 && ms<2140) mask=side?13:7;
+      else if(ms>=2140) mask=0;
       else if(ms<600) mask=side?8:2;
-      else if(ms%100<10) mask=5; /* Ten-ms middle flash amid edge chatter. */
+      else if(ms%100<2) mask=5; /* Two-ms isolated flash does not confirm a narrow line. */
       else if((ms/30)%3==0) mask=0;
       else mask=side?12:3;
       r=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
       line_tracking_compute(&r,3000,&out);
       if(out.valid) DriveBase_SetSideCps(out.left_cps,out.right_cps);
       DriveBase_GetTelemetry(&t);
+      if(ms>=2100 && ms<2200) assert(t.requested_cps[0]>0 && t.requested_cps[2]>0);
+      if(ms>=2200 && ms<2250) assert(pins[0]>0 && pins[1]>0 && pins[2]>0 && pins[3]>0);
       if(ms>=600 && ms<2100)
       {
         assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);

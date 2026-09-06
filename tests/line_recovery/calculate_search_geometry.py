@@ -111,7 +111,7 @@ def main():
     report["search_same_direction_until_capture"] = True
     report["capture_confirmation_ms"] = {
         name: literal("Core/Src/line_recovery.c", name)
-        for name in ("SENSOR_CONFIRM_MS", "CAPTURE_STATIONARY_MS")
+        for name in ("SENSOR_CONFIRM_MS", "SENSOR_MAX_SAMPLE_GAP_MS")
     }
     report["capture_minimum_settle_ms"] = literal("Core/Src/line_tracking.c", "TRACKING_REACQUIRE_SETTLE_MS")
     report["preset_audio_repeat_until_confirmed_line_or_stop"] = True

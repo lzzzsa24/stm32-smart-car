@@ -46,9 +46,9 @@ typedef struct
 
 void line_tracking_init(void);
 void line_tracking_reset(void);
-/* enable=1：尚未见过黑线时允许无黑线直行。已见线后的全白持续搜索并鸣响；
-   外侧急弯与搜索保持同向对转，直到中间区域稳定见线再制动确认和低速接线。
-   外侧/全白反复变化不触发停车或限时退出。STOP/reset 取消；驱动观察策略见 DriveBase。 */
+/* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才搜索鸣响。
+   三/四路黑或不相邻多点黑优先低速穿越，覆盖旧转向。可靠外侧急弯持续转向，
+   窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */
 void line_tracking_set_no_line_forward(uint8_t enable);
 /* enable=1: use filtered PD differential steering as the line-position outer
    loop. Wheel-speed feedback remains in DriveBase. */

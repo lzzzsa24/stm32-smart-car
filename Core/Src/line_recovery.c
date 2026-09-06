@@ -3,15 +3,15 @@
 #include "drive_base.h"
 #include "buzzer_phrase_40077493715.h"
 
-#define SENSOR_CONFIRM_MS        20U
-#define CAPTURE_STATIONARY_MS     80U
+#define SENSOR_CONFIRM_MS         4U
+#define SENSOR_MAX_SAMPLE_GAP_MS 30U
 
-typedef enum { REC_IDLE, REC_BRAKE_SEARCH, REC_SEARCH, REC_BRAKE_CAPTURE,
-               REC_CONFIRM_CAPTURE, REC_CAPTURED, REC_FAULT } RecoveryPhase;
+typedef enum { REC_IDLE, REC_BRAKE_SEARCH, REC_SEARCH,
+               REC_CAPTURED, REC_FAULT } RecoveryPhase;
 static RecoveryPhase phase;
 static int8_t side;
 static uint8_t center_candidate, audio_owned, audio_requested;
-static uint32_t phase_start, center_since;
+static uint32_t center_since, center_last_ms;
 static LineRecoveryStopReason stop_reason;
 
 static void stop_audio(void)
@@ -57,7 +57,7 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
   stop_reason = LINE_REC_STOP_NONE;
   DriveBase_Stop(DRIVE_STOP_BRAKE);
   phase = REC_BRAKE_SEARCH;
-  phase_start = now;
+  center_last_ms = now;
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
   else
   {
@@ -73,7 +73,7 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
   center_candidate = 0U;
   stop_reason = LINE_REC_STOP_NONE;
   phase = REC_SEARCH;
-  phase_start = now;
+  center_last_ms = now;
   audio_requested = 0U;
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
 }
@@ -94,48 +94,29 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   if (audio_requested) search_audio(now);
   DriveBase_GetTelemetry(&telemetry);
 
-  if (phase == REC_BRAKE_SEARCH || phase == REC_BRAKE_CAPTURE)
+  if (phase == REC_BRAKE_SEARCH)
   {
-    RecoveryPhase finished = phase;
     if (telemetry.mode == DRIVE_BASE_BRAKING) return LINE_RECOVERY_BUSY;
     DriveBase_Stop(DRIVE_STOP_COAST);
-    phase = finished == REC_BRAKE_CAPTURE || visible ? REC_CONFIRM_CAPTURE : REC_SEARCH;
-    phase_start = now;
+    phase = REC_SEARCH;
     center_candidate = 0U;
   }
-  else if (phase == REC_SEARCH)
-  {
-    /* Confirm while still turning, so a one-frame hit never drops torque. */
-    if (!visible) center_candidate = 0U;
-    else
-    {
-      if (!center_candidate) { center_candidate = 1U; center_since = now; }
-      if (now - center_since >= SENSOR_CONFIRM_MS)
-      {
-        DriveBase_Stop(DRIVE_STOP_BRAKE);
-        phase = REC_BRAKE_CAPTURE;
-        center_candidate = 0U;
-      }
-    }
-  }
-  else if (phase == REC_CONFIRM_CAPTURE)
+  if (phase == REC_SEARCH)
   {
     if (!visible) center_candidate = 0U;
     else
     {
-      if (!center_candidate) { center_candidate = 1U; center_since = now; }
-      if (now - center_since >= SENSOR_CONFIRM_MS)
+      /* Require repeated nearby observations, not one isolated sample or
+         an assumed 20-ms-wide stripe. Switch to rolling capture immediately. */
+      if (!center_candidate || now - center_last_ms > SENSOR_MAX_SAMPLE_GAP_MS)
+      { center_candidate = 1U; center_since = now; }
+      else if (now - center_since >= SENSOR_CONFIRM_MS)
       {
         stop_audio();
         phase = REC_CAPTURED;
         return LINE_RECOVERY_CAPTURED;
       }
-    }
-    /* A false hit resumes rotation. This timer never latches a stop. */
-    if (now - phase_start >= CAPTURE_STATIONARY_MS)
-    {
-      phase = REC_SEARCH;
-      center_candidate = 0U;
+      center_last_ms = now;
     }
   }
   if (phase == REC_SEARCH)

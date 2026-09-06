@@ -99,37 +99,96 @@ static void test_corner_edge_chatter(void)
       sample(5,10,3000); hold(outer,30); /* Fleeting inner hit must not brake. */
       assert(brakes==before && telemetry.mode==DRIVE_BASE_SPEED);
     }
-    hold(15,100); assert(brakes==before); /* Crossing is not middle capture. */
-    hold(5,180); assert(brakes==before+1 && output.left_cps>0 && output.right_cps>0);
+    hold(5,180); assert(brakes==before && output.left_cps>0 && output.right_cps>0);
     assert(!BuzzerPhrase400_IsPlaying());
     /* If low-speed capture falls back to the edge, restore a continuous turn
        without another stationary confirmation pause on that outer sensor. */
-    hold(outer,30); assert(brakes==before+1 && !output.valid);
+    hold(outer,30); assert(brakes==before && !output.valid);
     assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
-    hold(0,30); hold(pair,300); assert(brakes==before+1);
+    hold(0,30); hold(pair,300); assert(brakes==before);
     assert(BuzzerPhrase400_IsPlaying());
-    hold(5,180); assert(brakes==before+2 && !BuzzerPhrase400_IsPlaying());
+    hold(5,180); assert(brakes==before && !BuzzerPhrase400_IsPlaying());
     hold(5,550); assert(output.left_cps>2400);
     line_tracking_reset();
   }
 }
+static void test_three_black_cancels_corner(void)
+{
+  reset(0,0); hold(2,100);
+  assert(telemetry.requested_cps[0]<0);
+  sample(7,10,3000); /* Physical X2/X1/X3 black; rightmost X4 white. */
+  printf("three black after corner: left=%ld right=%ld\n",
+         (long)telemetry.requested_cps[0],(long)telemetry.requested_cps[2]);
+  fflush(stdout);
+  assert(output.valid && output.left_cps>0 && output.left_cps==output.right_cps);
+}
+static void test_patterns_and_narrow_windows(void)
+{
+  const unsigned wide[]={6,7,9,10,11,13,14,15};
+  unsigned mask,mode,i,before;
+  /* Every input is classified before weighted steering or a corner latch. */
+  for(mask=0;mask<16;++mask)
+  {
+    reset(0,0); sample(mask,1,3000);
+    if(mask==0) assert(!output.valid && telemetry.mode==DRIVE_BASE_BRAKING);
+    else assert(output.valid && output.left_cps>0 && output.right_cps>0);
+    if(mask==2 || mask==3 || mask==8 || mask==12)
+    { hold(mask,30); assert(!output.valid && telemetry.requested_cps[0]*telemetry.requested_cps[2]<0); }
+  }
+  for(mode=0;mode<5;++mode) for(i=0;i<sizeof wide/sizeof wide[0];++i)
+  {
+    reset(0,0);
+    if(mode==1) hold(2,100);
+    if(mode==2) hold(8,100);
+    if(mode==3) sample(0,1,3000); /* Transverse evidence during loss braking. */
+    if(mode==4) { hold(0,100); sample(1,1,3000); sample(1,4,3000); }
+    sample(wide[i],1,3000);
+    assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
+    assert(!BuzzerPhrase400_IsPlaying() && telemetry.mode==DRIVE_BASE_SPEED);
+    hold(0,80); hold(2,10);
+    assert(output.valid && output.left_cps==output.right_cps && !BuzzerPhrase400_IsPlaying());
+    /* A real long loss eventually returns to search, not endless forward. */
+    hold(0,220); assert(!output.valid && BuzzerPhrase400_IsPlaying());
+  }
+  reset(0,0); hold(5,100); sample(2,1,3000); sample(7,1,3000);
+  hold(0,50); sample(13,1,3000); hold(8,30); hold(0,30);
+  assert(!spins && !brakes); /* Cross-strip entry/exit fragments never spin. */
+
+  reset(0,0); hold(0,100); before=brakes;
+  sample(1,1,3000); sample(0,1,3000); sample(1,100,3000);
+  assert(!output.valid && BuzzerPhrase400_IsPlaying()); /* Isolated or stale samples rejected. */
+  sample(0,1,3000); sample(1,1,3000); sample(1,4,3000);
+  assert(output.valid && output.left_cps>0 && output.right_cps>0);
+  assert(brakes==before && !BuzzerPhrase400_IsPlaying()); /* No stationary reacquisition. */
+  for(i=0;i<15;++i)
+  {
+    hold(0,45); assert(output.valid && output.left_cps>0 && !BuzzerPhrase400_IsPlaying());
+    sample(i%2?1:4,1,3000); sample(i%2?1:4,4,3000);
+  }
+  sample(5,1,3000); assert(output.left_cps>2400 && brakes==before);
+  hold(0,180); assert(!output.valid && BuzzerPhrase400_IsPlaying());
+  line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying());
+  puts("PASS: all 16 masks, transverse override in 5 states, edge debounce, 4-ms middle and finite gaps");
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_three_black_cancels_corner();
+  test_patterns_and_narrow_windows();
   test_corner_edge_chatter();
   for(smooth=0;smooth<=1;++smooth) for(forward=0;forward<=1;++forward)
   {
-    reset((uint8_t)forward,(uint8_t)smooth); hold(5,300); sample(0,10,3000);
+    reset((uint8_t)forward,(uint8_t)smooth); hold(5,300); sample(0,70,3000);
     assert(!output.valid && telemetry.mode==DRIVE_BASE_BRAKING && BuzzerPhrase400_IsPlaying());
     hold(0,90000); assert_search(); assert(attacks>250); /* Beyond 8 s and 24 phrase repeats. */
     hold(2,10000); assert_search(); hold(8,10000); assert_search();
-    hold(15,1000); assert_search(); /* Wide crossing is not a confirmed middle line. */
+    hold(3,1000); assert_search(); /* Same-side pair remains an edge. */
     sample(5,10,3000); assert(telemetry.mode==DRIVE_BASE_SPEED);
     hold(0,200); assert_search(); /* False contact resumes, never latches stop. */
     hold(5,180); assert(output.valid && output.left_cps>0 && !BuzzerPhrase400_IsPlaying() && !buzzer);
     hold(2,2000); assert(!output.valid && telemetry.requested_cps[0]<0 && telemetry.requested_cps[2]>0);
     hold(5,750); assert(output.left_cps>2400 && !BuzzerPhrase400_IsPlaying());
-    sample(0,10,3000); hold(0,100); assert_search();
+    sample(0,10,3000); hold(0,160); assert_search();
     /* Same cancellation hook that main calls on remote STOP / mode handoff. */
     line_tracking_reset(); assert(telemetry.mode==DRIVE_BASE_STOPPED && !BuzzerPhrase400_IsPlaying() && !buzzer);
     for(i=0;i<100;++i) sample(5,10,0);
