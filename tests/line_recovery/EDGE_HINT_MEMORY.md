@@ -1,5 +1,7 @@
 # 短暂外沿观测与丢线搜索方向
 
+后续 ACTIVE 恢复状态的方向更新及交接修正见 [ACTIVE_EXIT_DIRECTION.md](ACTIVE_EXIT_DIRECTION.md)。
+
 用户观察：直线冲出黑线前，最右侧传感器灯闪了一下，丢线后却向左搜索。
 本次修改基于 worker `65acc30ae2849f95d22b08f97cfb3780633ad490`，保留横向短黑线过滤。
 

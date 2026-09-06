@@ -416,6 +416,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     LineRecoveryResult result = LineRecovery_Step(reading, command, now);
     if (result == LINE_RECOVERY_CAPTURED)
     {
+      /* Recovery can correct its side after a brief middle crossing. Transfer
+         that side and discard pre-recovery hints before low-speed rejoin. */
+      recovery_turn_direction = LineRecovery_GetDirection();
+      predicted_turn_direction = direction_candidate = 0;
+      direction_center_active = 0U;
       recovery_state = LINE_RECOVERY_SETTLE;
       recovery_state_started_ms = now;
     }

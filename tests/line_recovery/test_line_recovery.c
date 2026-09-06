@@ -204,9 +204,50 @@ static void test_single_outer_flash_search_direction(void)
   tick=UINT32_MAX-20; reset(0,0); sample(8,1,3000); hold(0,180);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
 }
+static void test_direction_after_unconfirmed_middle(void)
+{
+  unsigned i,before;
+  reset(0,0); hold(2,100); /* Earlier left corner still owns recovery. */
+  sample(8,1,3000); hold(0,100);
+  printf("locked left, last right edge: left=%ld\n",(long)telemetry.requested_cps[0]);
+  fflush(stdout);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  before=brakes;
+  /* Repeated failed captures without reset must not retain the first side. */
+  for(i=0;i<100;++i)
+  {
+    unsigned edge=i%2?8:2;
+    int32_t expected=i%2?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+    sample(5,1,3000); /* Too brief to capture, but arms exit-direction evidence. */
+    hold(0,10); /* Narrow sensors may see a white gap before the outer edge. */
+    sample(edge,1,3000); hold(0,100);
+    assert(!output.valid && telemetry.requested_cps[0]==expected);
+    assert(brakes==before && BuzzerPhrase400_IsPlaying());
+    /* Outer-only noise after loss cannot repeatedly reverse the search. */
+    sample(edge==8?2:8,1,3000); hold(0,100);
+    assert(telemetry.requested_cps[0]==expected && brakes==before);
+  }
+  /* Capture must transfer the corrected direction to the tracking wrapper. */
+  sample(5,1,3000); sample(5,4,3000);
+  assert(output.valid && !BuzzerPhrase400_IsPlaying());
+  sample(0,250,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  /* A last edge sampled during initial braking also selects the initial spin. */
+  reset(0,0); sample(0,1,3000); sample(8,1,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying());
+  reset(0,0); hold(0,100); assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  sample(5,1,3000); hold(0,250); sample(8,1,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* Stale middle is not a new exit. */
+  tick=UINT32_MAX-20; reset(0,0); hold(2,30);
+  sample(5,1,3000); hold(0,10); sample(8,1,3000); hold(0,100);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  puts("PASS: active corner, 100 failed captures without reset, guarded correction, capture handoff, braking");
+}
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_direction_after_unconfirmed_middle();
   test_single_outer_flash_search_direction();
   test_three_black_cancels_corner();
   test_patterns_and_narrow_windows();

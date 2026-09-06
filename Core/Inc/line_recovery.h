@@ -14,11 +14,14 @@ typedef enum
 /* Preserved until a successful capture is committed or the mode is reset.
    Only drive faults latch; search has no timeout, distance or attempt limit. */
 LineRecoveryStopReason LineRecovery_GetStopReason(void);
+/* Current sensor-corrected side, -1 left / +1 right; zero after reset. */
+int8_t LineRecovery_GetDirection(void);
 void LineRecovery_Stop(LineRecoveryStopReason reason);
 
 void LineRecovery_Reset(void);
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now);
-/* Latch an observed corner without a stop/roll/spin timer cycle. Existing
+/* Begin an observed corner without a stop/roll/spin timer cycle. Last exit
+   edge can correct its side; another correction requires a new middle hit.
    DriveBase ramps handle wheel reversal; audio starts only if all-white. */
 void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now);
 LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,

@@ -237,6 +237,43 @@ static void test_real_white_search(void)
   DriveBase_Stop(DRIVE_STOP_COAST); line_tracking_reset();
   puts("PASS: real 90-second rotation/audio -> confirmed line -> silent normal driving");
 }
+static void test_real_exit_direction_correction(void)
+{
+  unsigned side,ms,w;
+  for(side=0;side<2;++side)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    for(ms=0;ms<1000;++ms)
+    {
+      unsigned mask=ms<100?(side?8:2):0;
+      LineTrackingReading r;
+      if(ms==300) mask=5;
+      if(ms==312) mask=side?2:8;
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+      ++tick; DriveBase_Task(tick);
+      r=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      line_tracking_compute(&r,3000,&out);
+      if(out.valid) DriveBase_SetSideCps(out.left_cps,out.right_cps);
+      DriveBase_GetTelemetry(&t);
+      assert(!t.fault_mask && t.mode!=DRIVE_BASE_POSITION);
+      if(ms>=313)
+      {
+        assert(t.mode==DRIVE_BASE_SPEED && BuzzerPhrase400_IsPlaying());
+        assert((side?-t.requested_cps[0]:t.requested_cps[0])>0);
+        assert(t.requested_cps[0]==t.requested_cps[1]);
+        assert(t.requested_cps[2]==t.requested_cps[3]);
+        assert(t.requested_cps[0]==-t.requested_cps[2]);
+      }
+      if(ms>=600)
+        assert((side?-pins[0]:pins[0])>0 && pins[1]*pins[0]>0 &&
+               (side?pins[2]:-pins[2])>0 && pins[3]*pins[2]>0);
+    }
+    line_tracking_reset();
+    assert(!BuzzerPhrase400_IsPlaying());
+  }
+  puts("PASS: actual DriveBase ramps both corrected exit directions without brake/restart");
+}
 static void test_real_corner_chatter(void)
 {
   unsigned side,ms,w;
@@ -482,6 +519,7 @@ int main(void)
   test_real_search_capture();
   test_real_white_search();
   test_real_corner_chatter();
+  test_real_exit_direction_correction();
   test_no_motion_keeps_turn_effort();
   test_observe_faults();
   (void)trace(2500,-2500,0,1);

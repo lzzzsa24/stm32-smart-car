@@ -5,11 +5,15 @@
 
 #define SENSOR_CONFIRM_MS         4U
 #define SENSOR_MAX_SAMPLE_GAP_MS 30U
+#define EXIT_HINT_MAX_AGE_MS    200U
 
 typedef enum { REC_IDLE, REC_BRAKE_SEARCH, REC_SEARCH,
                REC_CAPTURED, REC_FAULT } RecoveryPhase;
 static RecoveryPhase phase;
 static int8_t side;
+static int8_t exit_side;
+static uint8_t exit_direction_armed, exit_edge_seen;
+static uint32_t exit_last_ms;
 static uint8_t center_candidate, audio_owned, audio_requested;
 static uint32_t center_since, center_last_ms;
 static LineRecoveryStopReason stop_reason;
@@ -29,6 +33,7 @@ static void search_audio(uint32_t now)
   }
 }
 LineRecoveryStopReason LineRecovery_GetStopReason(void) { return stop_reason; }
+int8_t LineRecovery_GetDirection(void) { return side; }
 void LineRecovery_Stop(LineRecoveryStopReason reason)
 {
   DriveBase_Stop(DRIVE_STOP_COAST);
@@ -43,16 +48,24 @@ void LineRecovery_Reset(void)
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
   center_candidate = 0U;
+  side = exit_side = 0;
+  exit_direction_armed = 0U;
+  exit_edge_seen = 0U;
 }
 void LineRecovery_Commit(void)
 {
   stop_audio();
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
+  exit_direction_armed = 0U;
 }
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
 {
   side = preferred_side > 0 ? 1 : -1;
+  exit_side = side;
+  exit_direction_armed = 1U;
+  exit_edge_seen = 1U;
+  exit_last_ms = now;
   center_candidate = 0U;
   stop_reason = LINE_REC_STOP_NONE;
   DriveBase_Stop(DRIVE_STOP_BRAKE);
@@ -70,6 +83,10 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
 void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
 {
   side = preferred_side > 0 ? 1 : -1;
+  exit_side = side;
+  exit_direction_armed = 1U;
+  exit_edge_seen = 1U;
+  exit_last_ms = now;
   center_candidate = 0U;
   stop_reason = LINE_REC_STOP_NONE;
   phase = REC_SEARCH;
@@ -90,6 +107,24 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
   if (phase == REC_FAULT) return LINE_RECOVERY_FAILED;
   if (phase == REC_CAPTURED) return LINE_RECOVERY_CAPTURED;
+  /* A short middle crossing may not complete capture, yet it starts a new
+     line exit. Remember its last unambiguous edge until all-white. After
+     consuming that evidence, outer-only chatter cannot reverse us again. */
+  if (exit_direction_armed && now - exit_last_ms > EXIT_HINT_MAX_AGE_MS)
+    exit_direction_armed = 0U;
+  if (visible)
+  {
+    exit_direction_armed = 1U;
+    exit_edge_seen = 0U;
+    exit_last_ms = now;
+    exit_side = side;
+  }
+  else if (exit_direction_armed)
+  {
+    int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
+        (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
+    if (edge) { exit_side = edge; exit_edge_seen = 1U; exit_last_ms = now; }
+  }
   if (!(r->x1_black || r->x2_black || r->x3_black || r->x4_black)) audio_requested = 1U;
   if (audio_requested) search_audio(now);
   DriveBase_GetTelemetry(&telemetry);
@@ -103,6 +138,13 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   }
   if (phase == REC_SEARCH)
   {
+    if (exit_direction_armed && exit_edge_seen &&
+        !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
+    {
+      side = exit_side;
+      exit_direction_armed = 0U;
+    }
+    command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
     if (!visible) center_candidate = 0U;
     else
     {
