@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-06
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 77ab510
-latest_code_commit: 9f08275
-flashed_source_commit: 9f08275
-flash_record_commit: 77ab510
-deployed_tag: deployed/2026-09-06-sample-handoff-boundary
+repository_head_at_update: 18ef9c8
+latest_code_commit: b0f851c
+flashed_source_commit: b0f851c
+flash_record_commit: 18ef9c8
+deployed_tag: deployed/2026-09-06-crossing-exit-hint-search-log
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 69688
-flashed_bin_sha256: 8256082FC722B4F0E02C69B15F7A176A34EC54030B22E695C2F8DF50D66CC3EA
-flashed_hex_sha256: 03AB400D37D2C5875BC4FAFF1C44CB4967115F05E3E34C06280A5B4EE095D1C6
-ground_test_status: sample_handoff_boundary_flashed_ground_test_pending_buzzer_passed
+formal_bin_size_bytes: 71016
+flashed_bin_sha256: E7239BE9EB17FCB2DFAAF7D69B92E27E2C84A41B6C51FF72F9BCDCAA836E28EE
+flashed_hex_sha256: 3CFBAE8343660309C7084D672548C4E4B376584DCCB48FA940B697DF99EA5547
+ground_test_status: crossing_exit_hint_search_log_flashed_ground_test_pending_buzzer_passed
 k210_status: removed
-candidate_source_commit: 9f08275
-candidate_bin_size_bytes: 69688
-candidate_bin_sha256: 8256082FC722B4F0E02C69B15F7A176A34EC54030B22E695C2F8DF50D66CC3EA
-candidate_hex_sha256: 03AB400D37D2C5875BC4FAFF1C44CB4967115F05E3E34C06280A5B4EE095D1C6
+candidate_source_commit: b0f851c
+candidate_bin_size_bytes: 71016
+candidate_bin_sha256: E7239BE9EB17FCB2DFAAF7D69B92E27E2C84A41B6C51FF72F9BCDCAA836E28EE
+candidate_hex_sha256: 3CFBAE8343660309C7084D672548C4E4B376584DCCB48FA940B697DF99EA5547
 user_reported_flash: tool_verified_current_candidate
 ```
 
@@ -38,22 +38,22 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest firmware source commit: `9f08275` (`fix(line): retain sensor samples arriving at queue handoff`), now flashed. It integrates the requested worker commit `777c6ef` on top of fixed-period sensor sampling and active direction refresh, retaining single-edge direction memory, corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
-- Flash/readback record: `77ab510` (`Record sample-handoff firmware flash`).
+- Latest firmware source commit: `b0f851c` (`fix(line): retain crossing exit hints and log search decisions`), now flashed. It integrates the requested worker commit `761775b` on top of the sample-handoff fix, fixed-period sensor sampling and active direction refresh, retaining corner continuity, stall-effort assistance, the position handoff fix, buzzer GPIO fix and IR centre-key audio.
+- Flash/readback record: `18ef9c8` (`Record crossing-exit-hint firmware flash`).
 - The formal BIN above was rebuilt from the clean integration checkout, then
   written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
   57600 baud. Selective erase covered 35 firmware pages, preserved the final
-  calibration page, wrote and read back 69688 bytes with `VERIFY OK`, and
+  calibration page, wrote and read back 71016 bytes with `VERIFY OK`, and
   completed `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
 - Current formal BIN/HEX were built in this integration checkout from
-  `9f08275`. The preceding adaptive-search build remains under
+  `b0f851c`. The preceding adaptive-search build remains under
   `manual-build-adaptive-line-search`.
   Previous isolated candidates remain under the validation directory.
-- Immediate rollback tag: `rollback/2026-09-06-before-sample-handoff-boundary`
-  points to `68886bb`. The previous fixed-sampling and active
+- Immediate rollback tag: `rollback/2026-09-06-before-crossing-exit-hint`
+  points to `162324b`. The previous sample-handoff, fixed-sampling and active
   direction-refresh rollbacks, single-edge direction-memory rollback, buzzer
   GPIO fix and earlier adaptive-search rollback points remain available.
 
@@ -77,7 +77,7 @@ Latest user observations before this deployment (2026-09-05): KEY2 could emit
 The user then explicitly requested continued searching and fault observation
 instead of stopping the line mode.
 
-The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
+The persistent recovery in deployed `b0f851c` changes KEY1/KEY2 as follows:
 
 - On line loss it briefly brakes, then continuously rotates in the most recent
   reliable direction; without a hint it defaults left. Search uses equal and
@@ -151,6 +151,13 @@ The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
   advance past that unconsumed evidence. This closes the previous queue-handoff
   race without raising the sampling frequency or widening the IRQ critical
   section.
+- Wide/transverse input still clears older direction hints and keeps the car in
+  low-speed straight travel during the 100 ms crossing tail. A later
+  unambiguous single-side outer edge inside that window is now retained as the
+  exit hint but cannot immediately command a spin; only continued all-white
+  after the protection window starts search in that direction. A newer wide
+  mark, centered-line clearing or the existing 200 ms expiry still invalidates
+  the hint.
 - During search, middle capture now needs at least two valid observations
   spanning 4 ms with gaps no greater than 30 ms. Confirmation immediately
   enters low-speed rejoin without inserting a stop. After at least 500 ms,
@@ -165,9 +172,22 @@ The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
   and long interrupt masking can still delay sampling. It preserves sensor
   evidence but cannot remove the main-loop delay before a motor response.
 
+## Current line-search decision log
+
+- A separate 16-entry RAM ring records every initial search, confirmed corner
+  entry and ACTIVE direction correction. Each record includes chosen side,
+  source, current hint, recent edge/wide masks and ages, plus sensor-queue
+  overwrite count. It records during motion without serial output.
+- Search records survive STOP and mode reset, but reset, power loss, reflash or
+  `LineFaultLog_Init()` clears them. Full rings overwrite the oldest entries.
+- After pressing remote `0`, keep power connected and send `f` or `F` at
+  115200 8N1. The existing `LFAULT` block is followed by `LSEARCH BEGIN`; keep
+  receiving until `LSEARCH END`. Source 0 means default direction, 1 hint,
+  2 rejoin, 3 corner and 4 ACTIVE correction.
+
 ## Current line-turn load assistance
 
-- Commit `63dbfe6`, retained in `9f08275`, keeps the requested four-wheel CPS targets and adds a
+- Commit `63dbfe6`, retained in `b0f851c`, keeps the requested four-wheel CPS targets and adds a
   bounded PWM supplement only to an accepted line-tracking differential or
   counter-rotation command. Straight travel, wide-line travel, stop, encoder
   position retrace/rollback and non-line modes do not receive this supplement.
@@ -213,7 +233,7 @@ The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
 
 ## Current position-control handoff
 
-- Commit `b424189`, retained in `9f08275`, fixes the shared DriveBase transition from continuous
+- Commit `b424189`, retained in `b0f851c`, fixes the shared DriveBase transition from continuous
   position-control PWM to the short-pulse region used near a target.
 - When an individual wheel enters that low-speed region, its previous
   continuous PWM is first set to zero and a fresh stop-settle window is
@@ -247,7 +267,7 @@ The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
 - The serial `b` command remains an equivalent one-shot diagnostic entry.
 - After flashing `0d31f10`, the user short-pressed the intended sound button
   and explicitly confirmed audible output (`响了`). The same fix remains in
-  deployed `9f08275`.
+  deployed `b0f851c`.
 
 ## Confirmed hardware facts
 
@@ -264,23 +284,24 @@ The persistent recovery in deployed `9f08275` changes KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated formal `9f08275`; BIN is 69688 bytes; ELF uses the strong `HAL_IncTick` and contains `LineSensorSample_Tick` plus `LineSensorSample_PopThrough`; buzzer fix retained |
-| host regression | passed | ISR-after-pop tests pass for empty/nonempty queues in 80 repeated handoffs and across tick wrap; real tick/GPIO simulation preserves 1-ms left/right edges across 5/20/35/50/65/80-ms main-loop stalls; ordered transverse filtering, active-recovery correction, queue overwrite/reset, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and RAM log pass at 2493/1870 CPS; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
-| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 69688-byte write and readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | integrated formal `b0f851c`; BIN is 71016 bytes; ELF contains strong tick sampling, bounded queue pop and search-decision logging symbols; buzzer fix retained |
+| host regression | passed | real-time and queued left/right crossing tails retain the matching search direction at 2493/1870 CPS; later wide, centered and expired cases clear it; independent 16-entry `LSEARCH` ring covers overwrite, STOP-only output, interrupted/repeated dump; ISR handoff, blocked-main sampling, active correction, all 16 masks, 4-ms capture, persistent search/audio, no-motion effort, fault fallback, STOP and `LFAULT` pass; DriveBase joint tests and geometry self-test pass; MSVC /W4 /WX |
+| flash/readback/GO | passed | CH340K COM11 at 57600 baud; 35-page selective erase; calibration page preserved; 71016-byte write and readback; `VERIFY OK`; `GO OK` |
 | physical buzzer | passed | user explicitly confirmed `响了` after the PG12 initialization fix; fix retained in current firmware |
 | wheels off ground | not performed this turn | diagnostic image compilation is not a lifted-wheel test |
-| ground driving | current sample-handoff-boundary firmware untested | physical short-edge capture at the queue handoff, corrected search direction, transverse classification, corner continuity and motor heating require controlled observation |
+| ground driving | current crossing-exit-hint firmware untested | physical crossing-tail direction, corrected search direction, transverse classification, corner continuity and motor heating require controlled observation |
 
 ## Open issue and next safe step
 
-The requested line-sensor queue-handoff integration, formal build, all host
-regressions, flash, readback verification and GO are complete.
+The requested crossing-exit-hint and search-decision-log integration, formal
+build, all host regressions, flash, readback verification and GO are complete.
 Physical buzzer output was confirmed on an earlier firmware; the new ground
 behavior is unverified. With the remote STOP ready, test a fast straight run in
 which only the last outer sensor briefly touches the line before all four go
-white, especially around visible OLED/serial updates, and confirm that search
-follows that sampled side instead of defaulting left. Also recheck transverse
-marks and the active-search middle/edge sequence.
+white, especially after three/four-sensor or non-adjacent wide input, and confirm
+that search follows that sampled side without turning during the 100 ms crossing
+protection. If it still chooses the wrong side, STOP without resetting and dump
+through `LSEARCH END` before changing another timing parameter.
 After abnormal wheel behavior, press `0` and keep power connected so the RAM
 log can be exported with `f`. Do not leave a stalled motor energized. Use the
 immediate rollback point if unsafe.
