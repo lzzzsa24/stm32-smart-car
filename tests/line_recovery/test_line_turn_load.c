@@ -10,6 +10,7 @@
 #include "motorPWM.h"
 #include "main.h"
 #include "line_tracking.h"
+#include "motion_advanced.h"
 #include "buzzer_phrase_40077493715.h"
 #include "line_fault_log.h"
 #include "diagnostic_uart.h"
@@ -109,6 +110,61 @@ static DriveBaseTelemetry trace_line_curve(uint8_t assist)
   DriveBase_GetTelemetry(&t);
   assert(!t.fault_mask);
   return t;
+}
+static DriveBaseTelemetry trace_integrated_cap(unsigned side, uint8_t fixed)
+{
+  LineTrackingCommand out;
+  LineTrackingReading r = {0};
+  DriveBaseTelemetry t;
+  int32_t delta[4]={1,1,1,1};
+  unsigned i;
+  r.x1_black=side==0; r.x3_black=side!=0;
+  line_tracking_reset(); reset();
+  line_tracking_set_no_line_forward(1); line_tracking_set_smooth_mode(1);
+  line_tracking_set_turn_gain_percent(200);
+  advanced_set_forward_speed_limit(2200);
+  for(i=0;i<50;++i)
+  {
+    line_tracking_compute(&r,3000,&out);
+    assert(out.valid && out.left_cps>0 && out.right_cps>0);
+    if(fixed) line_tracking_apply_command(&out,2200);
+    else advanced_drive_cps(out.left_cps,out.right_cps); /* Deployed KEY1 adapter. */
+    sample(delta);
+  }
+  DriveBase_GetTelemetry(&t);
+  assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+  return t;
+}
+static void test_integrated_line_cap(void)
+{
+  unsigned side,w;
+  DriveBaseTelemetry old, current;
+  LineTrackingCommand command={2500,2000,LINE_ACTION_LEFT_ADJUST,1};
+  int32_t zero[4]={0};
+  for(side=0;side<2;++side)
+  {
+    old=trace_integrated_cap(side,0); current=trace_integrated_cap(side,1);
+    for(w=0;w<4;++w)
+    {
+      assert(current.requested_cps[w]==old.requested_cps[w]);
+      assert(current.requested_cps[w]<=DriveBase_EquivalentCpsFromPwm(2200));
+    }
+    w=side?0:2;
+    printf("KEY1 cap side=%u: target=%ld PWM=%d -> %d\n",side,
+           (long)current.requested_cps[w],old.output_pwm[w],current.output_pwm[w]);
+    assert(current.output_pwm[w]>old.output_pwm[w]+400);
+  }
+  line_tracking_apply_command(&command,0); sample(zero);
+  DriveBase_GetTelemetry(&current); assert(current.mode==DRIVE_BASE_STOPPED);
+  line_tracking_apply_command(&command,3000);
+  { int32_t moving[4]={30,30,30,30}; sample(moving); }
+  DriveBase_Stop(DRIVE_STOP_BRAKE); line_tracking_apply_command(&command,2200);
+  DriveBase_GetTelemetry(&current); assert(current.mode==DRIVE_BASE_BRAKING);
+  command.valid=0; line_tracking_apply_command(&command,0);
+  DriveBase_GetTelemetry(&current); assert(current.mode==DRIVE_BASE_BRAKING);
+  DriveBase_Stop(DRIVE_STOP_COAST); line_tracking_reset();
+  line_tracking_set_turn_gain_percent(100);
+  puts("PASS: KEY1 final cap retains line assistance; zero cap and braking ownership preserved");
 }
 static void test_position_coast_handoff(int32_t direction)
 {
@@ -519,6 +575,7 @@ int main(void)
   test_real_search_capture();
   test_real_white_search();
   test_real_corner_chatter();
+  test_integrated_line_cap();
   test_real_exit_direction_correction();
   test_no_motion_keeps_turn_effort();
   test_observe_faults();

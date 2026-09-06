@@ -46,6 +46,11 @@ typedef struct
 
 void line_tracking_init(void);
 void line_tracking_reset(void);
+/* Apply a freshly computed line command after the owner's forward speed cap.
+   Rebind bounded turn assistance to the final targets. valid=0 keeps recovery
+   ownership. Nonzero commands respect drive faults, braking and position
+   ownership; a zero forward cap remains an explicit stop request. */
+void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才搜索鸣响。
    三/四路黑或不相邻多点黑优先低速穿越，覆盖旧转向。可靠外侧急弯持续转向，
    窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */

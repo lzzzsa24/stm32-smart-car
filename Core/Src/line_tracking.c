@@ -132,8 +132,8 @@ static void command_set_pwm(LineTrackingCommand *command,
   if (command == 0) return;
   command->left_cps = DriveBase_EquivalentCpsFromPwm(left_pwm);
   command->right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
-  /* Preparing does not own the motors. DriveBase consumes the request only
-     when the caller accepts these exact targets; a speed cap disables it. */
+  /* Preparing does not own the motors. DriveBase accepts only exact targets;
+     a consumer applying a speed cap must rebind the claim to the final pair. */
   DriveBase_PrepareLineTurnAssist(command->left_cps, command->right_cps);
   command->action = action;
   command->valid = 1U;
@@ -142,6 +142,27 @@ static void command_set_pwm(LineTrackingCommand *command,
 static void command_stop(LineTrackingCommand *command)
 {
   command_set_pwm(command, 0, 0, LINE_ACTION_STOP);
+}
+void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
+{
+  int32_t left, right, maximum, limit;
+  if (!command || !command->valid) return;
+  left = command->left_cps; right = command->right_cps;
+  if (left >= 0L && right >= 0L)
+  {
+    limit = DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm));
+    maximum = left > right ? left : right;
+    if (maximum > limit && maximum > 0L)
+    {
+      left = (int32_t)(((int64_t)left * limit) / maximum);
+      right = (int32_t)(((int64_t)right * limit) / maximum);
+    }
+  }
+  /* KEY1's ultrasonic cap changes the targets. A claim prepared before the
+     cap is deliberately rejected by DriveBase, so bind only the final pair. */
+  DriveBase_PrepareLineTurnAssist(left, right);
+  if (left == 0L && right == 0L) DriveBase_Stop(DRIVE_STOP_COAST);
+  else DriveBase_SetSideCps(left, right);
 }
 
 static void command_release_to_drive(LineTrackingCommand *command,

@@ -161,7 +161,7 @@ static void passive_ultrasonic_motion_task(void);
 static void oled_application_task(AppMode mode);
 static void battery_telemetry_task(void);
 static void drive_base_telemetry_task(void);
-static void apply_line_tracking_command(const LineTrackingCommand *command);
+static void apply_line_tracking_command(const LineTrackingCommand *command, int16_t forward_limit);
 static void make_bypass_input(LineObstacleBypassInput *input,
                               const LineTrackingReading *line,
                               const IrAvoidReading *infrared);
@@ -754,20 +754,11 @@ static void drive_base_telemetry_task(void)
   DiagnosticUart_WriteString("\r\n");
 }
 
-static void apply_line_tracking_command(const LineTrackingCommand *command)
+static void apply_line_tracking_command(const LineTrackingCommand *command, int16_t forward_limit)
 {
-  if (command == 0 || command->valid == 0U)
-  {
-    return;
-  }
-  if (command->left_cps == 0L && command->right_cps == 0L)
-  {
-    advanced_stop();
-  }
-  else
-  {
-    advanced_drive_cps(command->left_cps, command->right_cps);
-  }
+  /* Both modes share final-target application. KEY1 retains its ultrasonic
+     speed cap without losing line turn effort when the cap rescales targets. */
+  line_tracking_apply_command(command, forward_limit);
 }
 
 static AppMode read_requested_mode(AppMode current_mode)
@@ -996,7 +987,7 @@ static void experiment7_integrated_once(void)
     LineTrackingAction action = line_tracking_compute(&line, line_speed,
                                                        &line_command);
 
-    apply_line_tracking_command(&line_command);
+    apply_line_tracking_command(&line_command, ultrasonic_forward_speed_limit);
 
     /* 差速转弯时声束不再稳定指向同一墙面，相对运动估计作废。 */
     if (action != LINE_ACTION_FORWARD && action != LINE_ACTION_CROSSING)
@@ -1439,7 +1430,7 @@ int main(void)
       line = line_tracking_read();
       line_action = line_tracking_compute(&line, EXP7_LINE_SPEED,
                                            &line_command);
-      apply_line_tracking_command(&line_command);
+      apply_line_tracking_command(&line_command, (int16_t)MOTOR_PWM_PERIOD);
       if (line_action != LINE_ACTION_FORWARD &&
           line_action != LINE_ACTION_CROSSING)
       {
