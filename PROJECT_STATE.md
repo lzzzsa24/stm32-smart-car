@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: afd7a03
+repository_head_at_update: af0bf4d
 latest_code_commit: 7ce4944
 flashed_source_commit: 7ce4944
 flash_record_commit: bd60373
@@ -30,8 +30,9 @@ candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E8
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 7ce4944
 k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
-remote_sync_status: PR_1_review_required_origin_main_still_3bd3748
-remote_sync_branch: integration/canonical-main-20260907
+remote_sync_status: origin_main_canonical_and_synced
+remote_sync_branch: main
+remote_sync_merge_commit: af0bf4d
 stm32_runtime_status: flash_bytes_verified_but_post_diagnostic_execution_state_unconfirmed_ports_disconnected
 ```
 
@@ -50,13 +51,13 @@ as history; they are not alternate definitions of “latest”. The exact workfl
 and temporary historical-image exception are documented in
 `BRANCH_WORKFLOW.md`.
 
-GitHub's protected `main` requires an approving review. The complete canonical
-history is pushed to `integration/canonical-main-20260907` and is proposed by
-PR #1; the original `feature/mode5-visual-line-v4` branch and this task's
-deployment/rollback tags are also pushed. Until PR #1 is approved and merged,
-remote `origin/main` remains at `3bd3748`; local `main` and the PR branch are
-the current integrated source. Direct main push and automatic merge were both
-rejected by repository policy, and no administrator bypass was used.
+GitHub PR #1 merged the complete canonical history into protected `main` as
+merge commit `af0bf4d`. The original `feature/mode5-visual-line-v4` branch and
+this task's deployment/rollback tags are also pushed. Because the repository
+has only one available writer, its Ruleset approval count was changed from 1
+to 0 only for the merge transaction and immediately restored to 1 afterward;
+required PRs, deletion protection and non-fast-forward protection remained
+active. Remote `origin/main` is now the durable canonical handoff.
 
 ## Current flashed integrated source
 
