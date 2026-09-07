@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 109eb1f
+repository_head_at_update: e70de1f
 latest_code_commit: 39b9327
 flashed_source_commit: 39b9327
 flash_record_commit: 109eb1f
@@ -22,7 +22,7 @@ formal_bin_size_bytes: 78828
 flashed_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
 flashed_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
 ground_test_status: not_tested_after_ring_exit_flash
-k210_status: SIGN34_threshold_0_20_real_model_path_hash_and_startup_verified_STM32_link_not_tested
+k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
 candidate_source_commit: 39b9327
 candidate_bin_size_bytes: 78828
 candidate_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
@@ -110,22 +110,25 @@ historical baseline. Rollback tag:
 
 ## Current K210 sign-recognition deployment
 
-- COM13 identified CanMV Yahboom 2.1.1 with GC2145 and mounted TF card. A live
-  recursive listing found the actual model at
+- On 2026-09-07 COM13 identified CanMV Yahboom 2.1.1 with GC2145 and mounted TF
+  card. The actual model remains at
   `/sd/KPU/road_sign_det/road_sign_det.kmodel`, not the path originally written
   in `f991301`.
 - Device-side SHA-256 is
   `B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`,
-  exactly matching the 571432-byte source model, so it was not uploaded again.
-- `/sd/main.py` was changed to the actual path and read back byte-for-byte:
-  4908 bytes, SHA-256
-  `8FBD27D0C401E4F24E9D70D6DDF8B55D89E247C58EAA3F6D75D1558CA8B7C472`.
-  Soft reboot reported `SIGN34 ready`, threshold 0.20, vflip/hmirror 0/0 and
-  successful model loading. Runtime printed changing right-class detections;
-  this proves inference ran, not that those classifications were correct.
-- The immediately previous `/sd/main.py` and unchanged `/flash/main.py`, plus
-  deployment metadata and startup log, are backed up at
-  `F:\myproject\jidian\validation\mode34-sign-line\backup-20260907-095842`.
+  exactly matching the 571432-byte source model, so this deployment did not
+  rewrite the model.
+- The `ff8cf2e` tree's `/sd/main.py` was written and read back byte-for-byte:
+  4911 bytes, SHA-256
+  `E6ADB2BD616F84E7247E39BD487F458F4B4E34DB79F96E41DFD84876E9C2ED7E`.
+  Soft reboot reported `model load succeed`, `SIGN34 ready`, the real model
+  path, threshold 0.20 and vflip/hmirror 0/0.
+- At the start of this deployment, `/sd/main.py` was 2491 bytes with SHA-256
+  `AE9722E3360FA29BBA4B6867678D31671B1927FF002F43B5FF81660CF05045A1`,
+  which differed from the older shared-state record. That file and the
+  unchanged 289-byte `/flash/main.py`, plus deployment metadata and startup
+  log, are backed up at
+  `F:\myproject\jidian\validation\mode34-ring-exit-k210\backup-20260907-111542`.
   Older VL1 files, models and captured images were not deleted.
 - The K210-to-STM32 UART result has not yet been observed after this flash.
   K210 runtime output and STM32 parser host tests do not prove the physical
@@ -436,15 +439,15 @@ KEY1/KEY2 as follows:
 | computer build/link | passed | `39b9327`; ELF text/data/bss = 78760/64/11240 bytes; BIN is 78828 bytes; ring-entry, ARC, exit-turn and slowdown modules are linked |
 | host regression | passed | strict detection parser, slowdown, SL2 table, left/right semicircle exit, mode binding and complete prior line/bypass suites pass |
 | STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 39-page selective erase; calibration page preserved; final 78828-byte write/readback; `VERIFY OK`; `GO OK` |
-| K210 deployment/runtime | passed, stationary only | COM13; existing model hash matched; 4908-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
+| K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
 | wheels off ground | not performed | programmer success does not establish mode 3/4 motor direction, STOP response or selected-route behavior |
 | ground driving | not performed | line following, junction detection and left/right branch capture remain unverified |
 
 ## Current open issue and next safe step
 
-The `39b9327` ring-exit candidate is now on the STM32, while K210 content was
-unchanged. The next safe check is stationary UART confirmation followed by a
+The `39b9327` ring-exit candidate is on the STM32, and the `ff8cf2e` tree's
+SIGN34 script is now on the K210. The next safe check is stationary UART confirmation followed by a
 lifted-wheel test with remote `0` ready: KEY3 and KEY4 must both use SL2 line
 control, and each sign-selection turn must match the displayed left/right route.
 Ground tests then need separate no-sign, left-sign and right-sign semicircle
