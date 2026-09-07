@@ -916,6 +916,8 @@ static void sign_line_task(AppMode mode)
   uint32_t now = HAL_GetTick();
 
   sign_line_mask = line_reading_mask(&line);
+  /* Keep sampling the real line even while a route preference is active. */
+  SimpleLine_Step(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
@@ -924,8 +926,6 @@ static void sign_line_task(AppMode mode)
   {
     /* Never resume the old enhanced controller's latched in-place recovery.
        Both sign modes use the same SL2 path that can follow the user's arc. */
-    SimpleLine_Stop(&simple_line_controller);
-    SimpleLine_Start(&simple_line_controller);
     SignRoute_GetStatus(now, &route_status);
     SimpleLine_SetDirection(&simple_line_controller,
         route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
@@ -943,7 +943,6 @@ static void sign_line_task(AppMode mode)
   }
   else
   {
-    SimpleLine_Step(&simple_line_controller, sign_line_mask);
     sign_line_action = (uint8_t)simple_line_controller.mode;
     apply_sign_line_pwm(simple_line_controller.left_pwm,
                         simple_line_controller.right_pwm,

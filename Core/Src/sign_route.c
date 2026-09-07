@@ -23,6 +23,7 @@ typedef struct
   uint32_t time_ms[SIGN_WINDOW_SIZE];
   uint8_t count;
   SignRouteState state;
+  SignRouteState resume_state;
   int8_t direction;
   int8_t last_class;
   uint8_t last_score;
@@ -253,6 +254,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
   route.origin_left = route.left_counts;
   route.origin_right = route.right_counts;
   route.capture_active = route.departed = route.line_lost = 0U;
+  route.fault = 0U;
   route.travel_mm = route.yaw_mdeg = 0L;
 }
 
@@ -283,23 +285,20 @@ static uint8_t stable(uint8_t condition, uint32_t now)
 
 static void fail_route(uint8_t reason, SignRouteCommand *command)
 {
+  if (route.state != SIGN_ROUTE_FAULT) route.resume_state = route.state;
   route.state = SIGN_ROUTE_FAULT;
   route.fault = reason;
   command->active = 1U;
   command->left_pwm = command->right_pwm = 0;
 }
 
-static void forward_command(SignRouteCommand *command, uint8_t mask)
+static void select_command(SignRouteCommand *command, uint8_t mask)
 {
-  command->active = 1U;
-  command->left_pwm = SIGN_ROUTE_PWM;
-  command->right_pwm = SIGN_ROUTE_PWM;
-  if (mask == 4U) command->right_pwm += 200;
-  if (mask == 2U) command->left_pwm += 200;
-}
-
-static void select_command(SignRouteCommand *command)
-{
+  uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
+  /* A sign is only a branch preference. It cannot drive off the black line,
+     override a current centre line, or steer across an all-black bar. */
+  if (route.direction == 0 || !(mask & selected_edge) || mask == 15U)
+    return;
   command->active = 1U;
   /* Forward pivot, never equal-and-opposite wheel rotation. Exit uses the
      SAME side as entry: a right semicircle exits to the right of its tangent. */
@@ -328,9 +327,27 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_FAULT)
   {
-    fail_route(route.fault, command);
-    return;
+    if (!stable(line_mask != 0U, now))
+    {
+      fail_route(route.fault, command);
+      return;
+    }
+    /* Only actual stable line evidence resumes a line-loss stop; a fresh
+       visual detection alone cannot start the vehicle. */
+    route.state = route.resume_state;
+    route.fault = route.line_lost = route.capture_active = 0U;
   }
+  if (line_mask == 0U)
+  {
+    if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
+    if (now - route.line_lost_ms >= SIGN_LINE_LOST_TIMEOUT_MS)
+    {
+      route.capture_active = 0U;
+      fail_route(4U, command);
+      return;
+    }
+  }
+  else route.line_lost = 0U;
   if ((route.state == SIGN_ROUTE_ARMED || route.state == SIGN_ROUTE_PROBE) &&
       route.direction != 0 &&
       (now - route.armed_ms > SIGN_PENDING_MAX_AGE_MS ||
@@ -372,14 +389,18 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_PROBE)
   {
-    forward_command(command, line_mask);
+    /* Observe while the ordinary line controller keeps motor ownership. */
     if (route.travel_mm > SIGN_PROBE_MAX_MM ||
         now - route.phase_ms > SIGN_PROBE_TIMEOUT_MS)
-    { fail_route(1U, command); return; }
+    {
+      route.fault = 1U; /* navigation warning, never an on-line stop */
+      route.state = route.direction ? SIGN_ROUTE_ARMED : SIGN_ROUTE_IDLE;
+      route.junction_active = route.capture_active = 0U;
+      return;
+    }
     /* Cross the transverse stroke first. A continuing middle line is a
        painted crossbar, not a command to turn into the circle. */
-    if (stable((uint8_t)((!junction && route.travel_mm >= SIGN_PROBE_MIN_MM) ?
-                         (center ? 1U : 2U) : 0U), now))
+    if (stable((uint8_t)(!junction ? (center ? 1U : 2U) : 0U), now))
     {
       if (center)
       {
@@ -390,13 +411,13 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       else if (route.direction != 0)
       {
         enter_phase(SIGN_ROUTE_SELECTING, now);
-        select_command(command);
+        route.departed = 1U;
+        select_command(command, line_mask);
       }
       else
       {
         enter_phase(SIGN_ROUTE_WAIT_SIGN, now);
         clear_window();
-        command->left_pwm = command->right_pwm = 0;
       }
     }
     return;
@@ -404,22 +425,28 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_WAIT_SIGN)
   {
-    command->active = 1U; /* stay stopped at a real branch; don't guess */
+    /* Missing/incompatible K210 frames do not disable four-sensor tracking. */
+    if (center)
+    {
+      route.state = route.direction ? SIGN_ROUTE_ARMED : SIGN_ROUTE_IDLE;
+      route.capture_active = route.junction_active = 0U;
+      return;
+    }
     if (route.direction == 0) return;
     enter_phase(SIGN_ROUTE_SELECTING, now);
+    route.departed = 1U;
     command->just_started = 1U;
   }
 
   if (route.state == SIGN_ROUTE_SELECTING || route.state == SIGN_ROUTE_EXIT_SELECT)
   {
     int32_t turn_yaw = -route.direction * route.yaw_mdeg;
-    select_command(command);
+    select_command(command, line_mask);
     if (now - route.phase_ms > SIGN_SELECT_TIMEOUT_MS ||
         turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
-    { fail_route(2U, command); return; }
+      route.fault = 2U; /* encoder/time assumptions cannot suppress a live line */
     if (!junction && !center) route.departed = 1U;
-    if (stable(route.departed && center &&
-               turn_yaw >= SIGN_SELECT_MIN_YAW_MDEG, now))
+    if (stable(route.departed && center, now))
     {
       if (route.state == SIGN_ROUTE_SELECTING)
       {
@@ -429,7 +456,6 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       else
       {
         enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
-        forward_command(command, line_mask);
       }
       command->just_finished = 1U;
     }
@@ -444,40 +470,26 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         route.travel_mm > SIGN_ARC_MAX_MM ||
         directed_arc_yaw > SIGN_ARC_MAX_YAW_MDEG ||
         directed_arc_yaw < -90000L)
-    { fail_route(3U, command); return; }
-    if (line_mask == 0U)
-    {
-      if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
-      if (now - route.line_lost_ms >= SIGN_LINE_LOST_TIMEOUT_MS)
-      { fail_route(4U, command); return; }
-    }
-    else route.line_lost = 0U;
+      route.fault = 3U;
     /* Curvature toward the circle is opposite the selected entry side.
        The outgoing line appears on the outside after substantial arc travel. */
-    if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
-               directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG &&
+    if (stable(((route.travel_mm >= SIGN_ARC_MIN_MM &&
+                 directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG) || route.fault == 3U) &&
                (line_mask & exit_side) && (line_mask & 6U), now))
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
+      route.departed = 1U;
       command->just_started = 1U;
-      select_command(command);
+      select_command(command, line_mask);
     }
     return;
   }
 
   if (route.state == SIGN_ROUTE_EXIT_CLEAR)
   {
-    forward_command(command, line_mask);
     if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS)
-    { fail_route(5U, command); return; }
-    if (line_mask == 0U)
-    {
-      if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
-      if (now - route.line_lost_ms >= 120U)
-      { fail_route(5U, command); return; }
-    }
-    else route.line_lost = 0U;
-    if (stable(center && route.travel_mm >= SIGN_EXIT_CLEAR_MM, now))
+      route.fault = 5U;
+    if (stable(center && (route.travel_mm >= SIGN_EXIT_CLEAR_MM || route.fault == 5U), now))
     {
       route.state = SIGN_ROUTE_LOCKED;
       route.finished_ms = now;
