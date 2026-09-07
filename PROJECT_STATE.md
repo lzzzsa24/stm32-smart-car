@@ -11,29 +11,29 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: 4572a07
-latest_code_commit: 7ce4944
-flashed_source_commit: 7ce4944
-flash_record_commit: 0b92acf
-deployed_tag: deployed/2026-09-07-sign34-07f2b73-on-7ce4944
+repository_head_at_update: da59847
+latest_code_commit: 2d1edaa
+flashed_source_commit: 2d1edaa
+flash_record_commit: da59847
+deployed_tag: deployed/2026-09-07-line-snapshot-order-2d1edaa
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82744
-flashed_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
-flashed_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
-ground_test_status: not_tested_after_7ce4944_flash
+formal_bin_size_bytes: 82832
+flashed_bin_sha256: A3B7332FAC58B3789F494076FDA6DFE828821C4F227E0B6A0EE304F1F8FCE82A
+flashed_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D1093DD31
+ground_test_status: not_tested_after_2d1edaa_flash
 k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
-candidate_source_commit: 7ce4944
-candidate_bin_size_bytes: 82744
-candidate_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
-candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
+candidate_source_commit: 2d1edaa
+candidate_bin_size_bytes: 82832
+candidate_bin_sha256: A3B7332FAC58B3789F494076FDA6DFE828821C4F227E0B6A0EE304F1F8FCE82A
+candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D1093DD31
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
 remote_sync_status: origin_main_a2c33c0_local_deployment_records_not_pushed
 remote_sync_branch: main
 remote_sync_merge_commit: a2c33c0
-stm32_runtime_status: COM11_7ce4944_readback_verified_and_GO_confirmed
+stm32_runtime_status: COM11_2d1edaa_readback_verified_and_GO_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
 ```
 
@@ -61,6 +61,34 @@ required PRs, deletion protection and non-fast-forward protection remained
 active. Remote `origin/main` is now the durable canonical handoff.
 
 ## Current flashed integrated source
+
+Source `2d1edaa` is a direct child of the previous canonical main and fixes the
+ordering between a four-GPIO line snapshot and queued 1 ms ISR evidence. Each
+real `LineTrackingReading` now carries the interrupt-protected acquisition
+timestamp. `line_tracking_compute()` drains only history up to that snapshot,
+so an outer edge arriving after the GPIO read remains queued for the next
+cycle instead of being replayed and then erased by the older live snapshot.
+Synthetic callers retain compute-time behavior through explicit zero
+initialization. Motor polarity, speeds, mode bindings, K210/SIGN34 and obstacle
+logic are unchanged.
+
+The full line-recovery/load/bypass suite passed, including 64 combinations of
+pre-snapshot GPIO data, post-snapshot ISR edges, tick wrap and both active and
+normal recovery states. Mode 3/4 SIGN34 and mode 5 regression suites also
+passed. The formal ARM build passed with text/data/bss 82764/64/11384 and
+produced an 82832-byte BIN with SHA-256
+`A3B7332FAC58B3789F494076FDA6DFE828821C4F227E0B6A0EE304F1F8FCE82A`.
+COM11 was enumerated immediately before flashing. Selective erase covered 41
+firmware pages, preserved the calibration page, wrote/read back all 82832 bytes
+with `VERIFY OK`, and completed `GO OK: 0x08000000`. No lifted-wheel or ground
+test was performed. Rollback tag
+`rollback/2026-09-07-before-line-snapshot-order` points to `da6971c`.
+
+K210 source was not changed by `2d1edaa`. Its previously verified TF card still
+contains the exact `07f2b73` SIGN34 script and model; COM14 was not enumerated
+at this STM32 flash, so no K210 write was attempted.
+
+## Previous flashed integrated source (`7ce4944`)
 
 Source `7ce4944` integrates requested worker `5d761e4` and its required
 STOP-state UART diagnostic commit `27a05aa` on top of the previously deployed
@@ -363,7 +391,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`7ce4944`)
+## Current STM32 mode map (`2d1edaa`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -603,9 +631,9 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated `7ce4944`; ELF text/data/bss = 82676/64/11384 bytes; BIN is 82744 bytes |
-| host regression | passed | mode 3/4 ring/sign and K210 v2, updated mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | integrated `7ce4944`; latest COM11 deployment selectively erased 41 pages, preserved calibration, wrote/read back 82744 bytes with `VERIFY OK`, then completed `GO OK` |
+| computer build/link | passed | integrated `2d1edaa`; ELF text/data/bss = 82764/64/11384 bytes; BIN is 82832 bytes |
+| host regression | passed | new 64-case snapshot/ISR ordering test, mode 3/4 ring/sign and K210 v2, mode 5 parser/control, plus complete line-recovery/load/bypass suites pass |
+| STM32 flash/readback/GO | passed | integrated `2d1edaa`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 82832 bytes with `VERIFY OK`, then completed `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -613,13 +641,13 @@ KEY1/KEY2 as follows:
 
 ## Current open issue and next safe step
 
-The integrated `7ce4944` STM32 image is verified and running after GO. Requested
-commit `07f2b73` was already integrated, and its exact SIGN34 script is now the
-active, readback-verified K210 `/sd/main.py`; the model hash and startup also
-passed. Next perform a stationary board-to-board `$D` receive check, followed
-by lifted-wheel mode 3/4 route-direction checks before ground testing. Mode 5
-requires redeploying its separate script. No wheel or ground behavior is
-established by build, programmer readback, K210 startup or GO success.
+The integrated `2d1edaa` STM32 image is verified and running after GO. The
+previously deployed exact `07f2b73` SIGN34 script remains on the K210 TF card;
+its model hash and startup passed in the preceding deployment. Next perform a
+stationary board-to-board `$D` receive check, followed by lifted-wheel line-loss
+and mode 3/4 route-direction checks before ground testing. Mode 5 requires
+redeploying its separate script. No wheel or ground behavior is established by
+build, programmer readback, K210 startup or GO success.
 
 ## Update protocol
 
