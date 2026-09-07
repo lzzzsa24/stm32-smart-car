@@ -20,6 +20,10 @@ typedef struct
   uint8_t x2_black;
   uint8_t x3_black;
   uint8_t x4_black;
+  /* GPIO snapshots carry their acquisition boundary. Synthetic readings must
+     zero-initialize these fields and are observed at compute time. */
+  uint32_t sampled_ms;
+  uint8_t sampled_time_valid;
 } LineTrackingReading;
 
 typedef enum
@@ -61,6 +65,8 @@ void line_tracking_set_smooth_mode(uint8_t enable);
 /* 100 keeps the normal KEY2 steering gain; 200 doubles KEY1's requested
    steering component before the safe PWM saturation. */
 void line_tracking_set_turn_gain_percent(uint16_t percent);
+/* Pass snapshots to compute in acquisition order. ISR history newer than a
+   snapshot stays queued for the next snapshot instead of being overwritten. */
 LineTrackingReading line_tracking_read(void);
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,

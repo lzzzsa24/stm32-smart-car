@@ -321,12 +321,19 @@ void line_tracking_set_turn_gain_percent(uint16_t percent)
 
 LineTrackingReading line_tracking_read(void)
 {
-  LineTrackingReading reading;
+  LineTrackingReading reading = {0};
+  uint32_t irq = __get_PRIMASK();
 
+  /* Keep SysTick from inserting a newer observation between the timestamp
+     and the four GPIO reads. Restore the caller's interrupt state. */
+  __disable_irq();
+  reading.sampled_ms = HAL_GetTick();
   reading.x1_black = read_black(TRACK_X1_GPIO_Port, TRACK_X1_Pin);
   reading.x2_black = read_black(TRACK_X2_GPIO_Port, TRACK_X2_Pin);
   reading.x3_black = read_black(TRACK_X3_GPIO_Port, TRACK_X3_Pin);
   reading.x4_black = read_black(TRACK_X4_GPIO_Port, TRACK_X4_Pin);
+  reading.sampled_time_valid = 1U;
+  __set_PRIMASK(irq);
   return reading;
 }
 
@@ -391,7 +398,7 @@ static void consume_sampled_evidence(uint32_t through_ms)
   }
   while (budget-- && LineSensorSample_PopThrough(&sample, through_ms))
   {
-    LineTrackingReading r;
+    LineTrackingReading r = {0};
     uint8_t n;
     if ((int32_t)(sample.time_ms - last_observation_ms) <= 0) continue;
     if (through_ms - sample.time_ms > TRACKING_HINT_MAX_AGE_MS) continue;
@@ -439,6 +446,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   {
     return LINE_ACTION_STOP;
   }
+  if (reading->sampled_time_valid) now = reading->sampled_ms;
   command_stop(command);
 
   if (base_speed <= 0)
@@ -467,9 +475,10 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     return LINE_ACTION_STOP;
   }
   if (recovery_state == LINE_RECOVERY_STOPPED) return LINE_ACTION_STOP;
-  /* Freeze the observation boundary before draining. A tick can enqueue a
-     short hit immediately after the last pop; leave it for the next cycle,
-     never advance the discard watermark past evidence not yet consumed. */
+  /* Drain only history preceding this GPIO snapshot, not compute time.
+     Otherwise an ISR edge between read() and compute() is replayed first,
+     then erased by the older live reading. Ticks after this boundary remain
+     queued, including those arriving after the last pop releases IRQs. */
   consume_sampled_evidence(now);
   last_observation_ms = now;
   observe_raw_position(reading, now);

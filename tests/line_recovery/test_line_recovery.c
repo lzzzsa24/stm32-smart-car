@@ -488,9 +488,63 @@ static void test_external_brake_ownership(void)
   puts("PASS: rolling search respects external brake and reset ownership");
 }
 
+static void test_gpio_snapshot_before_interrupt(void)
+{
+  unsigned active, right, wrap, stale, at_restore, cases=0, failures=0;
+  LineSensorSample_Start();
+  for(active=0;active<2;++active) for(right=0;right<2;++right) for(wrap=0;wrap<2;++wrap)
+  for(stale=0;stale<4;++stale) for(at_restore=0;at_restore<2;++at_restore)
+  {
+    LineTrackingReading snapshot;
+    tick=wrap?UINT32_MAX-500U:1000U;
+    reset(0,1);
+    if(active) { hold(right?2:8,30); hold(0,300); }
+    else hold(5,400);
+    if(wrap) tick=UINT32_MAX;
+    /* Previous inner, centered, opposite outer and wide snapshots can all
+       erase a newer edge if history is drained through compute time. */
+    gpio_mask=stale==0?(right?1:4):(stale==1?5:(stale==2?(right?2:8):15));
+    interrupt_edge=right?8:2;
+    if(at_restore) test_irq_restore_hook=enqueue_edge_on_irq_restore;
+    snapshot=line_tracking_read();
+    if(!at_restore) background_sample(interrupt_edge,1);
+    assert(!test_irq_restore_hook);
+    line_tracking_compute(&snapshot,3000,&output);
+    line_tracking_apply_command(&output,3599);
+    background_sample(0,1);
+    snapshot=line_tracking_read();
+    line_tracking_compute(&snapshot,3000,&output);
+    line_tracking_apply_command(&output,3599);
+    hold(0,150);
+    if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++failures;
+    ++cases;
+  }
+  printf("GPIO snapshot before newer ISR edge: wrong=%u/%u\n",failures,cases);
+  fflush(stdout); assert(failures==0);
+  /* Within the same tick the direct snapshot is later than queued history.
+     Tick zero is a valid timestamp, not a synthetic-reading sentinel. */
+  for(right=0;right<2;++right)
+  {
+    LineTrackingReading snapshot;
+    tick=UINT32_MAX-1U; reset(0,1);
+    background_sample(right?2:8,1);
+    background_sample(right?2:8,1);
+    gpio_mask=right?8:2;
+    snapshot=line_tracking_read();
+    assert(snapshot.sampled_time_valid && snapshot.sampled_ms==0U);
+    line_tracking_compute(&snapshot,3000,&output);
+    background_sample(0,1);
+    snapshot=line_tracking_read();
+    line_tracking_compute(&snapshot,3000,&output);
+    assert(telemetry.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+  }
+  line_tracking_reset();
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_gpio_snapshot_before_interrupt();
   test_latest_outer_after_long_search();
   test_alternating_corner_handoffs();
   test_external_brake_ownership();
