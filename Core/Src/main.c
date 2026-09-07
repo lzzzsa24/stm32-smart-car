@@ -1169,9 +1169,14 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   {
     LineSearchRecord record = {0};
     LineTrackingReading line = line_tracking_read();
-    IrAvoidReading infrared = ir_avoid_read();
+    IrAvoidReading infrared = {0};
     line_wait_side = LineRecovery_GetDirection();
-    if (infrared.left_obstacle || infrared.right_obstacle)
+    if (mode == APP_MODE_INTEGRATED)
+    {
+      infrared = ir_avoid_read();
+    }
+    if (mode == APP_MODE_INTEGRATED &&
+        (infrared.left_obstacle || infrared.right_obstacle))
       line_wait_side = choose_bypass_direction(&infrared);
     else if (line.x4_black && !line.x1_black && !line.x2_black) line_wait_side = 1;
     else if (line.x2_black && !line.x3_black && !line.x4_black) line_wait_side = -1;
