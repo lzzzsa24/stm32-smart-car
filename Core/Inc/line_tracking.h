@@ -57,6 +57,8 @@ void line_tracking_reset(void);
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才搜索鸣响。
    三/四路黑或不相邻多点黑优先低速穿越，覆盖旧转向。可靠外侧急弯持续转向，
+   三路相邻识黑只更新方向提示，不立即原地转向；双外侧/非相邻组合不产生新提示。
+   近期侧向提示可跨越短多黑区域保留至原采样后 400 ms；中心/反侧证据可使其失效。
    窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */
 void line_tracking_set_no_line_forward(uint8_t enable);
 /* enable=1: use filtered PD differential steering as the line-position outer
@@ -68,6 +70,10 @@ void line_tracking_set_turn_gain_percent(uint16_t percent);
 /* Pass snapshots to compute in acquisition order. ISR history newer than a
    snapshot stays queued for the next snapshot instead of being overwritten. */
 LineTrackingReading line_tracking_read(void);
+/* Direction evidence is independent of immediate corner permission.
+   Adjacent triples X2+X1+X3 / X1+X3+X4 report -1/+1 but still drive straight
+   through the crossing guard. Both outers and nonadjacent pairs report 0. */
+int8_t line_tracking_direction_evidence(const LineTrackingReading *reading);
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command);

@@ -427,6 +427,56 @@ static void test_real_alternating_corners(unsigned first_right)
   printf("PASS: real DriveBase first=%u, 12 alternating corners without reset, fresh hint logged\n",first_right);
 }
 
+static void test_real_broad_corner_directions(unsigned overlapping)
+{
+  DriveBaseTelemetry t;
+  LineSearchRecord decision;
+  LineTrackingCommand output;
+  unsigned ms, w;
+  line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+  line_tracking_set_smooth_mode(1);
+  for(ms=0;ms<5600;++ms)
+  {
+    unsigned phase=ms%700, right=(ms/700)%2;
+    unsigned first=overlapping?(right?2:8):(right?8:2);
+    unsigned broad=overlapping?(right?13:7):15;
+    unsigned mask=phase==0?first:(phase<=120?broad:(phase<=140 || phase>=450?5:0));
+    LineTrackingReading reading={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick);
+    line_tracking_compute(&reading,3000,&output);
+    line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&t);
+    assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+    if(phase>=1 && phase<=200)
+    {
+      assert(output.valid && t.requested_cps[0]>0 && t.requested_cps[0]==t.requested_cps[2]);
+      assert(!BuzzerPhrase400_IsPlaying());
+    }
+    if(phase>=250 && phase<450)
+    {
+      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      assert(t.requested_cps[0]==expected && t.requested_cps[1]==expected);
+      assert(t.requested_cps[2]==-expected && t.requested_cps[3]==-expected);
+      /* Targets change immediately; PWM follows the existing acceleration
+         ramp. Check its sign after allowing the four wheels to reverse. */
+      if(phase>=380)
+      {
+        assert(pins[0]*expected>0 && pins[1]*expected>0);
+        assert(pins[2]*expected<0 && pins[3]*expected<0);
+      }
+      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+      assert(decision.source==LINE_SEARCH_CROSS_HINT && decision.chosen_side==(right?1:-1));
+      assert(decision.hint_mask==(overlapping?broad:first));
+    }
+  }
+  line_tracking_reset();
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  assert(!BuzzerPhrase400_IsPlaying());
+  printf("PASS: real four-wheel targets/PWM, 8 alternating broad corners without reset, overlap=%u, crossing guard and STOP\n",overlapping);
+}
+
 static void test_real_search_capture(void)
 {
   DriveBaseTelemetry t;
@@ -929,6 +979,8 @@ int main(void)
   test_rolling_loss_reentry(1);
   test_real_alternating_corners(0);
   test_real_alternating_corners(1);
+  test_real_broad_corner_directions(0);
+  test_real_broad_corner_directions(1);
   test_position_coast_handoff(1);
   test_position_coast_handoff(-1);
   test_real_search_capture();

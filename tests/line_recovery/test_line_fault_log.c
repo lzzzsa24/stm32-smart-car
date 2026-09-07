@@ -22,6 +22,7 @@ int main(void)
     LineSearchRecord decision={0}, saved={0};
     decision.chosen_side=1; decision.hint=1; decision.source=LINE_SEARCH_HINT;
     decision.edge_mask=8; decision.edge_age_ms=100; decision.wide_mask=7; decision.wide_age_ms=101;
+    decision.hint_mask=13; decision.hint_age_ms=7;
     for(i=0;i<18;++i) { decision.time_ms=i; LineFaultLog_RecordSearch(&decision); }
     assert(LineFaultLog_SearchCount()==16 && LineFaultLog_GetSearch(0,&saved) && saved.time_ms==2);
     assert(!LineFaultLog_GetSearch(16,&saved) && !LineFaultLog_GetSearch(0,0));
@@ -31,6 +32,7 @@ int main(void)
     for(i=0;i<25;++i) LineFaultLog_Task(1);
     assert(strstr(text,"LFAULT END\r\nLSEARCH BEGIN") && strstr(text,"count=16 overwritten=2"));
     assert(strstr(text,"side=1 source=1 hint=1 edge=8 edge_age=100 wide=7 wide_age=101"));
+    assert(strstr(text,"hint_mask=13 hint_age=7"));
     assert(strstr(text,"LSEARCH END\r\n") && LineFaultLog_SearchCount()==16);
     LineFaultLog_RequestDump();
     for(i=0;i<5;++i) LineFaultLog_Task(1);

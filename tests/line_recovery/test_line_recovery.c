@@ -197,7 +197,7 @@ static void test_single_outer_flash_search_direction(void)
   reset(0,0); hold(0,100); sample(1,1,3000); sample(1,4,3000);
   sample(8,1,3000); hold(0,180);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
-  /* Wide evidence clears earlier hints; a later tail supplies the exit side. */
+  /* Wide evidence suppresses turning; a later tail refreshes the exit side. */
   reset(0,0); hold(5,100); sample(8,1,3000); sample(7,1,3000);
   hold(0,40); sample(8,1,3000); hold(0,220);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
@@ -373,12 +373,13 @@ static void test_fast_exit_after_transverse(void)
     assert(decision.source==LINE_SEARCH_HINT && decision.chosen_side==(side?1:-1));
     assert(decision.edge_mask==(side?8:2) && decision.wide_mask==7);
   }
-  /* A later broad mark still invalidates a previously seen edge. The log
-     distinguishes discarded evidence from never seeing an edge at all. */
+  /* A broad mark cancels turning but retains a bounded recent side. The log
+     distinguishes this held hint from defaulting without directional evidence. */
   reset(0,1); hold(5,1000); sample(8,1,3000); sample(7,1,3000); hold(0,220);
   assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
-  assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_mask==8 && decision.wide_mask==7);
+  assert(decision.source==LINE_SEARCH_CROSS_HINT && decision.edge_mask==8 && decision.wide_mask==7);
   assert(decision.edge_age_ms>decision.wide_age_ms && decision.chosen_side==-1);
+  assert(decision.hint_mask==7); /* New adjacent triple supersedes the old right edge. */
   reset(0,1); hold(5,1000); sample(7,1,3000); sample(8,1,3000); hold(5,500); hold(0,180);
   assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
   assert(decision.source==LINE_SEARCH_DEFAULT); /* Stable centre invalidates tail direction. */
@@ -541,9 +542,179 @@ static void test_gpio_snapshot_before_interrupt(void)
   line_tracking_reset();
 }
 
+static void test_direction_survives_short_wide_mark(void)
+{
+  unsigned right, active, queued, wrap, wrong=0;
+  LineSearchRecord decision;
+  LineSensorSample_Start();
+  for(right=0;right<2;++right) for(active=0;active<2;++active)
+  for(queued=0;queued<2;++queued) for(wrap=0;wrap<2;++wrap)
+  {
+    unsigned edge=right?8:2;
+    tick=wrap?UINT32_MAX-(active?330U:400U)-80U:1000U;
+    reset(0,1);
+    if(active) { hold(right?2:8,30); hold(0,300); }
+    else hold(5,400);
+    if(queued)
+    {
+      background_sample(edge,1); background_sample(15,120);
+      background_sample(5,20); background_sample(0,10);
+      sample(0,0,3000);
+    }
+    else
+    {
+      sample(edge,1,3000); hold(15,120);
+      assert(output.valid && output.left_cps==output.right_cps && !BuzzerPhrase400_IsPlaying());
+      hold(5,20); hold(0,10);
+    }
+    hold(0,150);
+    if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++wrong;
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_CROSS_HINT && decision.hint==(right?1:-1));
+  }
+  printf("Recent side -> wide -> brief center -> loss: wrong=%u/16\n",wrong);
+  fflush(stdout); assert(wrong==0);
+  /* A horizontal strip followed by a lasting centre is still ordinary
+     forward driving. Neither wide repeats nor centre readings renew a hold. */
+  for(right=0;right<2;++right) for(queued=0;queued<2;++queued)
+  {
+    unsigned edge=right?8:2, opposite=right?2:8;
+    reset(0,1); sample(edge,1,3000); hold(15,120);
+    if(queued) { background_sample(5,95); sample(5,0,3000); }
+    else hold(5,95);
+    assert(output.valid && output.left_cps>0 && output.right_cps>0 && !spins);
+    hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT && decision.hint==0);
+
+    reset(0,1); sample(edge,1,3000); hold(15,410); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* 400-ms absolute expiry */
+
+    reset(0,1); sample(edge,1,3000); sample(15,201,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* no revival at wide entry */
+
+    reset(0,1); sample(edge,1,3000); hold(15,120);
+    if(queued) { background_sample(opposite,1); background_sample(0,10); sample(0,0,3000); }
+    else { sample(opposite,1,3000); hold(0,10); }
+    assert(output.valid && output.left_cps==output.right_cps && !spins);
+    hold(0,150);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_HINT && decision.chosen_side==(right?-1:1));
+
+    reset(0,1); sample(edge,1,3000); hold(15,120);
+    if(queued) { background_sample(right?1:4,8); background_sample(0,10); sample(0,0,3000); }
+    else { hold(right?1:4,8); sample(right?1:4,4,3000); hold(0,10); }
+    hold(0,150);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_HINT && decision.chosen_side==(right?-1:1));
+
+    reset(0,1); sample(edge,1,3000); hold(15,120); reset(0,1); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* mode/STOP clears hold */
+  }
+  reset(0,1); sample(8,1,3000); hold(15,120);
+  background_sample(0,300); sample(0,0,3000);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_DEFAULT && decision.queue_overwritten>0);
+  /* No side information is invented for a symmetric wide/centre/white exit. */
+  reset(0,1); hold(15,120); hold(5,20); hold(0,150);
+  assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+  assert(decision.source==LINE_SEARCH_DEFAULT && decision.hint==0);
+  puts("PASS: crossing hold expiry, centre clear, newest side, inner confirmation, reset, overflow, unknown side");
+  line_tracking_reset();
+}
+
+static void test_overlapping_direction_and_interrupted_confirmation(void)
+{
+  unsigned right, queued, active, wrap, wrong=0, false_corner=0, false_capture=0;
+  LineSearchRecord decision;
+  LineSensorSample_Start();
+  for(right=0;right<2;++right) for(queued=0;queued<2;++queued) for(active=0;active<2;++active)
+  for(wrap=0;wrap<2;++wrap)
+  {
+    unsigned broad=right?13:7;
+    tick=wrap?UINT32_MAX-(active?130U:30U)-10U:1000U;
+    reset(0,1); hold(right?1:4,30); /* Opposite inner hint, as in the captured log. */
+    if(active) hold(0,100);
+    if(queued) { background_sample(broad,20); background_sample(0,20); sample(0,0,3000); }
+    else { hold(broad,20); hold(0,20); }
+    assert(output.valid && output.left_cps==output.right_cps && !BuzzerPhrase400_IsPlaying());
+    hold(0,150);
+    if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++wrong;
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.hint_mask==broad && decision.source==LINE_SEARCH_CROSS_HINT);
+  }
+  for(right=0;right<2;++right)
+  {
+    unsigned edge=right?8:2;
+    reset(0,1); hold(5,100); sample(edge,1,3000);
+    background_sample(0,15); background_sample(edge,1); sample(edge,0,3000);
+    if(!output.valid) ++false_corner;
+    hold(edge,20); assert(!output.valid); /* A new continuous contact still turns. */
+
+    reset(0,1); hold(0,100); sample(5,1,3000);
+    background_sample(right?0:8,4); background_sample(5,1); sample(5,0,3000);
+    if(output.valid) ++false_capture;
+    sample(5,4,3000); assert(output.valid); /* New continuous capture still succeeds. */
+  }
+  printf("Overlap wrong=%u/16; interrupted corner=%u/2; interrupted capture=%u/2\n",
+         wrong,false_corner,false_capture);
+  fflush(stdout); assert(!wrong && !false_corner && !false_capture);
+  line_tracking_reset();
+}
+
+static unsigned mirrored_mask(unsigned mask)
+{ return ((mask&1)<<2)|((mask&2)<<2)|((mask&4)>>2)|((mask&8)>>2); }
+
+static void test_direction_pattern_matrix(void)
+{
+  static const int expected[16]={0,0,-1,-1,0,0,0,-1,1,0,0,0,1,1,0,0};
+  unsigned mask, next, mirror, checked=0;
+  assert(line_tracking_direction_evidence(0)==0);
+  for(mask=0;mask<16;++mask)
+  {
+    LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    assert(line_tracking_direction_evidence(&r)==expected[mask]);
+    assert(expected[mirrored_mask(mask)]==-expected[mask]);
+    if(mask==7 || mask==13)
+    {
+      LineSearchRecord d;
+      reset(0,1); hold(mask,500);
+      assert(output.valid && output.left_cps==output.right_cps && !spins);
+      hold(0,110);
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&d));
+      assert(d.chosen_side==expected[mask] && d.hint_mask==mask);
+    }
+  }
+  /* All ordered pattern pairs with a mirrored seed must preserve symmetry.
+     Unknown-side cases intentionally share the existing default-left policy. */
+  for(mask=0;mask<16;++mask) for(next=0;next<16;++next)
+  {
+    LineSearchRecord d[2];
+    for(mirror=0;mirror<2;++mirror)
+    {
+      unsigned a=mirror?mirrored_mask(mask):mask, b=mirror?mirrored_mask(next):next;
+      reset(0,1); hold(mirror?4:1,30);
+      sample(a,1,3000); sample(b,1,3000); hold(0,180);
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&d[mirror]));
+    }
+    assert(d[0].source==d[1].source);
+    assert(d[0].hint_mask==mirrored_mask(d[1].hint_mask));
+    if(d[0].source!=LINE_SEARCH_DEFAULT) assert(d[0].chosen_side==-d[1].chosen_side);
+    ++checked;
+  }
+  printf("PASS: all 16 direction patterns and %u mirrored ordered pairs\n",checked);
+  line_tracking_reset();
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_overlapping_direction_and_interrupted_confirmation();
+  test_direction_pattern_matrix();
+  test_direction_survives_short_wide_mark();
   test_gpio_snapshot_before_interrupt();
   test_latest_outer_after_long_search();
   test_alternating_corner_handoffs();

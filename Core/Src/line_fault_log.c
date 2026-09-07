@@ -90,7 +90,7 @@ void LineFaultLog_Task(uint8_t stopped)
   if (!dump_active) return;
   if (dump_active == 2U)
   {
-    DiagnosticUart_WriteString("LSEARCH BEGIN v=1 sources=0:default,1:hint,2:rejoin,3:corner,4:correction,5:wait");
+    DiagnosticUart_WriteString("LSEARCH BEGIN v=1 sources=0:default,1:hint,2:rejoin,3:corner,4:correction,5:wait,6:cross_hint");
     u(" count=", search_count); u(" overwritten=", search_overwritten);
     DiagnosticUart_WriteString("\r\n"); dump_index = 0U; dump_active = 3U; return;
   }
@@ -106,6 +106,7 @@ void LineFaultLog_Task(uint8_t stopped)
     u(" queue_overwritten=", decision.queue_overwritten);
     u(" pause=", decision.pause_reason); u(" drive_fault=", decision.drive_fault);
     u(" bypass_fault=", decision.bypass_fault);
+    u(" hint_mask=", decision.hint_mask); u(" hint_age=", decision.hint_age_ms);
     DiagnosticUart_WriteString("\r\n"); ++dump_index; return;
   }
   if (!LineFaultLog_Get(dump_index, &r))
