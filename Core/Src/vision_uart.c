@@ -11,12 +11,18 @@
 #include <string.h>
 
 #include "main.h"
+#include "vision_detection_parser.h"
+#include "vision_line_v4_parser.h"
 
 #define VISION_UART_BAUD                 115200U
 #define VISION_TOKEN_BUFFER_SIZE              64U
 #define VISION_TX_BUFFER_SIZE                 48U
-#define VISION_MAX_BYTES_PER_POLL             32U
+#define VISION_MAX_BYTES_PER_POLL             64U
 #define VISION_REPEAT_GUARD_MS              1200U
+#define VISION_RX_RING_SIZE                  256U
+#define VISION_DETECTION_QUEUE_SIZE            8U
+#define VISION_UART_ERROR_MASK (USART_SR_ORE | USART_SR_NE | \
+                                USART_SR_FE | USART_SR_PE)
 
 static char token_buffer[VISION_TOKEN_BUFFER_SIZE];
 static uint8_t token_length;
@@ -28,6 +34,62 @@ static uint32_t last_command_tick;
 static uint8_t tx_buffer[VISION_TX_BUFFER_SIZE];
 static uint8_t tx_length;
 static uint8_t tx_index;
+static volatile uint8_t rx_ring[VISION_RX_RING_SIZE];
+static volatile uint8_t rx_head;
+static volatile uint8_t rx_tail;
+static volatile uint8_t rx_reset_pending;
+static VisionDetectionParser detection_parser;
+static VisionLineV4Parser line_v4_parser;
+static VisionDetection detection_queue[VISION_DETECTION_QUEUE_SIZE];
+static uint8_t detection_head;
+static uint8_t detection_tail;
+static uint32_t detection_sequence;
+static VisionLineV4Reading line_v4_latest;
+static uint32_t line_v4_sequence;
+static volatile VisionUartStats vision_stats;
+
+static void queue_detection(VisionDetection *detection)
+{
+  uint8_t next;
+
+  ++detection_sequence;
+  detection->sequence = detection_sequence;
+  detection->received_ms = HAL_GetTick();
+  next = (uint8_t)((detection_head + 1U) % VISION_DETECTION_QUEUE_SIZE);
+  if (next == detection_tail)
+  {
+    detection_tail = (uint8_t)((detection_tail + 1U) %
+                               VISION_DETECTION_QUEUE_SIZE);
+    ++vision_stats.queue_overflows;
+  }
+  detection_queue[detection_head] = *detection;
+  detection_head = next;
+  if (detection->class_id < 0)
+  {
+    ++vision_stats.none_frames;
+  }
+  else
+  {
+    ++vision_stats.valid_frames;
+  }
+}
+
+static void reset_receive_parser(void)
+{
+  token_length = 0U;
+  binary_state = 0U;
+  VisionDetectionParser_Init(&detection_parser);
+  VisionLineV4Parser_Init(&line_v4_parser);
+}
+
+static void publish_line_v4(VisionLineV4Reading *reading)
+{
+  ++line_v4_sequence;
+  reading->sequence = line_v4_sequence;
+  reading->received_ms = HAL_GetTick();
+  line_v4_latest = *reading;
+  ++vision_stats.line_v4_frames;
+}
 
 static uint8_t append_character(uint8_t index, char value)
 {
@@ -199,6 +261,37 @@ static void finish_token(void)
 
 static void consume_byte(uint8_t byte)
 {
+  VisionDetection detection;
+  VisionLineV4Reading line_v4;
+  VisionParseResult parse_result = VisionDetectionParser_Consume(
+      &detection_parser, byte, &detection);
+  VisionLineV4ParseResult line_v4_result = VisionLineV4Parser_Consume(
+      &line_v4_parser, byte, &line_v4);
+
+  if (parse_result == VISION_PARSE_FRAME)
+  {
+    queue_detection(&detection);
+  }
+  if (line_v4_result == VISION_LINE_V4_PARSE_FRAME)
+  {
+    publish_line_v4(&line_v4);
+  }
+  if (parse_result != VISION_PARSE_IGNORED ||
+      line_v4_result != VISION_LINE_V4_PARSE_IGNORED)
+  {
+    if (byte == '$')
+    {
+      token_length = 0U;
+      binary_state = 0U;
+    }
+    if (parse_result == VISION_PARSE_BAD_FRAME &&
+        line_v4_result == VISION_LINE_V4_PARSE_BAD_FRAME)
+    {
+      ++vision_stats.bad_frames;
+    }
+    return;
+  }
+
   if (binary_state == 1U)
   {
     binary_id = byte;
@@ -279,7 +372,11 @@ void vision_uart_init(void)
   USART2->CR2 = 0U;
   USART2->CR3 = 0U;
   USART2->BRR = divider;
-  USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_UE;
+  USART2->CR1 = USART_CR1_TE | USART_CR1_RE | USART_CR1_RXNEIE |
+                USART_CR1_UE;
+
+  HAL_NVIC_SetPriority(USART2_IRQn, 3U, 0U);
+  HAL_NVIC_EnableIRQ(USART2_IRQn);
 
   token_length = 0U;
   binary_state = 0U;
@@ -289,20 +386,47 @@ void vision_uart_init(void)
   last_command_tick = 0U;
   tx_length = 0U;
   tx_index = 0U;
+  rx_head = 0U;
+  rx_tail = 0U;
+  rx_reset_pending = 0U;
+  detection_head = 0U;
+  detection_tail = 0U;
+  detection_sequence = 0U;
+  vision_stats.valid_frames = 0U;
+  vision_stats.none_frames = 0U;
+  vision_stats.bad_frames = 0U;
+  vision_stats.uart_errors = 0U;
+  vision_stats.ring_overflows = 0U;
+  vision_stats.queue_overflows = 0U;
+  vision_stats.line_v4_frames = 0U;
+  memset(&line_v4_latest, 0, sizeof(line_v4_latest));
+  line_v4_sequence = 0U;
+  reset_receive_parser();
 }
 
 void vision_uart_poll(void)
 {
   uint32_t count = 0U;
 
-  while ((USART2->SR & USART_SR_RXNE) != 0U &&
-         count < VISION_MAX_BYTES_PER_POLL)
+  if (rx_reset_pending != 0U)
   {
-    uint32_t status = USART2->SR;
-    uint8_t byte = (uint8_t)USART2->DR;
+    uint32_t cr1 = USART2->CR1;
 
-    /* 读取 DR 已清除 RXNE；错误标志也通过一次 SR/DR 读取复位。 */
-    (void)status;
+    USART2->CR1 = cr1 & ~USART_CR1_RXNEIE;
+    rx_tail = rx_head;
+    rx_reset_pending = 0U;
+    detection_tail = detection_head;
+    line_v4_latest.frame_valid = 0U;
+    ++detection_sequence;
+    reset_receive_parser();
+    USART2->CR1 = cr1;
+  }
+
+  while (rx_tail != rx_head && count < VISION_MAX_BYTES_PER_POLL)
+  {
+    uint8_t byte = rx_ring[rx_tail];
+
+    rx_tail = (uint8_t)(rx_tail + 1U);
     consume_byte(byte);
     ++count;
   }
@@ -317,6 +441,38 @@ void vision_uart_poll(void)
       tx_length = 0U;
     }
   }
+}
+
+void vision_uart_irq_handler(void)
+{
+  uint32_t status = USART2->SR;
+  uint8_t byte;
+  uint8_t next;
+
+  if ((status & (USART_SR_RXNE | VISION_UART_ERROR_MASK)) == 0U)
+  {
+    return;
+  }
+  byte = (uint8_t)USART2->DR;
+  if ((status & VISION_UART_ERROR_MASK) != 0U)
+  {
+    ++vision_stats.uart_errors;
+    rx_reset_pending = 1U;
+    return;
+  }
+  if ((status & USART_SR_RXNE) == 0U)
+  {
+    return;
+  }
+  next = (uint8_t)(rx_head + 1U);
+  if (next == rx_tail)
+  {
+    ++vision_stats.ring_overflows;
+    rx_reset_pending = 1U;
+    return;
+  }
+  rx_ring[rx_head] = byte;
+  rx_head = next;
 }
 
 void vision_uart_queue_motion_telemetry(uint8_t valid,
@@ -353,6 +509,62 @@ VisionCommand vision_uart_take_event(void)
   command = pending_command;
   pending_command = VISION_CMD_NONE;
   return command;
+}
+
+uint8_t vision_uart_take_detection(VisionDetection *detection)
+{
+  if (detection == 0)
+  {
+    return 0U;
+  }
+  vision_uart_poll();
+  if (detection_tail == detection_head)
+  {
+    return 0U;
+  }
+  *detection = detection_queue[detection_tail];
+  detection_tail = (uint8_t)((detection_tail + 1U) %
+                             VISION_DETECTION_QUEUE_SIZE);
+  return 1U;
+}
+
+void vision_uart_reset_detections(void)
+{
+  uint32_t cr1 = USART2->CR1;
+
+  USART2->CR1 = cr1 & ~USART_CR1_RXNEIE;
+  rx_tail = rx_head;
+  rx_reset_pending = 0U;
+  detection_tail = detection_head = 0U;
+  reset_receive_parser();
+  USART2->CR1 = cr1;
+}
+
+void vision_uart_get_stats(VisionUartStats *stats)
+{
+  if (stats != 0)
+  {
+    stats->valid_frames = vision_stats.valid_frames;
+    stats->none_frames = vision_stats.none_frames;
+    stats->bad_frames = vision_stats.bad_frames;
+    stats->uart_errors = vision_stats.uart_errors;
+    stats->ring_overflows = vision_stats.ring_overflows;
+    stats->queue_overflows = vision_stats.queue_overflows;
+    stats->line_v4_frames = vision_stats.line_v4_frames;
+  }
+}
+
+VisionLineV4Reading vision_uart_get_line_v4(void)
+{
+  vision_uart_poll();
+  return line_v4_latest;
+}
+
+void vision_uart_reset_line_v4(void)
+{
+  line_v4_latest.frame_valid = 0U;
+  line_v4_latest.sequence = 0U;
+  line_v4_sequence = 0U;
 }
 
 const char *vision_command_name(VisionCommand command)

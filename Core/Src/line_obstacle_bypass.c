@@ -2,7 +2,7 @@
 
 #include "drive_base.h"
 #include "encoder_linear.h"
-#include "encoder_turn.h"
+#include "line_bypass_turn.h"
 #include "main.h"
 #include "motion_advanced.h"
 
@@ -78,6 +78,7 @@ static int32_t active_turn_mdeg;
 static uint8_t turn_steps_remaining;
 static uint16_t after_turn_distance_mm;
 static BypassGuidedTurn guided_turn_mode;
+static uint8_t turn_sensor_stopped;
 
 static uint8_t start_linear_motion(BypassMotionIntent intent,
                                    int32_t distance_mm,
@@ -116,7 +117,7 @@ static void reset_relation_filter(void)
 static void stop_motion_controllers(void)
 {
   EncoderLinear_Stop();
-  EncoderTurn_Stop();
+  LineBypassTurn_Stop();
   advanced_stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
 }
@@ -124,7 +125,7 @@ static void stop_motion_controllers(void)
 static void enter_fault(uint8_t mask)
 {
   EncoderLinear_Stop();
-  EncoderTurn_Stop();
+  LineBypassTurn_Stop();
   DriveBase_Stop(DRIVE_STOP_BRAKE);
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
   fault_mask = mask != 0U ? mask : BYPASS_FAULT_CONTROLLER;
@@ -139,7 +140,7 @@ static void finish_done(void)
 
 static int32_t outward_turn_mdeg(void)
 {
-  /* EncoderTurn uses positive=left. Bypass direction uses positive=right. */
+  /* Turn angle uses positive=left. Bypass direction uses positive=right. */
   return bypass_direction > 0 ?
       -bypass_config.turn_step_mdeg : bypass_config.turn_step_mdeg;
 }
@@ -394,7 +395,7 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
                                    int32_t distance_mm,
                                    uint16_t cps)
 {
-  EncoderTurn_Stop();
+  LineBypassTurn_Stop();
   EncoderLinear_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
   if (EncoderLinear_Start(distance_mm, (int32_t)cps) == 0U)
@@ -412,7 +413,8 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
 
 static uint8_t start_next_turn_step(void)
 {
-  if (EncoderTurn_Start(active_turn_mdeg, 0L,
+  turn_sensor_stopped = 0U;
+  if (LineBypassTurn_Start(active_turn_mdeg,
                         (int32_t)bypass_config.turn_cps) == 0U)
   {
     enter_fault(BYPASS_FAULT_CONTROLLER);
@@ -434,7 +436,7 @@ static uint8_t start_turn_sequence(int32_t angle_mdeg,
   }
 
   EncoderLinear_Stop();
-  EncoderTurn_Stop();
+  LineBypassTurn_Stop();
   active_turn_mdeg = angle_mdeg;
   turn_steps_remaining = steps;
   after_turn_drive_intent = next_intent;
@@ -614,7 +616,7 @@ static int32_t configured_return_target(void)
   {
     magnitude = abs_i32(bypass_config.turn_step_mdeg);
   }
-  /* Positive EncoderTurn angle is left.  After bypassing to the right the
+  /* Positive turn angle is left. After bypassing to the right the
      return heading must point left across the original line, and vice versa. */
   return bypass_direction > 0 ? magnitude : -magnitude;
 }
@@ -963,7 +965,7 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   /* Do not issue an unconditional coast-stop here: that would cancel the
      unified drive layer's non-blocking emergency brake just after detection. */
   EncoderLinear_Stop();
-  EncoderTurn_Stop();
+  LineBypassTurn_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
   bypass_direction = direction > 0 ? 1 : -1;
   fault_mask = 0U;
@@ -1096,23 +1098,25 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
             stable_relation == BYPASS_RELATION_TOO_CLOSE)))
       {
         /* Stop a continuous sensor-guided turn at the first stable boundary;
-           EncoderTurn keeps counting through coast before reporting DONE. */
-        (void)EncoderTurn_RequestStop();
+           Continue counting through braking before reporting DONE. */
+        turn_sensor_stopped = LineBypassTurn_RequestStop();
         guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
       }
-      EncoderTurn_Task();
-      if (EncoderTurn_GetState() == ENCODER_TURN_FAULT)
+      LineBypassTurn_Task();
+      if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_FAULT)
       {
-        enter_fault(EncoderTurn_GetFaultMask());
+        enter_fault(LineBypassTurn_GetFaultMask());
       }
-      else if (EncoderTurn_GetState() == ENCODER_TURN_DONE)
+      else if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_DONE)
       {
         int32_t achieved_turn_mdeg =
-            EncoderTurn_GetAchievedAngleMdeg();
+            LineBypassTurn_GetAchievedAngleMdeg();
 
-        EncoderTurn_Stop();
+        LineBypassTurn_Stop();
         guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
-        if (achieved_turn_mdeg == 0L)
+        /* A stable IR boundary can legitimately finish before wheel motion.
+           It is a sensor-directed transition, not an encoder timeout. */
+        if (achieved_turn_mdeg == 0L && turn_sensor_stopped == 0U)
         {
           enter_fault(BYPASS_FAULT_CONTROLLER);
           break;

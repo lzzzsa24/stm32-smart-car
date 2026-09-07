@@ -2,26 +2,28 @@
  * 实验七：PF13/PF14/PF15/PG0 四路数字循迹
  *
  * 传感器输出低电平表示黑线。该文件是黑线位置外环，只生成左右目标
- * CPS；DriveBase 使用四路编码器形成各轮速度内环。丢线 360 度搜索则
- * 通过 EncoderTurn 请求四轮位置闭环。
+ * CPS；DriveBase 使用四路编码器形成各轮速度内环。丢线后四轮
+ * 持续同向原地搜索并播放预制蜂鸣，见线确认后恢复。
  */
 
 #include "line_tracking.h"
+#include "line_recovery.h"
+#include "line_sensor_sample.h"
+#include "line_fault_log.h"
 
 #include "drive_base.h"
-#include "encoder_turn.h"
 #include "main.h"
 #include "motorPWM.h"
 
-static int8_t last_error;
 static uint8_t no_line_forward_enabled = 1U;
 static uint8_t line_has_been_seen;
-static uint8_t middle_pair_armed;
 static int8_t predicted_turn_direction;
+static int8_t direction_candidate;
+static uint32_t direction_candidate_since_ms;
+static uint32_t direction_last_seen_ms;
+static uint8_t direction_center_active;
+static uint32_t direction_center_since_ms;
 static int8_t recovery_turn_direction;
-static int8_t last_turn_direction;
-static int8_t outer_turn_direction;
-static uint32_t outer_turn_started_ms;
 static uint8_t smooth_mode_enabled;
 static uint8_t smooth_filter_valid;
 static int16_t smooth_error_q8;
@@ -36,40 +38,43 @@ static uint16_t smooth_turn_gain_percent = 100U;
 typedef enum
 {
   LINE_RECOVERY_NORMAL = 0U,
-  LINE_RECOVERY_WAIT_SEARCH,
-  LINE_RECOVERY_TURN_SEARCH,
-  LINE_RECOVERY_STOPPED,
-  LINE_RECOVERY_WAIT_FORWARD,
-  LINE_RECOVERY_SETTLE
+  LINE_RECOVERY_ACTIVE,
+  LINE_RECOVERY_SETTLE,
+  LINE_RECOVERY_STOPPED
 } LineRecoveryState;
 
 static LineRecoveryState recovery_state;
 static uint32_t recovery_state_started_ms;
+static uint8_t crossing_active, middle_recent_valid;
+static uint32_t crossing_last_ms, middle_last_ms;
+static int8_t corner_candidate;
+static uint32_t corner_since_ms, corner_last_ms;
+static uint32_t sample_overwritten;
+static uint32_t last_observation_ms;
+static uint8_t last_edge_mask, last_wide_mask;
+static uint32_t last_edge_ms, last_wide_ms;
+static int8_t last_logged_side;
 
-#define TRACKING_DIRECTION_GUARD_MS          70U
-#define TRACKING_SEARCH_ANGLE_MDEG         360000L
-#define TRACKING_SEARCH_TURN_CPS             1800L
-#define TRACKING_REACQUIRE_SETTLE_MS         250U
+#define TRACKING_HINT_CONFIRM_MS                4U
+#define TRACKING_CROSS_CLEAR_MS               100U
+#define TRACKING_NARROW_GAP_MS                 60U
+#define TRACKING_CORNER_CONFIRM_MS             12U
+#define TRACKING_HINT_MAX_AGE_MS              200U
+#define TRACKING_HINT_CENTER_CLEAR_MS          80U
+#define TRACKING_REACQUIRE_SETTLE_MS         500U
 #define TRACKING_MIN_INNER_PWM             2200
 #define TRACKING_MIN_OUTER_PWM             3000
 #define TRACKING_SETTLE_INNER_PWM           2200
-#define TRACKING_SETTLE_OUTER_PWM           2700
+#define TRACKING_SETTLE_OUTER_PWM           2400
 #define TRACKING_SETTLE_CENTER_PWM          2200
-#define TRACKING_NORMAL_CENTER_PWM          3000
-#define TRACKING_OUTER_ROLL_IN_MS            120U
-#define TRACKING_OUTER_SPIN_END_MS           280U
-#define TRACKING_OUTER_ROLL_INNER_PWM       2200
-#define TRACKING_OUTER_ROLL_OUTER_PWM       3400
-#define TRACKING_OUTER_SPIN_PWM             3000
-#define TRACKING_OUTER_ARC_INNER_PWM        2100
-#define TRACKING_OUTER_ARC_OUTER_PWM        3300
+#define TRACKING_NORMAL_CENTER_PWM          2700
 #define TRACKING_SMOOTH_UPDATE_MS              10U
 #define TRACKING_SMOOTH_STEER_LIMIT          1400
 #define TRACKING_SMOOTH_STEER_DEADBAND        100
 #define TRACKING_SMOOTH_CURVE_CENTER_PWM      2800
 #define TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM     100
-#define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2800
-#define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       3000
+#define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2600
+#define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       2700
 #define TRACKING_SMOOTH_CENTER_HOLD_MS          350U
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
@@ -127,6 +132,9 @@ static void command_set_pwm(LineTrackingCommand *command,
   if (command == 0) return;
   command->left_cps = DriveBase_EquivalentCpsFromPwm(left_pwm);
   command->right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
+  /* Preparing does not own the motors. DriveBase accepts only exact targets;
+     a consumer applying a speed cap must rebind the claim to the final pair. */
+  DriveBase_PrepareLineTurnAssist(command->left_cps, command->right_cps);
   command->action = action;
   command->valid = 1U;
 }
@@ -135,20 +143,96 @@ static void command_stop(LineTrackingCommand *command)
 {
   command_set_pwm(command, 0, 0, LINE_ACTION_STOP);
 }
-
-static void command_release_to_position(LineTrackingCommand *command,
-                                        LineTrackingAction action)
+void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
 {
-  if (command == 0) return;
-  command->left_cps = 0L;
-  command->right_cps = 0L;
-  command->action = action;
-  command->valid = 0U;
+  int32_t left, right, maximum, limit;
+  if (!command || !command->valid) return;
+  left = command->left_cps; right = command->right_cps;
+  if (left >= 0L && right >= 0L)
+  {
+    limit = DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm));
+    maximum = left > right ? left : right;
+    if (maximum > limit && maximum > 0L)
+    {
+      left = (int32_t)(((int64_t)left * limit) / maximum);
+      right = (int32_t)(((int64_t)right * limit) / maximum);
+    }
+  }
+  /* KEY1's ultrasonic cap changes the targets. A claim prepared before the
+     cap is deliberately rejected by DriveBase, so bind only the final pair. */
+  DriveBase_PrepareLineTurnAssist(left, right);
+  if (left == 0L && right == 0L) DriveBase_Stop(DRIVE_STOP_COAST);
+  else DriveBase_SetSideCps(left, right);
+}
+
+static void recovery_stop(LineRecoveryStopReason reason)
+{
+  LineRecovery_Stop(reason);
+  recovery_state = LINE_RECOVERY_STOPPED;
 }
 
 static uint8_t read_black(GPIO_TypeDef *port, uint16_t pin)
 {
   return HAL_GPIO_ReadPin(port, pin) == GPIO_PIN_RESET ? 1U : 0U;
+}
+
+/* Observe sensor position, never the filtered motor correction. A newly
+   opposing observation invalidates the old hint while it is being confirmed. */
+static void update_direction_hint(const LineTrackingReading *reading,
+                                  uint8_t active_count, uint32_t now)
+{
+  int16_t position = -3 * reading->x2_black - reading->x1_black +
+                       reading->x3_black + 3 * reading->x4_black;
+  int8_t side = position < 0 ? -1 : (position > 0 ? 1 : 0);
+
+  /* One sampled unambiguous outer hit is enough to remember where the line
+     exited. This does not start a turn: its 12-ms command gate is separate.
+     The caller has already rejected transverse patterns and their tail. */
+  if ((reading->x2_black && !reading->x3_black && !reading->x4_black) ||
+      (reading->x4_black && !reading->x1_black && !reading->x2_black))
+  {
+    predicted_turn_direction = direction_candidate = side;
+    direction_last_seen_ms = direction_candidate_since_ms = now;
+    direction_center_active = 0U;
+    return;
+  }
+  if (reading->x2_black && reading->x4_black)
+  {
+    predicted_turn_direction = 0;
+    direction_candidate = 0;
+    direction_center_active = 0U;
+    return;
+  }
+  if (active_count == 0U)
+  {
+    direction_candidate = 0;
+    direction_center_active = 0U;
+    return;
+  }
+  if (side == 0)
+  {
+    direction_candidate = 0;
+    if (direction_center_active == 0U)
+    {
+      direction_center_active = 1U;
+      direction_center_since_ms = now;
+    }
+    if (now - direction_center_since_ms >= TRACKING_HINT_CENTER_CLEAR_MS)
+      predicted_turn_direction = 0;
+    return;
+  }
+  direction_center_active = 0U;
+  if (side != direction_candidate)
+  {
+    direction_candidate = side;
+    direction_candidate_since_ms = now;
+    if (predicted_turn_direction != side) predicted_turn_direction = 0;
+  }
+  if (now - direction_candidate_since_ms >= TRACKING_HINT_CONFIRM_MS)
+  {
+    predicted_turn_direction = side;
+    direction_last_seen_ms = now;
+  }
 }
 
 void line_tracking_init(void)
@@ -169,22 +253,29 @@ void line_tracking_init(void)
   HAL_GPIO_Init(TRACK_X4_GPIO_Port, &gpio);
 
   line_tracking_reset();
+  LineSensorSample_Start();
 }
 
 void line_tracking_reset(void)
 {
-  if (recovery_state == LINE_RECOVERY_TURN_SEARCH)
-  {
-    EncoderTurn_Stop();
-  }
-  last_error = 0;
+  LineSensorSample_Reset();
+  sample_overwritten = 0U;
+  last_edge_mask = last_wide_mask = 0U;
+  last_logged_side = 0;
+  last_observation_ms = HAL_GetTick();
+  DriveBase_SetLineFaultObservation(0U, 0U, 0U);
+  LineRecovery_Reset();
+  crossing_active = middle_recent_valid = 0U;
+  corner_candidate = 0;
+  crossing_last_ms = middle_last_ms = corner_since_ms = corner_last_ms = HAL_GetTick();
   line_has_been_seen = 0U;
-  middle_pair_armed = 0U;
   predicted_turn_direction = 0;
+  direction_candidate = 0;
+  direction_center_active = 0U;
+  direction_candidate_since_ms = HAL_GetTick();
+  direction_last_seen_ms = HAL_GetTick();
+  direction_center_since_ms = HAL_GetTick();
   recovery_turn_direction = 0;
-  last_turn_direction = 0;
-  outer_turn_direction = 0;
-  outer_turn_started_ms = HAL_GetTick();
   smooth_filter_valid = 0U;
   smooth_error_q8 = 0;
   smooth_previous_error_q8 = 0;
@@ -239,6 +330,94 @@ LineTrackingReading line_tracking_read(void)
   return reading;
 }
 
+static uint8_t transverse(const LineTrackingReading *r)
+{
+  uint8_t n = (uint8_t)(r->x1_black + r->x2_black + r->x3_black + r->x4_black);
+  return n >= 3U || (r->x2_black && r->x4_black) ||
+      (r->x2_black && r->x3_black) || (r->x1_black && r->x4_black);
+}
+static uint8_t unambiguous_edge(const LineTrackingReading *r)
+{
+  return (r->x2_black && !r->x3_black && !r->x4_black) ||
+      (r->x4_black && !r->x1_black && !r->x2_black);
+}
+static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
+{
+  uint8_t mask = (uint8_t)(r->x1_black | (r->x2_black << 1) |
+      (r->x3_black << 2) | (r->x4_black << 3));
+  if (unambiguous_edge(r)) { last_edge_mask = mask; last_edge_ms = now; }
+  if (transverse(r)) { last_wide_mask = mask; last_wide_ms = now; }
+}
+static void record_search(uint32_t now, LineSearchSource source)
+{
+  LineSearchRecord r = {0};
+  r.time_ms = now;
+  r.edge_mask = last_edge_mask; r.wide_mask = last_wide_mask;
+  r.edge_age_ms = last_edge_mask ? now - last_edge_ms : UINT32_MAX;
+  r.wide_age_ms = last_wide_mask ? now - last_wide_ms : UINT32_MAX;
+  r.queue_overwritten = LineSensorSample_Overwritten();
+  r.hint = predicted_turn_direction;
+  r.chosen_side = recovery_turn_direction > 0 ? 1 : -1;
+  last_logged_side = r.chosen_side;
+  r.source = source;
+  LineFaultLog_RecordSearch(&r);
+}
+static void observe_crossing(uint32_t now)
+{
+  DriveBaseTelemetry telemetry;
+  LineRecovery_Commit();
+  DriveBase_GetTelemetry(&telemetry);
+  if (telemetry.mode == DRIVE_BASE_BRAKING) DriveBase_Stop(DRIVE_STOP_COAST);
+  recovery_state = LINE_RECOVERY_NORMAL;
+  crossing_active = 1U;
+  crossing_last_ms = now;
+  middle_recent_valid = 0U;
+  corner_candidate = predicted_turn_direction = recovery_turn_direction = direction_candidate = 0;
+  direction_center_active = 0U;
+  smooth_filter_valid = smooth_centered_active = 0U;
+  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+}
+static void consume_sampled_evidence(uint32_t through_ms)
+{
+  LineSensorSample sample;
+  unsigned budget = LINE_SENSOR_QUEUE_SIZE;
+  uint32_t lost = LineSensorSample_Overwritten();
+  if (lost != sample_overwritten)
+  {
+    /* Missing history cannot support an old normal-mode directional hint. */
+    predicted_turn_direction = direction_candidate = corner_candidate = 0;
+    direction_center_active = 0U;
+    sample_overwritten = lost;
+  }
+  while (budget-- && LineSensorSample_PopThrough(&sample, through_ms))
+  {
+    LineTrackingReading r;
+    uint8_t n;
+    if ((int32_t)(sample.time_ms - last_observation_ms) <= 0) continue;
+    if (through_ms - sample.time_ms > TRACKING_HINT_MAX_AGE_MS) continue;
+    r.x1_black = sample.mask & 1U;
+    r.x2_black = (sample.mask >> 1) & 1U;
+    r.x3_black = (sample.mask >> 2) & 1U;
+    r.x4_black = (sample.mask >> 3) & 1U;
+    n = (uint8_t)(r.x1_black + r.x2_black + r.x3_black + r.x4_black);
+    observe_raw_position(&r, sample.time_ms);
+    if (n) line_has_been_seen = 1U;
+    if (transverse(&r)) { observe_crossing(sample.time_ms); continue; }
+    if ((r.x1_black || r.x3_black) && !r.x2_black && !r.x4_black)
+    { middle_recent_valid = 1U; middle_last_ms = sample.time_ms; }
+    if (crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
+    {
+      /* Crossing suppresses turn commands, but a later all-white search still
+         needs the last side rather than an unconditional default-left. */
+      if (unambiguous_edge(&r)) update_direction_hint(&r, n, sample.time_ms);
+      continue;
+    }
+    if (recovery_state == LINE_RECOVERY_ACTIVE)
+      LineRecovery_ObserveDirection(&r, sample.time_ms);
+    else
+      update_direction_hint(&r, n, sample.time_ms);
+  }
+}
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command)
@@ -246,11 +425,14 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   int16_t turn_inner_speed;
   int16_t turn_outer_speed;
   int16_t center_speed;
-  int16_t crossing_speed;
   int16_t weighted_sum;
   int16_t line_position;
   uint8_t active_count;
+  uint8_t center_visible;
+  uint8_t middle_only;
+  int8_t edge_side;
   uint8_t settling = 0U;
+  LineSearchSource search_source = LINE_SEARCH_DEFAULT;
   uint32_t now = HAL_GetTick();
 
   if (command == 0 || reading == 0)
@@ -261,221 +443,192 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
 
   if (base_speed <= 0)
   {
+    line_tracking_reset();
     command_stop(command);
     return LINE_ACTION_STOP;
   }
 
+  DriveBase_SetLineFaultObservation(1U,
+      (uint8_t)((reading->x1_black ? 1U : 0U) | (reading->x2_black ? 2U : 0U) |
+                (reading->x3_black ? 4U : 0U) | (reading->x4_black ? 8U : 0U)),
+      (uint8_t)recovery_state);
   active_count = (uint8_t)(reading->x1_black + reading->x2_black +
                            reading->x3_black + reading->x4_black);
-
-  /* 在正常寻线阶段记录中间两路离开黑线的先后顺序。X3（右中）
-     先丢而 X1 仍在，说明线向左弯；X1 先丢则说明线向右弯。 */
-  if (recovery_state == LINE_RECOVERY_NORMAL)
+  center_visible = (reading->x1_black || reading->x3_black) ? 1U : 0U;
+  middle_only = center_visible && !reading->x2_black && !reading->x4_black;
+  if (active_count != 0U)
   {
-    if (reading->x1_black && reading->x3_black)
-    {
-      if (middle_pair_armed == 0U)
-      {
-        predicted_turn_direction = 0;
-      }
-      middle_pair_armed = 1U;
-    }
-    else if (middle_pair_armed != 0U)
-    {
-      if (reading->x1_black && !reading->x3_black)
-      {
-        predicted_turn_direction = -1;
-      }
-      else if (!reading->x1_black && reading->x3_black)
-      {
-        predicted_turn_direction = 1;
-      }
-      else if (last_error < 0)
-      {
-        predicted_turn_direction = -1;
-      }
-      else if (last_error > 0)
-      {
-        predicted_turn_direction = 1;
-      }
-      middle_pair_armed = 0U;
-    }
+    line_has_been_seen = 1U;
   }
 
-  if (active_count == 0U)
+  if (DriveBase_GetFaultMask() != 0U)
   {
-    outer_turn_direction = 0;
-    smooth_filter_valid = 0U;
-    smooth_centered_active = 0U;
-    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-    /* KEY1 上电后从未见过黑线时仍按无黑线方案前进；一旦已经进入
-       寻线，或处于 KEY2 纯寻线模式，全白就按预测方向原地搜线。 */
-    if (no_line_forward_enabled != 0U && line_has_been_seen == 0U)
-    {
-      recovery_state = LINE_RECOVERY_NORMAL;
-      command_set_pwm(command, base_speed, base_speed,
-                      LINE_ACTION_FORWARD);
-      return LINE_ACTION_FORWARD;
-    }
-
-    if (recovery_state == LINE_RECOVERY_NORMAL ||
-        recovery_state == LINE_RECOVERY_WAIT_FORWARD ||
-        recovery_state == LINE_RECOVERY_SETTLE)
-    {
-      command_stop(command);
-      recovery_turn_direction = predicted_turn_direction;
-      if (recovery_turn_direction == 0)
-      {
-        recovery_turn_direction = last_error < 0 ? -1
-                                : (last_error > 0 ? 1 : 0);
-      }
-      if (recovery_turn_direction == 0)
-      {
-        recovery_turn_direction = last_turn_direction;
-      }
-      recovery_state = recovery_turn_direction != 0
-                     ? LINE_RECOVERY_WAIT_SEARCH
-                     : LINE_RECOVERY_STOPPED;
-      recovery_state_started_ms = now;
-      return LINE_ACTION_STOP;
-    }
-
-    if (recovery_state == LINE_RECOVERY_WAIT_SEARCH)
-    {
-      command_stop(command);
-      if (now - recovery_state_started_ms >= TRACKING_DIRECTION_GUARD_MS)
-      {
-        int32_t search_angle = recovery_turn_direction < 0
-                             ? TRACKING_SEARCH_ANGLE_MDEG
-                             : -TRACKING_SEARCH_ANGLE_MDEG;
-
-        if (EncoderTurn_Start(search_angle, 0L,
-                              TRACKING_SEARCH_TURN_CPS) != 0U)
-        {
-          recovery_state = LINE_RECOVERY_TURN_SEARCH;
-          recovery_state_started_ms = now;
-          command_release_to_position(command, LINE_ACTION_STOP);
-        }
-        else
-        {
-          recovery_state = LINE_RECOVERY_STOPPED;
-        }
-      }
-      return LINE_ACTION_STOP;
-    }
-
-    if (recovery_state == LINE_RECOVERY_TURN_SEARCH)
-    {
-      EncoderTurnState turn_state;
-
-      command_release_to_position(
-          command,
-          recovery_turn_direction < 0 ? LINE_ACTION_SEARCH_LEFT :
-                                        LINE_ACTION_SEARCH_RIGHT);
-      EncoderTurn_Task();
-      turn_state = EncoderTurn_GetState();
-      if (turn_state == ENCODER_TURN_DONE ||
-          turn_state == ENCODER_TURN_FAULT)
-      {
-        EncoderTurn_Stop();
-        recovery_state = LINE_RECOVERY_STOPPED;
-        recovery_state_started_ms = now;
-        return LINE_ACTION_STOP;
-      }
-
-      if (recovery_turn_direction < 0)
-      {
-        return LINE_ACTION_SEARCH_LEFT;
-      }
-
-      return LINE_ACTION_SEARCH_RIGHT;
-    }
-
-    if (recovery_state == LINE_RECOVERY_STOPPED)
-    {
-      command_stop(command);
-      return LINE_ACTION_STOP;
-    }
-
-    command_stop(command);
+    recovery_stop(LINE_REC_STOP_DRIVE_FAULT);
     return LINE_ACTION_STOP;
   }
-
-  line_has_been_seen = 1U;
-
-  if (recovery_state == LINE_RECOVERY_TURN_SEARCH ||
-      recovery_state == LINE_RECOVERY_WAIT_SEARCH ||
-      recovery_state == LINE_RECOVERY_STOPPED)
+  if (recovery_state == LINE_RECOVERY_STOPPED) return LINE_ACTION_STOP;
+  /* Freeze the observation boundary before draining. A tick can enqueue a
+     short hit immediately after the last pop; leave it for the next cycle,
+     never advance the discard watermark past evidence not yet consumed. */
+  consume_sampled_evidence(now);
+  last_observation_ms = now;
+  observe_raw_position(reading, now);
+  /* Wide or non-adjacent black detections override a previously latched turn.
+     In particular X2+X1+X3 (only rightmost white) must never keep spinning. */
+  if (transverse(reading))
   {
-    if (recovery_state == LINE_RECOVERY_TURN_SEARCH)
-    {
-      EncoderTurn_Stop();
-    }
-    command_stop(command);
-    recovery_state = LINE_RECOVERY_WAIT_FORWARD;
-    recovery_state_started_ms = now;
-    return LINE_ACTION_STOP;
+    observe_crossing(now);
+    command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
+    return command->action;
   }
-
-  if (recovery_state == LINE_RECOVERY_WAIT_FORWARD)
+  if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
+  if (crossing_active)
   {
-    command_stop(command);
-    if (now - recovery_state_started_ms < TRACKING_DIRECTION_GUARD_MS)
+    if (now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
-      return LINE_ACTION_STOP;
+      if (unambiguous_edge(reading)) update_direction_hint(reading, active_count, now);
+      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
+      return command->action;
     }
-    recovery_state = LINE_RECOVERY_SETTLE;
-    recovery_state_started_ms = now;
-    settling = 1U;
+    crossing_active = 0U;
   }
-  else if (recovery_state == LINE_RECOVERY_SETTLE)
+  if (recovery_state == LINE_RECOVERY_NORMAL || recovery_state == LINE_RECOVERY_SETTLE)
+    update_direction_hint(reading, active_count, now);
+  edge_side = reading->x2_black && !reading->x3_black && !reading->x4_black ? -1 :
+              (reading->x4_black && !reading->x1_black && !reading->x2_black ? 1 : 0);
+  if ((recovery_state == LINE_RECOVERY_NORMAL || recovery_state == LINE_RECOVERY_SETTLE) && edge_side)
   {
-    if (now - recovery_state_started_ms < TRACKING_REACQUIRE_SETTLE_MS)
+    if (corner_candidate != edge_side || now - corner_last_ms > 30U)
+    { corner_candidate = edge_side; corner_since_ms = now; }
+    corner_last_ms = now;
+    if (now - corner_since_ms >= TRACKING_CORNER_CONFIRM_MS)
     {
-      settling = 1U;
+      recovery_turn_direction = edge_side;
+      record_search(now, LINE_SEARCH_CORNER);
+      smooth_filter_valid = smooth_centered_active = 0U;
+      smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+      LineRecovery_BeginCorner(recovery_turn_direction, now);
+      recovery_state = LINE_RECOVERY_ACTIVE;
     }
     else
     {
-      recovery_state = LINE_RECOVERY_NORMAL;
-      predicted_turn_direction = 0;
-      recovery_turn_direction = 0;
+      command_set_pwm(command, edge_side < 0 ? TRACKING_SETTLE_INNER_PWM : TRACKING_SETTLE_OUTER_PWM,
+                      edge_side < 0 ? TRACKING_SETTLE_OUTER_PWM : TRACKING_SETTLE_INNER_PWM,
+                      edge_side < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST);
+      return command->action;
     }
   }
-
-  if (settling != 0U)
+  else corner_candidate = 0;
+  if (recovery_state == LINE_RECOVERY_ACTIVE)
   {
-    /* 重新捕线后的 250 ms 内限制速度，避免中间两路刚压线就以
-       直行全速冲过黑线。中间两路同时压线时还会使用预测方向。 */
-    turn_inner_speed = TRACKING_SETTLE_INNER_PWM;
-    turn_outer_speed = TRACKING_SETTLE_OUTER_PWM;
-    center_speed = TRACKING_SETTLE_CENTER_PWM;
-    crossing_speed = TRACKING_SETTLE_CENTER_PWM;
+    LineRecoveryResult result = LineRecovery_Step(reading, command, now);
+    if (result != LINE_RECOVERY_FAILED && LineRecovery_GetDirection() != last_logged_side)
+    {
+      recovery_turn_direction = LineRecovery_GetDirection();
+      record_search(now, LINE_SEARCH_CORRECTION);
+    }
+    if (result == LINE_RECOVERY_CAPTURED)
+    {
+      /* Drop pre-recovery hints, but keep the current one-sided middle as
+         fresh exit evidence. Otherwise a narrow stripe can end immediately
+         after capture and silently restore the previous corner's side. */
+      recovery_turn_direction = LineRecovery_GetDirection();
+      predicted_turn_direction = direction_candidate =
+          reading->x1_black && !reading->x3_black ? -1 :
+          (reading->x3_black && !reading->x1_black ? 1 : 0);
+      direction_last_seen_ms = direction_candidate_since_ms = now;
+      direction_center_active = 0U;
+      recovery_state = LINE_RECOVERY_SETTLE;
+      recovery_state_started_ms = now;
+    }
+    else if (result == LINE_RECOVERY_FAILED)
+    {
+      recovery_stop(LineRecovery_GetStopReason());
+      command_stop(command);
+    }
+    if (result != LINE_RECOVERY_CAPTURED) return command->action;
   }
-  else
+  if (recovery_state == LINE_RECOVERY_STOPPED)
   {
-    /* Stable profile shared by KEY1 and KEY2. */
-    turn_inner_speed = ensure_minimum_speed(
-        scale_speed(base_speed, 55U), TRACKING_MIN_INNER_PWM);
-    turn_outer_speed = ensure_minimum_speed(
-        scale_speed(base_speed, 90U), TRACKING_MIN_OUTER_PWM);
-    turn_outer_speed = turn_speed_for_gain(turn_outer_speed);
-    center_speed = base_speed > TRACKING_NORMAL_CENTER_PWM
-                 ? TRACKING_NORMAL_CENTER_PWM : base_speed;
-    crossing_speed = center_speed;
+    command_stop(command);
+    return LINE_ACTION_STOP;
   }
-
-  /* 两个外侧探头同时压线或四路全黑，通常是宽线/交叉口。 */
-  if ((reading->x2_black && reading->x4_black) || active_count == 4U)
+  if (active_count == 0U)
   {
-    outer_turn_direction = 0;
     smooth_filter_valid = 0U;
     smooth_centered_active = 0U;
     smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-    command_set_pwm(command, crossing_speed, crossing_speed,
-                    LINE_ACTION_CROSSING);
-    last_error = 0;
-    return LINE_ACTION_CROSSING;
+    if (middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
+    {
+      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_FORWARD);
+      return command->action;
+    }
+    if (no_line_forward_enabled != 0U && line_has_been_seen == 0U)
+    {
+      command_set_pwm(command, base_speed, base_speed, LINE_ACTION_FORWARD);
+      return LINE_ACTION_FORWARD;
+    }
+    if (predicted_turn_direction != 0 && now - direction_last_seen_ms <= TRACKING_HINT_MAX_AGE_MS)
+    {
+      recovery_turn_direction = predicted_turn_direction;
+      search_source = LINE_SEARCH_HINT;
+    }
+    else if (recovery_state == LINE_RECOVERY_NORMAL) recovery_turn_direction = 0;
+    else search_source = LINE_SEARCH_REJOIN;
+    record_search(now, search_source);
+    LineRecovery_Begin(recovery_turn_direction, now);
+    recovery_state = LINE_RECOVERY_ACTIVE;
+    /* Issue the new spin targets in this same iteration. Repeated narrow-line
+       captures/losses must not insert a brake or a generic zero-speed command. */
+    if (LineRecovery_Step(reading, command, now) == LINE_RECOVERY_FAILED)
+    {
+      recovery_stop(LineRecovery_GetStopReason());
+      command_stop(command);
+    }
+    return command->action;
   }
+  if (recovery_state == LINE_RECOVERY_SETTLE)
+  {
+    if (now - recovery_state_started_ms >= TRACKING_REACQUIRE_SETTLE_MS &&
+        middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
+    {
+      LineRecovery_Commit();
+      recovery_state = LINE_RECOVERY_NORMAL;
+      /* End only the old recovery fallback. The position observer may just
+         have confirmed the next corner (including queued samples); changing
+         speed/state must not erase that fresh hint or its confirmation. */
+      recovery_turn_direction = 0;
+    }
+    else settling = 1U;
+  }
+  if (settling)
+  {
+    /* Single-side outer evidence already returned to continuous turning.
+       Middle and ambiguous/crossing patterns receive low-speed guidance. */
+    weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
+                             reading->x3_black + 3 * reading->x4_black);
+    if (reading->x2_black && reading->x4_black)
+      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM,
+                      LINE_ACTION_CROSSING);
+    else if (weighted_sum < 0)
+      command_set_pwm(command, TRACKING_SETTLE_INNER_PWM, TRACKING_SETTLE_OUTER_PWM,
+                      LINE_ACTION_LEFT_ADJUST);
+    else if (weighted_sum > 0)
+      command_set_pwm(command, TRACKING_SETTLE_OUTER_PWM, TRACKING_SETTLE_INNER_PWM,
+                      LINE_ACTION_RIGHT_ADJUST);
+    else
+      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM,
+                      LINE_ACTION_FORWARD);
+    return command->action;
+  }
+
+  turn_inner_speed = ensure_minimum_speed(
+      scale_speed(base_speed, 55U), TRACKING_MIN_INNER_PWM);
+  turn_outer_speed = ensure_minimum_speed(
+      scale_speed(base_speed, 90U), TRACKING_MIN_OUTER_PWM);
+  turn_outer_speed = turn_speed_for_gain(turn_outer_speed);
+  center_speed = base_speed > TRACKING_NORMAL_CENTER_PWM
+               ? TRACKING_NORMAL_CENTER_PWM : base_speed;
 
   if (active_count != 0U)
   {
@@ -484,49 +637,6 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
                               reading->x3_black + 3 * reading->x4_black);
     line_position = weighted_sum / active_count;
-
-    if (line_position <= -2)
-    {
-      smooth_filter_valid = 0U;
-      smooth_centered_active = 0U;
-      smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-      /* 四轮车从静止直接原地转向需要克服较大横向摩擦。先用 140 ms
-         强差速滚动建立角速度，再切到高 PWM 原地转向。 */
-      if (outer_turn_direction != -1)
-      {
-        outer_turn_direction = -1;
-        outer_turn_started_ms = now;
-      }
-      if (now - outer_turn_started_ms < TRACKING_OUTER_ROLL_IN_MS)
-      {
-        command_set_pwm(command,
-                        TRACKING_OUTER_ROLL_INNER_PWM,
-                        turn_speed_for_gain(
-                            TRACKING_OUTER_ROLL_OUTER_PWM),
-                        LINE_ACTION_LEFT_SHARP);
-      }
-      else if (now - outer_turn_started_ms < TRACKING_OUTER_SPIN_END_MS)
-      {
-        {
-          int16_t spin = turn_speed_for_gain(TRACKING_OUTER_SPIN_PWM);
-          command_set_pwm(command, (int16_t)-spin, spin,
-                          LINE_ACTION_LEFT_SHARP);
-        }
-      }
-      else
-      {
-        /* 转角已经建立后改回高曲率前进，避免整个弯道都原地磨轮。 */
-        command_set_pwm(command,
-                        TRACKING_OUTER_ARC_INNER_PWM,
-                        turn_speed_for_gain(
-                            TRACKING_OUTER_ARC_OUTER_PWM),
-                        LINE_ACTION_LEFT_SHARP);
-      }
-      last_error = -3;
-      last_turn_direction = -1;
-      return LINE_ACTION_LEFT_SHARP;
-    }
-
 
     if (smooth_mode_enabled != 0U && settling == 0U &&
         line_position > -2 && line_position < 2)
@@ -625,114 +735,41 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       right_target = ensure_minimum_speed(right_target,
                                           TRACKING_MIN_INNER_PWM);
 
-      outer_turn_direction = 0;
       if (steering < -TRACKING_SMOOTH_STEER_DEADBAND)
       {
         command_set_pwm(command, left_target, right_target,
                         LINE_ACTION_LEFT_ADJUST);
-        last_error = -1;
-        last_turn_direction = -1;
         return LINE_ACTION_LEFT_ADJUST;
       }
       if (steering > TRACKING_SMOOTH_STEER_DEADBAND)
       {
         command_set_pwm(command, left_target, right_target,
                         LINE_ACTION_RIGHT_ADJUST);
-        last_error = 1;
-        last_turn_direction = 1;
         return LINE_ACTION_RIGHT_ADJUST;
       }
 
-      /* Only a continuously centred run earns the gradual straight boost;
-         otherwise this remains at the 2800 PWM migration baseline. */
+      /* Only a continuously centred run earns the reduced 2600..2700
+         straight boost. Curve/search targets retain their existing effort. */
       command_set_pwm(command, smooth_straight_pwm, smooth_straight_pwm,
                       LINE_ACTION_FORWARD);
-      last_error = 0;
       return LINE_ACTION_FORWARD;
     }
 
     if (line_position < 0)
     {
-      outer_turn_direction = 0;
       command_set_pwm(command, turn_inner_speed, turn_outer_speed,
                       LINE_ACTION_LEFT_ADJUST);
-      last_error = -1;
-      last_turn_direction = -1;
       return LINE_ACTION_LEFT_ADJUST;
-    }
-
-    if (line_position >= 2)
-    {
-      smooth_filter_valid = 0U;
-      smooth_centered_active = 0U;
-      smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-      if (outer_turn_direction != 1)
-      {
-        outer_turn_direction = 1;
-        outer_turn_started_ms = now;
-      }
-      if (now - outer_turn_started_ms < TRACKING_OUTER_ROLL_IN_MS)
-      {
-        command_set_pwm(command,
-                        turn_speed_for_gain(
-                            TRACKING_OUTER_ROLL_OUTER_PWM),
-                        TRACKING_OUTER_ROLL_INNER_PWM,
-                        LINE_ACTION_RIGHT_SHARP);
-      }
-      else if (now - outer_turn_started_ms < TRACKING_OUTER_SPIN_END_MS)
-      {
-        {
-          int16_t spin = turn_speed_for_gain(TRACKING_OUTER_SPIN_PWM);
-          command_set_pwm(command, spin, (int16_t)-spin,
-                          LINE_ACTION_RIGHT_SHARP);
-        }
-      }
-      else
-      {
-        command_set_pwm(command,
-                        turn_speed_for_gain(
-                            TRACKING_OUTER_ARC_OUTER_PWM),
-                        TRACKING_OUTER_ARC_INNER_PWM,
-                        LINE_ACTION_RIGHT_SHARP);
-      }
-      last_error = 3;
-      last_turn_direction = 1;
-      return LINE_ACTION_RIGHT_SHARP;
     }
 
     if (line_position > 0)
     {
-      outer_turn_direction = 0;
       command_set_pwm(command, turn_outer_speed, turn_inner_speed,
                       LINE_ACTION_RIGHT_ADJUST);
-      last_error = 1;
-      last_turn_direction = 1;
       return LINE_ACTION_RIGHT_ADJUST;
     }
-
-    outer_turn_direction = 0;
-
-    if (settling != 0U && recovery_turn_direction < 0)
-    {
-      command_set_pwm(command, turn_inner_speed, turn_outer_speed,
-                      LINE_ACTION_LEFT_ADJUST);
-      last_error = -1;
-      last_turn_direction = -1;
-      return LINE_ACTION_LEFT_ADJUST;
-    }
-
-    if (settling != 0U && recovery_turn_direction > 0)
-    {
-      command_set_pwm(command, turn_outer_speed, turn_inner_speed,
-                      LINE_ACTION_RIGHT_ADJUST);
-      last_error = 1;
-      last_turn_direction = 1;
-      return LINE_ACTION_RIGHT_ADJUST;
-    }
-
     command_set_pwm(command, center_speed, center_speed,
                     LINE_ACTION_FORWARD);
-    last_error = 0;
     return LINE_ACTION_FORWARD;
   }
 

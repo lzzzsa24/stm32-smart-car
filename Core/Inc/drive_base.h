@@ -86,12 +86,29 @@ typedef struct
 
 void DriveBase_Init(void);
 void DriveBase_Task(uint32_t now_ms);
+/* Optional speed-command magnitude cap, 0 disables. Scales all four targets
+   together; does not start motion or alter brake/position/fault ownership.
+   The mode owner must clear it when leaving the capped mode. */
+void DriveBase_SetSpeedLimitCps(int32_t maximum_cps);
 
 void DriveBase_SetWheelCps(int32_t motor1_cps,
                            int32_t motor2_cps,
                            int32_t motor3_cps,
                            int32_t motor4_cps);
 void DriveBase_SetSideCps(int32_t left_cps, int32_t right_cps);
+
+/* Arm only the next matching SetWheel/SideCps call (within 20 ms). The claim
+   is consumed even on rejection; ordinary callers never renew it. Assistance
+   expires after 60 ms without a newly armed, accepted command. No motion here. */
+void DriveBase_PrepareLineTurnAssist(int32_t left_cps, int32_t right_cps);
+
+/* Explicit line ownership. Encoder-derived speed faults are logged without
+   stopping; direction/signal faults use bounded feedforward until mode reset.
+   Zero motion alone retains bounded PI and existing line-turn assistance.
+   Position control never inherits this policy. Does not clear hard faults. */
+void DriveBase_SetLineFaultObservation(uint8_t enabled, uint8_t sensors,
+                                      uint8_t recovery_state);
+uint8_t DriveBase_GetLineDegradedMask(void);
 
 /* Compatibility conversion for existing high-level modules whose tuned
    parameters are still expressed in logical PWM units. */

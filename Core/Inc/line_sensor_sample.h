@@ -1,0 +1,16 @@
+#ifndef LINE_SENSOR_SAMPLE_H
+#define LINE_SENSOR_SAMPLE_H
+#include <stdint.h>
+#define LINE_SENSOR_QUEUE_SIZE 256U
+typedef struct { uint32_t time_ms; uint8_t mask; } LineSensorSample;
+void LineSensorSample_Start(void);
+void LineSensorSample_Reset(void);
+/* Called only from the HAL millisecond tick; never drives motors or prints. */
+void LineSensorSample_Tick(uint32_t now);
+uint8_t LineSensorSample_Pop(LineSensorSample *sample);
+/* Leave samples newer than this control iteration in the queue. */
+uint8_t LineSensorSample_PopThrough(LineSensorSample *sample, uint32_t through_ms);
+uint32_t LineSensorSample_Overwritten(void);
+/* Independent sticky all-black event; does not drain the line history. */
+uint8_t LineSensorSample_TakeAllBlack(uint32_t *sampled_ms);
+#endif

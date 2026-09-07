@@ -34,6 +34,21 @@ static int32_t sign_i32(int32_t value)
   return value > 0L ? 1L : (value < 0L ? -1L : 0L);
 }
 
+static int32_t scale_percent(int32_t value, uint16_t percent)
+{
+  int64_t scaled = (int64_t)value * percent;
+
+  if (scaled >= 0LL)
+  {
+    scaled += 50LL;
+  }
+  else
+  {
+    scaled -= 50LL;
+  }
+  return (int32_t)(scaled / 100LL);
+}
+
 static uint8_t module_fault_mask(uint8_t drive_fault)
 {
   uint8_t motors = drive_fault & 0x0FU;
@@ -49,6 +64,110 @@ static int32_t path_counts(int32_t angle_mdeg, int32_t radius_times_two)
   int64_t denominator = 360000LL * (int64_t)TURN_WHEEL_DIAMETER_MM;
 
   return (int32_t)((numerator + denominator / 2LL) / denominator);
+}
+
+static uint8_t start_turn(int32_t angle_mdeg,
+                          int32_t center_radius_mm,
+                          int32_t maximum_wheel_cps,
+                          uint8_t rear_pivot,
+                          uint16_t inner_reverse_percent)
+{
+  DrivePositionCommand command = {0};
+  int32_t left_radius_x2;
+  int32_t right_radius_x2;
+  int32_t maximum_radius_x2;
+  int32_t left_count_magnitude;
+  int32_t right_count_magnitude;
+  int32_t left_cps;
+  int32_t right_cps;
+  int32_t angle_sign;
+  int32_t maximum_counts;
+  uint32_t expected_ms;
+  uint32_t timeout_ms;
+
+  if (angle_mdeg == 0L || maximum_wheel_cps <= 0L) return 0U;
+  left_radius_x2 = 2L * center_radius_mm - TURN_TRACK_WIDTH_MM;
+  right_radius_x2 = 2L * center_radius_mm + TURN_TRACK_WIDTH_MM;
+  maximum_radius_x2 = abs_i32(left_radius_x2) > abs_i32(right_radius_x2) ?
+      abs_i32(left_radius_x2) : abs_i32(right_radius_x2);
+  if (maximum_radius_x2 == 0L) return 0U;
+
+  left_count_magnitude = path_counts(angle_mdeg, left_radius_x2);
+  right_count_magnitude = path_counts(angle_mdeg, right_radius_x2);
+  angle_sign = sign_i32(angle_mdeg);
+  left_cps = (maximum_wheel_cps * abs_i32(left_radius_x2)) /
+             maximum_radius_x2;
+  right_cps = (maximum_wheel_cps * abs_i32(right_radius_x2)) /
+              maximum_radius_x2;
+  left_cps *= angle_sign * sign_i32(left_radius_x2);
+  right_cps *= angle_sign * sign_i32(right_radius_x2);
+
+  if (inner_reverse_percent > 100U)
+  {
+    inner_reverse_percent = 100U;
+  }
+
+  /* Physical wheel order confirmed on this car:
+     M1=front-left, M2=rear-left, M3=front-right, M4=rear-right.  A normal
+     turn drives both axles. Rear-pivot search deliberately leaves M2/M4 at
+     zero. It also reduces whichever front wheel is reversing so unequal
+     traction produces a forward-biased sweep rather than a backward lurch. */
+  target_counts[0] = sign_i32(left_cps) * left_count_magnitude;
+  target_counts[1] = rear_pivot == 0U
+                   ? sign_i32(left_cps) * left_count_magnitude : 0L;
+  target_counts[2] = sign_i32(right_cps) * right_count_magnitude;
+  target_counts[3] = rear_pivot == 0U
+                   ? sign_i32(right_cps) * right_count_magnitude : 0L;
+  if (rear_pivot != 0U)
+  {
+    if (target_counts[0] < 0L)
+    {
+      target_counts[0] = scale_percent(target_counts[0],
+                                       inner_reverse_percent);
+      left_cps = scale_percent(left_cps, inner_reverse_percent);
+    }
+    if (target_counts[2] < 0L)
+    {
+      target_counts[2] = scale_percent(target_counts[2],
+                                       inner_reverse_percent);
+      right_cps = scale_percent(right_cps, inner_reverse_percent);
+    }
+  }
+  command.delta_counts[0] = target_counts[0];
+  command.delta_counts[1] = target_counts[1];
+  command.delta_counts[2] = target_counts[2];
+  command.delta_counts[3] = target_counts[3];
+  command.maximum_cps[0] = left_cps;
+  command.maximum_cps[1] = rear_pivot == 0U ? left_cps : 0L;
+  command.maximum_cps[2] = right_cps;
+  command.maximum_cps[3] = rear_pivot == 0U ? right_cps : 0L;
+
+  maximum_counts = left_count_magnitude > right_count_magnitude ?
+      left_count_magnitude : right_count_magnitude;
+  expected_ms = (uint32_t)(((int64_t)maximum_counts * 1000LL) /
+                           maximum_wheel_cps);
+  if (maximum_wheel_cps < TURN_CONTINUOUS_MIN_CPS)
+  {
+    timeout_ms = expected_ms * TURN_LOW_SPEED_TIMEOUT_MULTIPLIER + 2000U;
+    if (timeout_ms < TURN_LOW_SPEED_MIN_TIMEOUT_MS)
+      timeout_ms = TURN_LOW_SPEED_MIN_TIMEOUT_MS;
+  }
+  else
+  {
+    timeout_ms = expected_ms * TURN_TIMEOUT_MULTIPLIER + 1500U;
+    if (timeout_ms < TURN_MIN_TIMEOUT_MS)
+      timeout_ms = TURN_MIN_TIMEOUT_MS;
+  }
+  command.timeout_ms = timeout_ms;
+  command.tolerance_counts = TURN_POSITION_TOLERANCE_COUNTS;
+  command.completion_stop_mode = DRIVE_STOP_BRAKE;
+
+  requested_angle_mdeg = angle_mdeg;
+  achieved_angle_mdeg = 0L;
+  fault_mask = 0U;
+  if (DriveBase_StartPositionMove(&command) == 0U) return 0U;
+  turn_state = ENCODER_TURN_RUNNING;
+  return 1U;
 }
 
 static void update_achieved_angle(void)
@@ -104,75 +223,17 @@ uint8_t EncoderTurn_Start(int32_t angle_mdeg,
                           int32_t center_radius_mm,
                           int32_t maximum_wheel_cps)
 {
-  DrivePositionCommand command = {0};
-  int32_t left_radius_x2;
-  int32_t right_radius_x2;
-  int32_t maximum_radius_x2;
-  int32_t left_count_magnitude;
-  int32_t right_count_magnitude;
-  int32_t left_cps;
-  int32_t right_cps;
-  int32_t angle_sign;
-  int32_t maximum_counts;
-  uint32_t expected_ms;
-  uint32_t timeout_ms;
+  return start_turn(angle_mdeg, center_radius_mm,
+                    maximum_wheel_cps, 0U, 100U);
+}
 
-  if (angle_mdeg == 0L || maximum_wheel_cps <= 0L) return 0U;
-  left_radius_x2 = 2L * center_radius_mm - TURN_TRACK_WIDTH_MM;
-  right_radius_x2 = 2L * center_radius_mm + TURN_TRACK_WIDTH_MM;
-  maximum_radius_x2 = abs_i32(left_radius_x2) > abs_i32(right_radius_x2) ?
-      abs_i32(left_radius_x2) : abs_i32(right_radius_x2);
-  if (maximum_radius_x2 == 0L) return 0U;
-
-  left_count_magnitude = path_counts(angle_mdeg, left_radius_x2);
-  right_count_magnitude = path_counts(angle_mdeg, right_radius_x2);
-  angle_sign = sign_i32(angle_mdeg);
-  left_cps = (maximum_wheel_cps * abs_i32(left_radius_x2)) /
-             maximum_radius_x2;
-  right_cps = (maximum_wheel_cps * abs_i32(right_radius_x2)) /
-              maximum_radius_x2;
-  left_cps *= angle_sign * sign_i32(left_radius_x2);
-  right_cps *= angle_sign * sign_i32(right_radius_x2);
-
-  target_counts[0] = sign_i32(left_cps) * left_count_magnitude;
-  target_counts[1] = sign_i32(left_cps) * left_count_magnitude;
-  target_counts[2] = sign_i32(right_cps) * right_count_magnitude;
-  target_counts[3] = sign_i32(right_cps) * right_count_magnitude;
-  command.delta_counts[0] = target_counts[0];
-  command.delta_counts[1] = target_counts[1];
-  command.delta_counts[2] = target_counts[2];
-  command.delta_counts[3] = target_counts[3];
-  command.maximum_cps[0] = left_cps;
-  command.maximum_cps[1] = left_cps;
-  command.maximum_cps[2] = right_cps;
-  command.maximum_cps[3] = right_cps;
-
-  maximum_counts = left_count_magnitude > right_count_magnitude ?
-      left_count_magnitude : right_count_magnitude;
-  expected_ms = (uint32_t)(((int64_t)maximum_counts * 1000LL) /
-                           maximum_wheel_cps);
-  if (maximum_wheel_cps < TURN_CONTINUOUS_MIN_CPS)
-  {
-    timeout_ms = expected_ms * TURN_LOW_SPEED_TIMEOUT_MULTIPLIER + 2000U;
-    if (timeout_ms < TURN_LOW_SPEED_MIN_TIMEOUT_MS)
-      timeout_ms = TURN_LOW_SPEED_MIN_TIMEOUT_MS;
-  }
-  else
-  {
-    timeout_ms = expected_ms * TURN_TIMEOUT_MULTIPLIER + 1500U;
-    if (timeout_ms < TURN_MIN_TIMEOUT_MS)
-      timeout_ms = TURN_MIN_TIMEOUT_MS;
-  }
-  command.timeout_ms = timeout_ms;
-  command.tolerance_counts = TURN_POSITION_TOLERANCE_COUNTS;
-  command.completion_stop_mode = DRIVE_STOP_BRAKE;
-
-  requested_angle_mdeg = angle_mdeg;
-  achieved_angle_mdeg = 0L;
-  fault_mask = 0U;
-  if (DriveBase_StartPositionMove(&command) == 0U) return 0U;
-  turn_state = ENCODER_TURN_RUNNING;
-  return 1U;
+uint8_t EncoderTurn_StartRearPivot(int32_t angle_mdeg,
+                                   int32_t maximum_front_wheel_cps,
+                                   uint16_t inner_reverse_percent)
+{
+  return start_turn(angle_mdeg, 0L,
+                    maximum_front_wheel_cps, 1U,
+                    inner_reverse_percent);
 }
 
 void EncoderTurn_Task(void)

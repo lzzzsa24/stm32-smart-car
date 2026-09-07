@@ -1,0 +1,15 @@
+{
+  "source_archive": "F:/myproject/jidian/k210/road_sign_detect.zip",
+  "entry": "road_sign_detect/det.kmodel",
+  "file": "road_sign_det_20260906.kmodel",
+  "device_path": "/sd/KPU/road_sign_det/road_sign_det.kmodel",
+  "sha256": "b472a5c45fbb2060cd794bec7c972d9f58fb40d7dca27dfe6545125b8e02b901",
+  "bytes": 571432,
+  "labels": [
+    "left",
+    "right",
+    "horn",
+    "one",
+    "two"
+  ]
+}
