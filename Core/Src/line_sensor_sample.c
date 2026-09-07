@@ -5,6 +5,8 @@ static volatile LineSensorSample samples[LINE_SENSOR_QUEUE_SIZE];
 static volatile uint16_t head, tail, count;
 static volatile uint32_t overwritten;
 static volatile uint8_t started;
+static volatile uint8_t all_black_pending;
+static volatile uint32_t all_black_ms;
 
 void LineSensorSample_Reset(void)
 {
@@ -12,6 +14,7 @@ void LineSensorSample_Reset(void)
   __disable_irq();
   head = tail = count = 0U;
   overwritten = 0U;
+  all_black_pending = 0U;
   __set_PRIMASK(irq);
 }
 void LineSensorSample_Start(void)
@@ -27,6 +30,11 @@ void LineSensorSample_Tick(uint32_t now)
       (HAL_GPIO_ReadPin(TRACK_X2_GPIO_Port, TRACK_X2_Pin) == GPIO_PIN_RESET ? 2U : 0U) |
       (HAL_GPIO_ReadPin(TRACK_X3_GPIO_Port, TRACK_X3_Pin) == GPIO_PIN_RESET ? 4U : 0U) |
       (HAL_GPIO_ReadPin(TRACK_X4_GPIO_Port, TRACK_X4_Pin) == GPIO_PIN_RESET ? 8U : 0U));
+  if (mask == 15U)
+  {
+    all_black_ms = now;
+    all_black_pending = 1U;
+  }
   if (count == LINE_SENSOR_QUEUE_SIZE)
   {
     tail = (uint16_t)((tail + 1U) % LINE_SENSOR_QUEUE_SIZE);
@@ -61,3 +69,15 @@ uint8_t LineSensorSample_Pop(LineSensorSample *sample)
 uint8_t LineSensorSample_PopThrough(LineSensorSample *sample, uint32_t through_ms)
 { return pop_sample(sample, 1U, through_ms); }
 uint32_t LineSensorSample_Overwritten(void) { return overwritten; }
+
+uint8_t LineSensorSample_TakeAllBlack(uint32_t *sampled_ms)
+{
+  uint32_t irq = __get_PRIMASK();
+  uint8_t available;
+  __disable_irq();
+  available = all_black_pending;
+  if (available) *sampled_ms = all_black_ms;
+  all_black_pending = 0U;
+  __set_PRIMASK(irq);
+  return available;
+}

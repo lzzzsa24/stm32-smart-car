@@ -11,4 +11,6 @@ uint8_t LineSensorSample_Pop(LineSensorSample *sample);
 /* Leave samples newer than this control iteration in the queue. */
 uint8_t LineSensorSample_PopThrough(LineSensorSample *sample, uint32_t through_ms);
 uint32_t LineSensorSample_Overwritten(void);
+/* Independent sticky all-black event; does not drain the line history. */
+uint8_t LineSensorSample_TakeAllBlack(uint32_t *sampled_ms);
 #endif

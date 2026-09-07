@@ -37,6 +37,8 @@
 #include "line_recovery.h"
 #include "line_wait_guard.h"
 #include "sign_route.h"
+#include "sign_slowdown.h"
+#include "line_sensor_sample.h"
 #include "simple_line_mode.h"
 #if defined(LINE_TRACKING_LIFT_TEST)
 #include "line_tracking_lift_test.h"
@@ -137,6 +139,7 @@ static int8_t line_wait_side;
 static SimpleLineController simple_line_controller;
 static uint8_t sign_line_mask;
 static uint8_t sign_line_action;
+static uint8_t sign_slow_reasons;
 
 #define BYPASS_REARM_DELAY_MS          1000U
 #define BYPASS_REARM_CLEAR_SAMPLES       10U
@@ -830,24 +833,53 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->direction);
   DiagnosticUart_WriteString(" SEQ=");
   DiagnosticUart_WriteUnsigned(route_status->last_sequence);
+  DiagnosticUart_WriteString(" SLOW=");
+  DiagnosticUart_WriteUnsigned(sign_slow_reasons);
+  DiagnosticUart_WriteString(" CAP=");
+  DiagnosticUart_WriteUnsigned(sign_slow_reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0U);
   DiagnosticUart_WriteString(" BAD=");
   DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
                                stats.ring_overflows + stats.queue_overflows);
   DiagnosticUart_WriteString("\r\n");
 }
 
-static void sign_line_task(AppMode mode)
+/* Run before DriveBase_Task and the automatic-wait early return: a recovery
+   owner must not bypass the recognition limit. Sampling does not drain the
+   enhanced controller's line-history queue. */
+static void sign_line_slowdown_task(AppMode mode)
 {
   VisionDetection detection;
+  uint32_t sampled_ms;
+  uint8_t all_black = LineSensorSample_TakeAllBlack(&sampled_ms);
+  if (mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE)
+  {
+    SignSlowdown_Reset();
+    sign_slow_reasons = 0U;
+    DriveBase_SetSpeedLimitCps(0L);
+    return;
+  }
+  if (all_black) SignSlowdown_ObserveBlack(sampled_ms);
+  {
+    LineTrackingReading line = line_tracking_read();
+    if (line_reading_mask(&line) == 15U)
+      SignSlowdown_ObserveBlack(HAL_GetTick());
+  }
+  while (vision_uart_take_detection(&detection) != 0U)
+  {
+    SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
+    SignRoute_ObserveDetection(&detection);
+  }
+  sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
+  DriveBase_SetSpeedLimitCps(sign_slow_reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0L);
+}
+
+static void sign_line_task(AppMode mode)
+{
   SignRouteCommand route_command;
   SignRouteStatus route_status;
   LineTrackingReading line = line_tracking_read();
   uint32_t now = HAL_GetTick();
 
-  while (vision_uart_take_detection(&detection) != 0U)
-  {
-    SignRoute_ObserveDetection(&detection);
-  }
   sign_line_mask = line_reading_mask(&line);
   SignRoute_Step(sign_line_mask, now, &route_command);
 
@@ -1250,6 +1282,7 @@ int main(void)
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
+  SignSlowdown_Reset();
   vision_uart_init();
   Ultrasonic_Init();
   IrRemote_Init();
@@ -1314,6 +1347,11 @@ int main(void)
 
     if (requested_mode != app_mode)
     {
+      uint32_t discarded_black_ms;
+      (void)LineSensorSample_TakeAllBlack(&discarded_black_ms);
+      SignSlowdown_Reset();
+      sign_slow_reasons = 0U;
+      DriveBase_SetSpeedLimitCps(0L);
       LineWaitGuard_Reset(&line_wait_guard);
       WheelSpeedObserver_Stop();
       LineObstacleBypass_Stop();
@@ -1411,6 +1449,7 @@ int main(void)
       }
     }
 
+    sign_line_slowdown_task(app_mode);
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));

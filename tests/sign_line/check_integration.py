@@ -14,6 +14,13 @@ assert "return APP_MODE_SIGN_LINE_SIMPLE;" in main
 assert "Figure8Encoder_Start();" not in main
 assert "SquareEncoder_Start();" not in main
 assert "sign_line_task(app_mode);" in main
+assert main.index("sign_line_slowdown_task(app_mode);") < main.index("if (service_bounded_line_wait(app_mode))")
+assert "SignSlowdown_ObserveDetection(&detection, HAL_GetTick());" in main
+assert "line_reading_mask(&line) == 15U" in main
+assert "LineSensorSample_TakeAllBlack" in main
+transition = main[main.index("if (requested_mode != app_mode)"):main.index("sign_line_slowdown_task(app_mode);")]
+assert "SignSlowdown_Reset();" in transition
+assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.2" in k210

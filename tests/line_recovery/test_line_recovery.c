@@ -263,6 +263,20 @@ static void test_sampling_during_blocked_main(void)
 {
   unsigned side,delay,repeat;
   LineSensorSample captured;
+  uint32_t black_time;
+  LineSensorSample_Start();
+  background_sample(15U, 1U);
+  black_time = tick;
+  background_sample(0U, 80U);
+  {
+    uint32_t observed;
+    assert(LineSensorSample_TakeAllBlack(&observed) && observed == black_time);
+    assert(!LineSensorSample_TakeAllBlack(&observed));
+    assert(LineSensorSample_Pop(&captured) && captured.mask == 15U);
+    background_sample(15U, 1U);
+    LineSensorSample_Reset();
+    assert(!LineSensorSample_TakeAllBlack(&observed));
+  }
   /* Exercise the real HAL tick override and GPIO acquisition, not injected
      controller input, while the main loop cannot call line_tracking_compute. */
   LineSensorSample_Start();

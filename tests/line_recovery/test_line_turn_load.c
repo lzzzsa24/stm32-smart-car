@@ -68,6 +68,87 @@ static void sample(const int32_t delta[4])
   tick+=20;
   DriveBase_Task(tick);
 }
+static void test_recognition_speed_cap(void)
+{
+  DriveBaseTelemetry t;
+  LineTrackingReading reading = {0};
+  LineTrackingCommand output = {0};
+  unsigned ms, i;
+  reset();
+  command(4000, 2000, 1);
+  DriveBase_SetSpeedLimitCps(1200);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == 1200 && t.requested_cps[2] == 600);
+  command(-2700, 2700, 1);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == -1200 && t.requested_cps[2] == 1200);
+  DriveBase_SetWheelCps(4000, 2000, -1000, 0);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == 1200 && t.requested_cps[1] == 600 &&
+         t.requested_cps[2] == -300 && t.requested_cps[3] == 0);
+  DriveBase_SetSpeedLimitCps(0);
+  command(4000, 2000, 1);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == 4000 && t.requested_cps[2] == 2000);
+  DriveBase_Stop(DRIVE_STOP_COAST);
+  DriveBase_SetSpeedLimitCps(1200);
+  DriveBase_GetTelemetry(&t);
+  assert(t.mode == DRIVE_BASE_STOPPED && t.requested_cps[0] == 0);
+  command(0, 0, 0);
+  DriveBase_GetTelemetry(&t);
+  assert(t.mode == DRIVE_BASE_STOPPED);
+  command(2400, 2400, 0);
+  {
+    const int32_t moving[4] = {24,24,24,24};
+    for (i = 0; i < 10; ++i) sample(moving);
+  }
+  DriveBase_Stop(DRIVE_STOP_BRAKE);
+  DriveBase_SetSpeedLimitCps(900);
+  command(2400, 2400, 1);
+  DriveBase_GetTelemetry(&t);
+  assert(t.mode == DRIVE_BASE_BRAKING);
+  reset(); /* boot and explicit reset disable the cap */
+  command(4000, 4000, 0);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == 4000);
+  DriveBase_Stop(DRIVE_STOP_COAST);
+  {
+    DrivePositionCommand move = {{1000,1000,1000,1000},
+        {2500,2500,2500,2500},1000,12,DRIVE_STOP_COAST};
+    assert(DriveBase_StartPositionMove(&move));
+    DriveBase_SetSpeedLimitCps(1200);
+    command(2000,2000,0);
+    DriveBase_GetTelemetry(&t);
+    assert(t.mode == DRIVE_BASE_POSITION);
+    tick += 1001; DriveBase_Task(tick);
+    assert(DriveBase_GetFaultMask() & DRIVE_FAULT_TIMEOUT);
+    command(2000,2000,0);
+    DriveBase_GetTelemetry(&t);
+    assert(t.mode == DRIVE_BASE_FAULT);
+  }
+  /* Real enhanced search owns DriveBase directly (valid=0); it must obey
+     the cap too, then return to the original targets after expiry. */
+  line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+  DriveBase_SetSpeedLimitCps(1200);
+  for (ms = 0; ms < 800; ++ms)
+  {
+    for (i = 0; i < 4; ++i) counts[i] += pins[i]>0 ? 2 : (pins[i]<0 ? -2 : 0);
+    ++tick; DriveBase_Task(tick);
+    line_tracking_compute(&reading, 3000, &output);
+    line_tracking_apply_command(&output, 3599);
+    DriveBase_GetTelemetry(&t);
+    if (t.mode == DRIVE_BASE_SPEED)
+      for (i = 0; i < 4; ++i) assert(absolute(t.requested_cps[i]) <= 1200);
+  }
+  assert(!output.valid && t.requested_cps[0] == -1200 && t.requested_cps[2] == 1200);
+  DriveBase_SetSpeedLimitCps(0);
+  ++tick; line_tracking_compute(&reading,3000,&output);
+  DriveBase_GetTelemetry(&t);
+  assert(t.requested_cps[0] == -LINE_SEARCH_TARGET_CPS);
+  line_tracking_reset(); reset();
+  puts("PASS: recognition cap reaches real search, preserves ratios, stop/brake/position/fault ownership");
+}
+
 static DriveBaseTelemetry trace(int32_t l,int32_t r,unsigned lag,uint8_t assist)
 {
   DriveBaseTelemetry t;
@@ -767,6 +848,7 @@ int main(void)
   assert(DriveBase_GetFaultMask() & DRIVE_FAULT_ENCODER_SIGNAL);
 
   tick=UINT32_MAX-200;
+  test_recognition_speed_cap();
   test_position_coast_handoff(1);
   test_position_coast_handoff(-1);
   test_real_search_capture();

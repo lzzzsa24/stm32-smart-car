@@ -86,6 +86,10 @@ typedef struct
 
 void DriveBase_Init(void);
 void DriveBase_Task(uint32_t now_ms);
+/* Optional speed-command magnitude cap, 0 disables. Scales all four targets
+   together; does not start motion or alter brake/position/fault ownership.
+   The mode owner must clear it when leaving the capped mode. */
+void DriveBase_SetSpeedLimitCps(int32_t maximum_cps);
 
 void DriveBase_SetWheelCps(int32_t motor1_cps,
                            int32_t motor2_cps,

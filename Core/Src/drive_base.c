@@ -80,6 +80,7 @@ static uint32_t position_settle_deadline_ms;
 static uint32_t sync_fault_since_ms;
 static uint32_t brake_deadline_ms;
 static int32_t requested_cps[DRIVE_BASE_WHEEL_COUNT];
+static int32_t speed_limit_cps;
 static int32_t controlled_cps[DRIVE_BASE_WHEEL_COUNT];
 static int32_t measured_cps[DRIVE_BASE_WHEEL_COUNT];
 static int16_t output_pwm[DRIVE_BASE_WHEEL_COUNT];
@@ -1223,6 +1224,7 @@ void DriveBase_Init(void)
   uint8_t motor;
 
   drive_mode = DRIVE_BASE_STOPPED;
+  speed_limit_cps = 0L;
   line_fault_observe = line_degraded_mask = 0U;
   LineFaultLog_Init();
   position_state = DRIVE_POSITION_IDLE;
@@ -1285,6 +1287,33 @@ void DriveBase_SetLineFaultObservation(uint8_t enabled, uint8_t sensors,
 }
 uint8_t DriveBase_GetLineDegradedMask(void) { return line_degraded_mask; }
 
+static void limit_speed_targets(int32_t targets[DRIVE_BASE_WHEEL_COUNT])
+{
+  uint8_t motor;
+  int32_t peak = 0L;
+  for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
+  {
+    int32_t magnitude;
+    targets[motor] = clamp_i32(targets[motor], -DRIVE_MAX_CPS, DRIVE_MAX_CPS);
+    magnitude = targets[motor] < 0L ? -targets[motor] : targets[motor];
+    if (magnitude > peak) peak = magnitude;
+  }
+  if (speed_limit_cps <= 0L || peak <= speed_limit_cps) return;
+  for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
+    targets[motor] = (int32_t)((int64_t)targets[motor] * speed_limit_cps / peak);
+}
+
+void DriveBase_SetSpeedLimitCps(int32_t maximum_cps)
+{
+  int32_t next = clamp_i32(maximum_cps, 0L, DRIVE_MAX_CPS);
+  if (next == speed_limit_cps) return;
+  speed_limit_cps = next;
+  reset_line_assist();
+  /* Cap an already-running search even when its controller returns valid=0.
+     Keep the normal deceleration ramp; never create a stop or position move. */
+  if (drive_mode == DRIVE_BASE_SPEED) limit_speed_targets(requested_cps);
+}
+
 void DriveBase_SetWheelCps(int32_t motor1_cps,
                            int32_t motor2_cps,
                            int32_t motor3_cps,
@@ -1308,6 +1337,9 @@ void DriveBase_SetWheelCps(int32_t motor1_cps,
     reset_line_assist();
     return;
   }
+  /* The original matching assist claim authorizes the same turn after common
+     scaling; the speed loop evaluates assistance at the final targets. */
+  limit_speed_targets(next);
   for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
   {
     requested_cps[motor] = clamp_i32(next[motor],

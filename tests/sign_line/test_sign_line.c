@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "sign_route.h"
+#include "sign_slowdown.h"
 #include "simple_line_mode.h"
 #include "vision_detection_parser.h"
 
@@ -169,10 +170,69 @@ static void test_sign_route(void)
   puts("PASS: strict $D parser, exact SL2 table and confirmed sign routing");
 }
 
+static void test_slowdown(void)
+{
+  VisionDetectionParser parser;
+  VisionDetection frame;
+  SignRouteStatus status;
+  uint32_t seq = 0U;
+  unsigned i;
+  const char *frames[] = {"$D,0,20,160,120#", "$D,1,20,160,120#",
+      "$D,2,20,160,120#", "$D,3,20,160,120#", "$D,4,20,160,120#"};
+  VisionDetectionParser_Init(&parser);
+  for (i = 0U; i < 5U; ++i)
+  {
+    SignSlowdown_Reset(); SignRoute_Reset();
+    CHECK(feed(&parser, frames[i], &frame) == VISION_PARSE_FRAME);
+    frame.received_ms = 100U; frame.sequence = ++seq;
+    SignSlowdown_ObserveDetection(&frame, 100U);
+    SignRoute_ObserveDetection(&frame);
+    SignRoute_GetStatus(100U, &status);
+    CHECK(status.state == SIGN_ROUTE_IDLE); /* one frame slows, never routes */
+    CHECK(SignSlowdown_Reasons(100U) == SIGN_SLOWDOWN_VISION);
+    SignSlowdown_ObserveDetection(&frame, 1400U); /* repeated read cannot renew */
+    CHECK(SignSlowdown_Reasons(1599U) == SIGN_SLOWDOWN_VISION);
+    CHECK(SignSlowdown_Reasons(1600U) == 0U);
+  }
+  SignSlowdown_Reset();
+  SignSlowdown_ObserveBlack(0U); /* zero timestamp is valid */
+  CHECK(SignSlowdown_Reasons(0U) == SIGN_SLOWDOWN_BLACK);
+  CHECK(feed(&parser, "$D,-1,0,0,0#", &frame) == VISION_PARSE_FRAME);
+  frame.sequence = ++seq; frame.received_ms = 1499U;
+  SignSlowdown_ObserveDetection(&frame, 1499U);
+  CHECK(SignSlowdown_Reasons(1500U) == 0U); /* none does not prolong */
+  CHECK(feed(&parser, "$D,0,101,10,10#", &frame) == VISION_PARSE_BAD_FRAME);
+  CHECK(SignSlowdown_Reasons(1501U) == 0U);
+  CHECK(feed(&parser, frames[0], &frame) == VISION_PARSE_FRAME);
+  frame.sequence = ++seq; frame.received_ms = 100U;
+  SignSlowdown_ObserveDetection(&frame, 451U);
+  CHECK(SignSlowdown_Reasons(451U) == 0U); /* stale frame */
+  frame.sequence = ++seq; frame.received_ms = 1000U;
+  SignSlowdown_ObserveDetection(&frame, 1000U);
+  SignSlowdown_ObserveBlack(2000U);
+  CHECK(SignSlowdown_Reasons(2499U) == 3U);
+  CHECK(SignSlowdown_Reasons(2500U) == SIGN_SLOWDOWN_BLACK);
+  CHECK(SignSlowdown_Reasons(3500U) == 0U);
+  SignSlowdown_ObserveBlack(UINT32_MAX - 100U);
+  CHECK(SignSlowdown_Reasons(1398U) == SIGN_SLOWDOWN_BLACK);
+  CHECK(SignSlowdown_Reasons(1399U) == 0U);
+  frame.sequence = UINT32_MAX; frame.received_ms = UINT32_MAX - 50U;
+  SignSlowdown_ObserveDetection(&frame, UINT32_MAX - 50U);
+  frame.sequence = 0U; frame.received_ms = 20U;
+  SignSlowdown_ObserveDetection(&frame, 20U);
+  CHECK(SignSlowdown_Reasons(1519U) == SIGN_SLOWDOWN_VISION);
+  CHECK(SignSlowdown_Reasons(1520U) == 0U);
+  SignSlowdown_ObserveBlack(2000U);
+  SignSlowdown_Reset();
+  CHECK(SignSlowdown_Reasons(2001U) == 0U);
+  puts("PASS: one-frame slowdown, no-target/stale rejection, independent holds, reset and wrap");
+}
+
 int main(void)
 {
   test_parser();
   test_simple_line();
   test_sign_route();
+  test_slowdown();
   return 0;
 }
