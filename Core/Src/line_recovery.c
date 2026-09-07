@@ -6,6 +6,9 @@
 #define SENSOR_CONFIRM_MS         4U
 #define SENSOR_MAX_SAMPLE_GAP_MS 30U
 #define EXIT_HINT_MAX_AGE_MS    200U
+#define UNCERTAIN_SWEEP_START_MDEG 30000L
+#define UNCERTAIN_SWEEP_STEP_MDEG  30000L
+#define UNCERTAIN_SWEEP_MAX_MDEG  120000L
 
 typedef enum { REC_IDLE, REC_SEARCH,
                REC_CAPTURED, REC_FAULT } RecoveryPhase;
@@ -17,6 +20,36 @@ static uint32_t exit_last_ms;
 static uint8_t center_candidate, audio_owned, audio_requested;
 static uint32_t center_since, center_last_ms;
 static LineRecoveryStopReason stop_reason;
+static uint8_t uncertain_search;
+static int32_t uncertain_sweep_mdeg;
+static uint32_t uncertain_start_transitions[DRIVE_BASE_WHEEL_COUNT];
+
+static uint32_t uncertain_target_counts(void)
+{
+  return (uint32_t)(((int64_t)uncertain_sweep_mdeg *
+      LINE_SEARCH_EFFECTIVE_TRACK_MM * LINE_SEARCH_COUNTS_PER_REV +
+      LINE_SEARCH_CPS_DENOMINATOR / 2LL) / LINE_SEARCH_CPS_DENOMINATOR);
+}
+
+static void uncertain_snapshot(const DriveBaseTelemetry *telemetry)
+{
+  unsigned wheel;
+  for (wheel = 0U; wheel < DRIVE_BASE_WHEEL_COUNT; ++wheel)
+    uncertain_start_transitions[wheel] = telemetry->legal_transition_count[wheel];
+}
+
+static uint8_t uncertain_sweep_complete(const DriveBaseTelemetry *telemetry)
+{
+  uint32_t target = uncertain_target_counts();
+  unsigned wheel;
+  if (target == 0U) return 0U;
+  for (wheel = 0U; wheel < DRIVE_BASE_WHEEL_COUNT; ++wheel)
+  {
+    if ((uint32_t)(telemetry->legal_transition_count[wheel] -
+        uncertain_start_transitions[wheel]) < target) return 0U;
+  }
+  return 1U;
+}
 
 static void stop_audio(void)
 {
@@ -38,6 +71,7 @@ void LineRecovery_Stop(LineRecoveryStopReason reason)
 {
   DriveBase_Stop(DRIVE_STOP_COAST);
   stop_audio();
+  uncertain_search = 0U;
   stop_reason = reason;
   phase = REC_FAULT;
 }
@@ -50,6 +84,7 @@ void LineRecovery_Reset(void)
   center_candidate = 0U;
   side = exit_side = 0;
   exit_edge_seen = 0U;
+  uncertain_search = 0U;
 }
 void LineRecovery_Commit(void)
 {
@@ -57,6 +92,7 @@ void LineRecovery_Commit(void)
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
   exit_edge_seen = 0U;
+  uncertain_search = 0U;
 }
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
 {
@@ -67,6 +103,7 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
   exit_edge_seen = 0U;
   exit_last_ms = now;
   center_candidate = 0U;
+  uncertain_search = 0U;
   stop_reason = LINE_REC_STOP_NONE;
   /* Rolling handoff: preserve controller effort and let DriveBase ramp only
      the wheels that need to reverse. No whole-car brake/settle cycle. */
@@ -81,6 +118,16 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
     audio_requested = 1U;
   }
 }
+void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now)
+{
+  DriveBaseTelemetry telemetry;
+  LineRecovery_Begin(initial_side, now);
+  if (phase != REC_SEARCH) return;
+  DriveBase_GetTelemetry(&telemetry);
+  uncertain_search = 1U;
+  uncertain_sweep_mdeg = UNCERTAIN_SWEEP_START_MDEG;
+  uncertain_snapshot(&telemetry);
+}
 void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
 {
   side = preferred_side > 0 ? 1 : -1;
@@ -88,6 +135,7 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
   exit_edge_seen = 1U;
   exit_last_ms = now;
   center_candidate = 0U;
+  uncertain_search = 0U;
   stop_reason = LINE_REC_STOP_NONE;
   phase = REC_SEARCH;
   center_last_ms = now;
@@ -99,6 +147,11 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
   int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
       (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
   if (phase != REC_SEARCH) return;
+  /* History may invalidate live capture continuity, but must never complete
+     capture on its own. A white/outer ISR hit between two live middle hits
+     breaks the confirmation even if the main loop missed that hit. */
+  if (!(r->x1_black || r->x3_black) || r->x2_black || r->x4_black)
+    center_candidate = 0U;
   /* Every fresh unambiguous outer edge is evidence, not just the first edge
      after a middle hit. Switching still waits for its subsequent all-white
      exit, so contact alone does not reverse the active turn. */
@@ -115,7 +168,11 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
   }
   else if (exit_edge_seen)
   {
-    if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS) side = exit_side;
+    if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS)
+    {
+      side = exit_side;
+      uncertain_search = 0U;
+    }
     exit_edge_seen = 0U;
   }
 }
@@ -142,6 +199,19 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   if (phase == REC_SEARCH)
   {
     LineRecovery_ObserveDirection(r, now);
+    if (uncertain_search &&
+        !(r->x1_black || r->x2_black || r->x3_black || r->x4_black) &&
+        uncertain_sweep_complete(&telemetry))
+    {
+      side = (int8_t)-side;
+      if (uncertain_sweep_mdeg < UNCERTAIN_SWEEP_MAX_MDEG)
+      {
+        uncertain_sweep_mdeg += UNCERTAIN_SWEEP_STEP_MDEG;
+        if (uncertain_sweep_mdeg > UNCERTAIN_SWEEP_MAX_MDEG)
+          uncertain_sweep_mdeg = UNCERTAIN_SWEEP_MAX_MDEG;
+      }
+      uncertain_snapshot(&telemetry);
+    }
     command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
     if (!visible) center_candidate = 0U;
     else

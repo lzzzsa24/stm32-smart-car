@@ -145,6 +145,7 @@ static SimpleLineController simple_line_controller;
 static uint8_t sign_line_mask;
 static uint8_t sign_line_action;
 static uint8_t sign_slow_reasons;
+static int32_t sign_speed_limit_cps;
 static VisionLineV4Command vision_line_v4_command;
 
 #define BYPASS_REARM_DELAY_MS          1000U
@@ -697,7 +698,7 @@ static void oled_application_task(AppMode mode)
           route_status.last_class,
           route_status.last_score,
           route_status.vision_online,
-          (uint8_t)route_status.state,
+          route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
           route_status.direction);
     }
     else
@@ -819,6 +820,10 @@ static void apply_sign_line_pwm(int16_t left_pwm,
   int32_t left_cps = DriveBase_EquivalentCpsFromPwm(left_pwm);
   int32_t right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
 
+  /* Choose the limit once, at the final owner. Applying 1200 before the next
+     DriveBase_Task would otherwise keep re-clamping an ongoing search. */
+  sign_speed_limit_cps = SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm);
+  DriveBase_SetSpeedLimitCps(sign_speed_limit_cps);
   DriveBase_SetLineFaultObservation(1U, line_mask, controller_state);
   DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
   if (left_cps == 0L && right_cps == 0L)
@@ -870,16 +875,17 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteString(" SLOW=");
   DiagnosticUart_WriteUnsigned(sign_slow_reasons);
   DiagnosticUart_WriteString(" CAP=");
-  DiagnosticUart_WriteUnsigned(sign_slow_reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0U);
+  DiagnosticUart_WriteUnsigned((uint32_t)sign_speed_limit_cps);
+  DiagnosticUart_WriteString(" SEARCH=");
+  DiagnosticUart_WriteUnsigned(route_status->searching);
   DiagnosticUart_WriteString(" BAD=");
   DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
                                stats.ring_overflows + stats.queue_overflows);
   DiagnosticUart_WriteString("\r\n");
 }
 
-/* Run before DriveBase_Task and the automatic-wait early return: a recovery
-   owner must not bypass the recognition limit. Sampling does not drain the
-   enhanced controller's line-history queue. */
+/* Gather slowdown evidence before control. Apply its target-specific limit
+   only in apply_sign_line_pwm, so the next tick cannot re-cap search. */
 static void sign_line_slowdown_task(AppMode mode)
 {
   VisionDetection detection;
@@ -889,6 +895,7 @@ static void sign_line_slowdown_task(AppMode mode)
   {
     SignSlowdown_Reset();
     sign_slow_reasons = 0U;
+    sign_speed_limit_cps = 0L;
     DriveBase_SetSpeedLimitCps(0L);
     return;
   }
@@ -904,7 +911,6 @@ static void sign_line_slowdown_task(AppMode mode)
     SignRoute_ObserveDetection(&detection);
   }
   sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
-  DriveBase_SetSpeedLimitCps(sign_slow_reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0L);
 }
 
 static void sign_line_task(AppMode mode)
@@ -916,6 +922,8 @@ static void sign_line_task(AppMode mode)
   uint32_t now = HAL_GetTick();
 
   sign_line_mask = line_reading_mask(&line);
+  /* Keep sampling the real line even while a route preference is active. */
+  SimpleLine_Step(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
@@ -924,8 +932,6 @@ static void sign_line_task(AppMode mode)
   {
     /* Never resume the old enhanced controller's latched in-place recovery.
        Both sign modes use the same SL2 path that can follow the user's arc. */
-    SimpleLine_Stop(&simple_line_controller);
-    SimpleLine_Start(&simple_line_controller);
     SignRoute_GetStatus(now, &route_status);
     SimpleLine_SetDirection(&simple_line_controller,
         route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
@@ -943,7 +949,6 @@ static void sign_line_task(AppMode mode)
   }
   else
   {
-    SimpleLine_Step(&simple_line_controller, sign_line_mask);
     sign_line_action = (uint8_t)simple_line_controller.mode;
     apply_sign_line_pwm(simple_line_controller.left_pwm,
                         simple_line_controller.right_pwm,
@@ -1333,6 +1338,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     LineSearchRecord record = {0};
     LineTrackingReading line = line_tracking_read();
     IrAvoidReading infrared = {0};
+    int8_t line_side = line_tracking_direction_evidence(&line);
     line_wait_side = LineRecovery_GetDirection();
     if (mode == APP_MODE_INTEGRATED)
     {
@@ -1341,8 +1347,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     if (mode == APP_MODE_INTEGRATED &&
         (infrared.left_obstacle || infrared.right_obstacle))
       line_wait_side = choose_bypass_direction(&infrared);
-    else if (line.x4_black && !line.x1_black && !line.x2_black) line_wait_side = 1;
-    else if (line.x2_black && !line.x3_black && !line.x4_black) line_wait_side = -1;
+    else if (line_side) line_wait_side = line_side;
     if (line_wait_side == 0) line_wait_side = -1;
     record.time_ms = now; record.source = LINE_SEARCH_WAIT_RECOVERY;
     record.chosen_side = line_wait_side;
@@ -1484,6 +1489,7 @@ int main(void)
       (void)LineSensorSample_TakeAllBlack(&discarded_black_ms);
       SignSlowdown_Reset();
       sign_slow_reasons = 0U;
+      sign_speed_limit_cps = 0L;
       DriveBase_SetSpeedLimitCps(0L);
       LineWaitGuard_Reset(&line_wait_guard);
       WheelSpeedObserver_Stop();

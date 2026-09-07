@@ -11,17 +11,17 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: 64251bf
+repository_head_at_update: bcb3edf
 latest_code_commit: 2d1edaa
-flashed_source_commit: 1275257
-flash_record_commit: 64251bf
-deployed_tag: deployed/2026-09-07-mode34-line-priority-1275257
+flashed_source_commit: 4947f9c
+flash_record_commit: c3200d9
+deployed_tag: deployed/2026-09-07-line-direction-evidence-4947f9c
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82816
-flashed_bin_sha256: 8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE
-flashed_hex_sha256: 83DFE802228F0DADAEE7FA51224D061426B4B55EBE09F95A06E3155F89C62F27
-ground_test_status: not_tested_after_1275257_temporary_flash
+formal_bin_size_bytes: 83332
+flashed_bin_sha256: D17F7ED9926CB33150CFD0681613038AD8425E96272CF1FC94EB74446418E6E1
+flashed_hex_sha256: 4ED1A0D75E674997F0764A2F42332E477410DA5591D4772BF829679B65E28C35
+ground_test_status: not_tested_after_4947f9c_temporary_flash
 k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
 candidate_source_commit: 2d1edaa
 candidate_bin_size_bytes: 82832
@@ -30,11 +30,15 @@ candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D10
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: protected_PR_sync_for_current_deployment_authorized
+remote_sync_status: current_main_and_release_pushed_PR4_updated_review_required
 remote_sync_branch: main
-stm32_runtime_status: COM11_1275257_readback_verified_and_GO_confirmed
+stm32_runtime_status: COM11_4947f9c_readback_verified_GO_and_default_STOP_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
-temporary_flash_selector_commit: 875bc3c
+temporary_flash_selector_commit: 4947f9c
+github_release_tag: v1.1.0-main-20260907
+github_release_source_commit: bcb3edf
+github_release_firmware_commit: 2d1edaa
+github_release_status: prerelease_published_host_verified_not_reflashed_or_ground_tested
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -60,36 +64,54 @@ to 0 only for the merge transaction and immediately restored to 1 afterward;
 required PRs, deletion protection and non-fast-forward protection remained
 active. Remote `origin/main` is now the durable canonical handoff.
 
-## Current flashed temporary test image (`875bc3c`)
+On 2026-09-07 the existing protected-main PR #4 was fast-forwarded to the
+current local canonical history and retitled accordingly. It remains open
+because the active ruleset requires one approving review and the current
+account cannot approve its own PR. Pre-release `v1.1.0-main-20260907` points to
+repository snapshot `bcb3edf` and publishes the main firmware code tree
+`2d1edaa` as BIN/HEX plus checksums. This release is not the independently
+flashed `4947f9c` image and makes no new physical-test claim.
 
-The user requested only to flash `875bc3c`, not merge it. That commit is a
-documentation record; its firmware tree is source `1275257`, based on
-`fc5a7b9`. It is intentionally kept on the independent
-`fix/mode34-recognition-slowdown` branch and is not canonical main.
+## Current flashed temporary test image (`4947f9c`)
 
-In modes 3/4, current line evidence remains the motor authority. PROBE and
-EXIT_CLEAR no longer command blind forward motion, and route preference needs
-current black-line evidence on the selected side. Missing sign frames and
-route-geometry bounds do not stop otherwise valid line tracking. Sustained
-all-white holds after 600 ms, while 30 ms stable black evidence resumes line
-control; a sign alone cannot release that hold. Modes 1/2/5 and K210 source are
-unchanged. Because this branch predates `2d1edaa`, the currently flashed test
-image does not include the later GPIO-snapshot/ISR ordering fix.
+The user requested only to flash exact source `4947f9c`, not merge it. It is on
+the independent `fix/line-direction-evidence` branch and retains canonical
+source `2d1edaa`'s GPIO snapshot/ISR ordering fix. Its parent has the same code
+tree as `2d1edaa`; the one source commit adds the newer line-direction evidence
+behavior without importing the independent mode 3/4 sign-fork source
+`d1d22d9`.
 
-Mode 3/4 sign/ring tests, mode 5 tests and the complete line-recovery/load/
-bypass suite passed. The formal ARM build passed with text/data/bss
-82748/64/11384 and produced an 82816-byte BIN with SHA-256
-`8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE`.
-COM11 was enumerated immediately before programming. Selective erase covered
-41 firmware pages, preserved the calibration page, wrote/read back all 82816
-bytes with `VERIFY OK`, and completed `GO OK: 0x08000000`. K210 was not
-rewritten; its TF card retains the verified `07f2b73` SIGN34 application.
-No lifted-wheel or ground test was performed.
+Adjacent three-probe overlaps can now retain a left/right direction hint while
+the crossing guard still commands forward travel. A recent real side hint may
+survive a short broad mark for at most 400 ms, but repeated broad samples do not
+renew its age. Centre or opposite-side evidence invalidates the old hint, and
+queued white/outer evidence breaks an interrupted centre confirmation so a
+stale sample cannot complete a false recovery handoff. The fault log records
+the accepted hint mask and age for diagnosis.
 
-Rollback tag `rollback/2026-09-07-before-875bc3c-test` points to canonical
-source `2d1edaa`. Deployment tag
-`deployed/2026-09-07-mode34-line-priority-1275257` identifies the exact board
-source selected by requested record `875bc3c`.
+The complete line-recovery/load/bypass suite passed at both 2493 and 1870 CPS,
+including all 16 masks, 256 mirrored ordered pairs, crossing-tail direction,
+queued-sample ordering, interrupted confirmation, STOP/fault ownership and
+four-wheel turn load. The mode 3/4 sign/ring and mode 5 suites also passed. The
+formal ARM build passed with text/data/bss 83264/64/11512 and produced an
+83332-byte BIN with SHA-256
+`D17F7ED9926CB33150CFD0681613038AD8425E96272CF1FC94EB74446418E6E1`;
+the HEX SHA-256 is
+`4ED1A0D75E674997F0764A2F42332E477410DA5591D4772BF829679B65E28C35`.
+
+COM11 was enumerated as USB-SERIAL CH340K and a STOP command was sent before
+deployment. An initial Windows PowerShell 5 invocation failed while parsing the
+host script, before opening the programmer or erasing Flash. The PowerShell 7
+run then entered the ROM bootloader, selectively erased 41 application pages,
+preserved the calibration page, wrote and read back all 83332 bytes with
+`VERIFY OK`, and completed `GO OK: 0x08000000`. The startup banner confirmed
+`DEFAULT STOP`, followed by another explicit serial STOP command. This is not a
+wheel-motion test. K210 was not rewritten.
+
+Rollback tag `rollback/2026-09-07-before-4947f9c-test` points to the replaced
+source `d1d22d9`. Deployment tag
+`deployed/2026-09-07-line-direction-evidence-4947f9c` identifies the exact
+board source. No lifted-wheel or ground test was performed by Codex.
 
 ## Canonical main source (not currently flashed)
 
@@ -662,9 +684,10 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | temporary source `1275257`; ELF text/data/bss = 82748/64/11384 bytes; BIN is 82816 bytes; canonical `2d1edaa` artifact remains separately reproducible |
-| host regression | passed | target mode 3/4 line-priority/ring/sign, mode 5 parser/control, and complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | temporary source `1275257` selected by `875bc3c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 82816 bytes with `VERIFY OK`, then completed `GO OK` |
+| computer build/link | passed | temporary source `4947f9c`; ELF text/data/bss = 83264/64/11512 bytes; BIN is 83332 bytes |
+| host regression | passed | both line-recovery speed configurations, all direction/ordering/load/bypass cases, mode 3/4 sign/ring and mode 5 suites pass |
+| STM32 flash/readback/GO | passed | temporary source `4947f9c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 83332 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
+| GitHub main candidate release | passed, pre-release | `v1.1.0-main-20260907` points to snapshot `bcb3edf`; firmware code `2d1edaa` rebuilt as 82832-byte BIN and passed line/sign/mode-5 host suites; no new flash or physical test |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -672,13 +695,19 @@ KEY1/KEY2 as follows:
 
 ## Current open issue and next safe step
 
-The board currently runs temporary source `1275257` selected by `875bc3c`, not
-canonical main `2d1edaa`. The exact `07f2b73` SIGN34 script remains on K210.
-Next test whether modes 3/4 stay on the black line instead of steering toward a
-sign and whether all-white hold resumes only after stable black evidence. If
-accepted, port the line-priority change onto current main so the snapshot-order
-fix is retained; if rejected, restore `2d1edaa`. No wheel or ground behavior is
-established by build, programmer readback, K210 startup or GO success.
+The board currently runs temporary source `4947f9c`, not canonical main
+`2d1edaa`. Ground-test KEY1 and KEY2 through left and right sharp curves where
+an adjacent three-probe overlap is followed by a broad mark and then all-white.
+The crossing segment should remain forward, while a loss within the bounded
+hint age should search toward the most recent real side instead of defaulting
+or accepting a broken centre confirmation. Test both directions and operator
+STOP before judging the change. If this version is rejected, rollback tag
+`rollback/2026-09-07-before-4947f9c-test` identifies the immediately replaced
+`d1d22d9` source. GitHub PR #4 now carries the latest local canonical state but
+still needs one external approval before protected `main` can advance. Release
+`v1.1.0-main-20260907` contains the canonical main candidate, not the board's
+temporary `4947f9c` image. No ground behavior is established by build,
+programmer readback, startup text or GO success.
 
 ## Update protocol
 

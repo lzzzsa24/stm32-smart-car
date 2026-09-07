@@ -16,12 +16,14 @@ typedef enum
   SIGN_ROUTE_ARC,
   SIGN_ROUTE_EXIT_SELECT,
   SIGN_ROUTE_EXIT_CLEAR,
-  SIGN_ROUTE_FAULT
+  SIGN_ROUTE_FAULT,       /* reserved legacy state; no timed line-loss hold */
+  SIGN_ROUTE_SEARCHING,   /* display-only; search keeps the underlying route phase */
+  SIGN_ROUTE_CANCELLED    /* route withdrawn; line controller still runs */
 } SignRouteState;
 
 typedef struct
 {
-  uint8_t active;
+  uint8_t active;         /* visible-edge steering preference */
   uint8_t just_started;
   uint8_t just_finished;
   int8_t direction;       /* -1 left, +1 right */
@@ -37,7 +39,8 @@ typedef struct
   uint8_t last_score;
   uint8_t vision_online;
   uint32_t last_sequence;
-  uint8_t fault;          /* 1 probe, 2 selection, 3 arc bound, 4 lost line, 5 exit */
+  uint8_t searching;
+  uint8_t fault;          /* navigation warnings only; line loss never owns STOP */
   int32_t travel_mm;
   int32_t yaw_mdeg;       /* encoder estimate; not measured chassis yaw */
 } SignRouteStatus;

@@ -39,8 +39,8 @@ typedef struct
   int32_t previous_counts[4];
   int64_t left_counts, right_counts;
   int64_t origin_left, origin_right;
-  uint32_t phase_ms, last_step_ms, line_lost_ms;
-  uint8_t odometry_valid, step_valid, line_lost, fault, frame_valid;
+  uint32_t phase_ms, last_step_ms;
+  uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   int32_t travel_mm, yaw_mdeg;
 } SignRouteContext;
@@ -139,7 +139,7 @@ static void try_confirm(uint32_t now)
   uint8_t i;
 
   if ((route.state != SIGN_ROUTE_IDLE && route.state != SIGN_ROUTE_PROBE &&
-       route.state != SIGN_ROUTE_WAIT_SIGN) || route.count < 3U)
+       route.state != SIGN_ROUTE_WAIT_SIGN) || route.direction != 0 || route.count < 3U)
   {
     return;
   }
@@ -252,7 +252,8 @@ static void enter_phase(SignRouteState state, uint32_t now)
   route.phase_ms = now;
   route.origin_left = route.left_counts;
   route.origin_right = route.right_counts;
-  route.capture_active = route.departed = route.line_lost = 0U;
+  route.capture_active = route.departed = 0U;
+  route.fault = 0U;
   route.travel_mm = route.yaw_mdeg = 0L;
 }
 
@@ -281,25 +282,25 @@ static uint8_t stable(uint8_t condition, uint32_t now)
   return now - route.capture_since_ms >= SIGN_CAPTURE_MS;
 }
 
-static void fail_route(uint8_t reason, SignRouteCommand *command)
+static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command)
 {
-  route.state = SIGN_ROUTE_FAULT;
+  route.state = SIGN_ROUTE_CANCELLED;
   route.fault = reason;
-  command->active = 1U;
-  command->left_pwm = command->right_pwm = 0;
+  route.direction = 0;
+  route.finished_ms = now;
+  route.none_since_ms = 0U;
+  route.capture_active = route.junction_active = 0U;
+  clear_window();
+  memset(command, 0, sizeof(*command)); /* withdraw, never replace SL2 with STOP */
 }
 
-static void forward_command(SignRouteCommand *command, uint8_t mask)
+static void select_command(SignRouteCommand *command, uint8_t mask)
 {
-  command->active = 1U;
-  command->left_pwm = SIGN_ROUTE_PWM;
-  command->right_pwm = SIGN_ROUTE_PWM;
-  if (mask == 4U) command->right_pwm += 200;
-  if (mask == 2U) command->left_pwm += 200;
-}
-
-static void select_command(SignRouteCommand *command)
-{
+  uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
+  /* A sign is only a branch preference. It cannot drive off the black line,
+     override a current centre line, or steer across an all-black bar. */
+  if (route.direction == 0 || !(mask & selected_edge) || mask == 15U)
+    return;
   command->active = 1U;
   /* Forward pivot, never equal-and-opposite wheel rotation. Exit uses the
      SAME side as entry: a right semicircle exits to the right of its tangent. */
@@ -315,6 +316,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   memset(command, 0, sizeof(*command));
   command->direction = route.direction;
   line_mask &= 15U;
+  route.last_line_mask = line_mask;
   junction = is_junction(line_mask);
   center = is_center_line(line_mask);
   if (route.step_valid && now - route.last_step_ms > SIGN_SAMPLE_MAX_GAP_MS)
@@ -326,12 +328,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   route.last_step_ms = now;
   update_geometry();
 
-  if (route.state == SIGN_ROUTE_FAULT)
-  {
-    fail_route(route.fault, command);
-    return;
-  }
-  if ((route.state == SIGN_ROUTE_ARMED || route.state == SIGN_ROUTE_PROBE) &&
+  /* All-white belongs to SL2's continuous counter-rotation search. Neither
+     elapsed time nor a fresh sign is allowed to replace it with a zero target. */
+  if (route.state == SIGN_ROUTE_ARMED &&
       route.direction != 0 &&
       (now - route.armed_ms > SIGN_PENDING_MAX_AGE_MS ||
        now - route.last_frame_ms > SIGN_ONLINE_MAX_AGE_MS))
@@ -340,7 +339,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     clear_window();
     if (route.state == SIGN_ROUTE_ARMED) route.state = SIGN_ROUTE_IDLE;
   }
-  if (route.state == SIGN_ROUTE_LOCKED)
+  if (route.state == SIGN_ROUTE_LOCKED || route.state == SIGN_ROUTE_CANCELLED)
   {
     if (now - route.finished_ms >= SIGN_REARM_COOLDOWN_MS &&
         route.none_since_ms != 0U &&
@@ -350,6 +349,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     {
       route.state = SIGN_ROUTE_IDLE;
       route.direction = 0;
+      route.fault = 0U;
       route.junction_active = 0U;
       clear_window();
     }
@@ -372,14 +372,23 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_PROBE)
   {
-    forward_command(command, line_mask);
+    /* Observe while the ordinary line controller keeps motor ownership. */
     if (route.travel_mm > SIGN_PROBE_MAX_MM ||
         now - route.phase_ms > SIGN_PROBE_TIMEOUT_MS)
-    { fail_route(1U, command); return; }
+    {
+      route.fault = 1U; /* navigation warning, never an on-line stop */
+      route.state = route.direction ? SIGN_ROUTE_ARMED : SIGN_ROUTE_IDLE;
+      route.junction_active = route.capture_active = 0U;
+      return;
+    }
     /* Cross the transverse stroke first. A continuing middle line is a
        painted crossbar, not a command to turn into the circle. */
-    if (stable((uint8_t)((!junction && route.travel_mm >= SIGN_PROBE_MIN_MM) ?
-                         (center ? 1U : 2U) : 0U), now))
+    /* Split arcs can keep both outside sensors black while the middle is
+       white. This is already branch evidence; waiting for !junction lets
+       ordinary tracking choose a side first. All-black remains a crossbar. */
+    uint8_t split = line_mask == 9U;
+    if (stable((uint8_t)(split ? 3U : (!junction ? (center ? 1U : 2U) : 0U)), now) &&
+        (!center || now - route.capture_since_ms >= SIGN_PROBE_CENTER_CLEAR_MS))
     {
       if (center)
       {
@@ -390,13 +399,13 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       else if (route.direction != 0)
       {
         enter_phase(SIGN_ROUTE_SELECTING, now);
-        select_command(command);
+        route.departed = 1U;
+        select_command(command, line_mask);
       }
       else
       {
         enter_phase(SIGN_ROUTE_WAIT_SIGN, now);
         clear_window();
-        command->left_pwm = command->right_pwm = 0;
       }
     }
     return;
@@ -404,22 +413,31 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_WAIT_SIGN)
   {
-    command->active = 1U; /* stay stopped at a real branch; don't guess */
+    /* Missing/incompatible K210 frames do not disable four-sensor tracking. */
+    if (center)
+    {
+      route.state = route.direction ? SIGN_ROUTE_ARMED : SIGN_ROUTE_IDLE;
+      route.capture_active = route.junction_active = 0U;
+      return;
+    }
     if (route.direction == 0) return;
     enter_phase(SIGN_ROUTE_SELECTING, now);
+    route.departed = 1U;
     command->just_started = 1U;
   }
 
   if (route.state == SIGN_ROUTE_SELECTING || route.state == SIGN_ROUTE_EXIT_SELECT)
   {
     int32_t turn_yaw = -route.direction * route.yaw_mdeg;
-    select_command(command);
+    select_command(command, line_mask);
     if (now - route.phase_ms > SIGN_SELECT_TIMEOUT_MS ||
         turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
-    { fail_route(2U, command); return; }
+    {
+      cancel_route(2U, now, command);
+      return;
+    }
     if (!junction && !center) route.departed = 1U;
-    if (stable(route.departed && center &&
-               turn_yaw >= SIGN_SELECT_MIN_YAW_MDEG, now))
+    if (stable(route.departed && center, now))
     {
       if (route.state == SIGN_ROUTE_SELECTING)
       {
@@ -429,7 +447,6 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       else
       {
         enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
-        forward_command(command, line_mask);
       }
       command->just_finished = 1U;
     }
@@ -444,39 +461,31 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         route.travel_mm > SIGN_ARC_MAX_MM ||
         directed_arc_yaw > SIGN_ARC_MAX_YAW_MDEG ||
         directed_arc_yaw < -90000L)
-    { fail_route(3U, command); return; }
-    if (line_mask == 0U)
     {
-      if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
-      if (now - route.line_lost_ms >= SIGN_LINE_LOST_TIMEOUT_MS)
-      { fail_route(4U, command); return; }
+      cancel_route(3U, now, command);
+      return;
     }
-    else route.line_lost = 0U;
     /* Curvature toward the circle is opposite the selected entry side.
        The outgoing line appears on the outside after substantial arc travel. */
     if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
                directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG &&
-               (line_mask & exit_side) && (line_mask & 6U), now))
+               line_mask == (exit_side == 8U ? 12U : 3U), now))
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
+      route.departed = 1U;
       command->just_started = 1U;
-      select_command(command);
+      select_command(command, line_mask);
     }
     return;
   }
 
   if (route.state == SIGN_ROUTE_EXIT_CLEAR)
   {
-    forward_command(command, line_mask);
     if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS)
-    { fail_route(5U, command); return; }
-    if (line_mask == 0U)
     {
-      if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
-      if (now - route.line_lost_ms >= 120U)
-      { fail_route(5U, command); return; }
+      cancel_route(5U, now, command);
+      return;
     }
-    else route.line_lost = 0U;
     if (stable(center && route.travel_mm >= SIGN_EXIT_CLEAR_MM, now))
     {
       route.state = SIGN_ROUTE_LOCKED;
@@ -499,6 +508,7 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->vision_online = route.frame_valid &&
       now - route.last_frame_ms <= SIGN_ONLINE_MAX_AGE_MS ? 1U : 0U;
   status->last_sequence = route.last_sequence;
+  status->searching = route.step_valid && route.last_line_mask == 0U;
   status->fault = route.fault;
   status->travel_mm = route.travel_mm;
   status->yaw_mdeg = route.yaw_mdeg;
