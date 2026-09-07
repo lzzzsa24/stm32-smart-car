@@ -5,7 +5,7 @@ import json
 ROOT = Path(__file__).resolve().parents[2]
 main = (ROOT / "Core/Src/main.c").read_text(encoding="utf-8")
 irq = (ROOT / "Core/Src/stm32f1xx_it.c").read_text(encoding="utf-8")
-k210 = (ROOT / "K210/main.py").read_text(encoding="utf-8")
+k210 = (ROOT / "K210/sign_mode34.py").read_text(encoding="utf-8")
 manifest = json.loads((ROOT / "K210/model-manifest.json").read_text(encoding="utf-8"))
 model = ROOT / "K210/road_sign_det_20260906.kmodel"
 
@@ -36,5 +36,5 @@ assert 'KMODEL_PATH    = "/sd/KPU/road_sign_det/road_sign_det.kmodel"' in k210
 assert 'print("SIGN34 ready;' in k210
 assert model.stat().st_size == manifest["bytes"]
 assert hashlib.sha256(model.read_bytes()).hexdigest() == manifest["sha256"]
-compile(k210, str(ROOT / "K210/main.py"), "exec")
-print("PASS: mode 3/4 bindings, USART2 IRQ, K210 syntax and model identity")
+compile(k210, str(ROOT / "K210/sign_mode34.py"), "exec")
+print("PASS: mode 3/4 bindings, USART2 IRQ, preserved sign script and model identity")

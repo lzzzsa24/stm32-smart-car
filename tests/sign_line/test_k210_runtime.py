@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import patch
 
-SOURCE = Path(__file__).resolve().parents[2] / 'K210/main.py'
+SOURCE = Path(__file__).resolve().parents[2] / 'K210/sign_mode34.py'
 code = SOURCE.read_text(encoding='utf-8')
 PERIOD = 1 << 30
 

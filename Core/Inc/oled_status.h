@@ -40,6 +40,14 @@ void OledStatus_SetSignLineData(uint8_t mode_number,
                                 uint8_t vision_online,
                                 uint8_t route_state,
                                 int8_t route_direction);
+void OledStatus_SetVisionLineV4Data(uint8_t online,
+                                    uint8_t line_found,
+                                    int16_t offset,
+                                    int16_t angle,
+                                    int16_t bottom,
+                                    uint8_t obstacle_found,
+                                    uint16_t obstacle_bottom,
+                                    uint8_t control_state);
 void OledStatus_Task(void);
 uint8_t OledStatus_IsReady(void);
 

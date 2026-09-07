@@ -12,6 +12,7 @@
 
 #include "main.h"
 #include "vision_detection_parser.h"
+#include "vision_line_v4_parser.h"
 
 #define VISION_UART_BAUD                 115200U
 #define VISION_TOKEN_BUFFER_SIZE              64U
@@ -38,10 +39,13 @@ static volatile uint8_t rx_head;
 static volatile uint8_t rx_tail;
 static volatile uint8_t rx_reset_pending;
 static VisionDetectionParser detection_parser;
+static VisionLineV4Parser line_v4_parser;
 static VisionDetection detection_queue[VISION_DETECTION_QUEUE_SIZE];
 static uint8_t detection_head;
 static uint8_t detection_tail;
 static uint32_t detection_sequence;
+static VisionLineV4Reading line_v4_latest;
+static uint32_t line_v4_sequence;
 static volatile VisionUartStats vision_stats;
 
 static void queue_detection(VisionDetection *detection)
@@ -75,6 +79,16 @@ static void reset_receive_parser(void)
   token_length = 0U;
   binary_state = 0U;
   VisionDetectionParser_Init(&detection_parser);
+  VisionLineV4Parser_Init(&line_v4_parser);
+}
+
+static void publish_line_v4(VisionLineV4Reading *reading)
+{
+  ++line_v4_sequence;
+  reading->sequence = line_v4_sequence;
+  reading->received_ms = HAL_GetTick();
+  line_v4_latest = *reading;
+  ++vision_stats.line_v4_frames;
 }
 
 static uint8_t append_character(uint8_t index, char value)
@@ -248,21 +262,30 @@ static void finish_token(void)
 static void consume_byte(uint8_t byte)
 {
   VisionDetection detection;
+  VisionLineV4Reading line_v4;
   VisionParseResult parse_result = VisionDetectionParser_Consume(
       &detection_parser, byte, &detection);
+  VisionLineV4ParseResult line_v4_result = VisionLineV4Parser_Consume(
+      &line_v4_parser, byte, &line_v4);
 
-  if (parse_result != VISION_PARSE_IGNORED)
+  if (parse_result == VISION_PARSE_FRAME)
+  {
+    queue_detection(&detection);
+  }
+  if (line_v4_result == VISION_LINE_V4_PARSE_FRAME)
+  {
+    publish_line_v4(&line_v4);
+  }
+  if (parse_result != VISION_PARSE_IGNORED ||
+      line_v4_result != VISION_LINE_V4_PARSE_IGNORED)
   {
     if (byte == '$')
     {
       token_length = 0U;
       binary_state = 0U;
     }
-    if (parse_result == VISION_PARSE_FRAME)
-    {
-      queue_detection(&detection);
-    }
-    else if (parse_result == VISION_PARSE_BAD_FRAME)
+    if (parse_result == VISION_PARSE_BAD_FRAME &&
+        line_v4_result == VISION_LINE_V4_PARSE_BAD_FRAME)
     {
       ++vision_stats.bad_frames;
     }
@@ -375,7 +398,10 @@ void vision_uart_init(void)
   vision_stats.uart_errors = 0U;
   vision_stats.ring_overflows = 0U;
   vision_stats.queue_overflows = 0U;
-  VisionDetectionParser_Init(&detection_parser);
+  vision_stats.line_v4_frames = 0U;
+  memset(&line_v4_latest, 0, sizeof(line_v4_latest));
+  line_v4_sequence = 0U;
+  reset_receive_parser();
 }
 
 void vision_uart_poll(void)
@@ -390,6 +416,7 @@ void vision_uart_poll(void)
     rx_tail = rx_head;
     rx_reset_pending = 0U;
     detection_tail = detection_head;
+    line_v4_latest.frame_valid = 0U;
     ++detection_sequence;
     reset_receive_parser();
     USART2->CR1 = cr1;
@@ -523,7 +550,21 @@ void vision_uart_get_stats(VisionUartStats *stats)
     stats->uart_errors = vision_stats.uart_errors;
     stats->ring_overflows = vision_stats.ring_overflows;
     stats->queue_overflows = vision_stats.queue_overflows;
+    stats->line_v4_frames = vision_stats.line_v4_frames;
   }
+}
+
+VisionLineV4Reading vision_uart_get_line_v4(void)
+{
+  vision_uart_poll();
+  return line_v4_latest;
+}
+
+void vision_uart_reset_line_v4(void)
+{
+  line_v4_latest.frame_valid = 0U;
+  line_v4_latest.sequence = 0U;
+  line_v4_sequence = 0U;
 }
 
 const char *vision_command_name(VisionCommand command)

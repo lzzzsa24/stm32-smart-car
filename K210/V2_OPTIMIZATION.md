@@ -30,11 +30,13 @@
 
 ## 文件与验证
 
-候选为本目录 `main.py`，仍为单文件启动脚本，不需要额外部署 Python 模块。
+优化后的路标候选现保存在本目录 `sign_mode34.py`，仍为单文件脚本；部署模式
+3/4 时将它复制为 TF 卡上的 `/sd/main.py`。仓库中的 `main.py` 由模式5视觉循迹
+使用，两者不能同时作为 CanMV 的自动启动入口。
 回退标签 `rollback/2026-09-07-before-k210-v2-display` 指向 `b6e5ff9`。
 此前设备上的 K210 脚本保持不变，本轮没有串口访问或烧录。
 
-`tests/sign_line/test_k210_runtime.py` 执行真实 main.py 的主循环，替换相机、
+`tests/sign_line/test_k210_runtime.py` 执行真实 `sign_mode34.py` 的主循环，替换相机、
 KPU、UART、LCD、按键和时钟为测试设备，验证：
 
 - 箭头筛选、双箭头歧义、低分/NaN/画外目标拒绝、越界中心处理。

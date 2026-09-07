@@ -449,7 +449,8 @@ static void build_screen(uint8_t app_mode,
     case 1U: draw_battery_header("LINE"); break;
     case 2U: draw_battery_header("M3 ADV"); break;
     case 3U: draw_battery_header("M4 SIMPLE"); break;
-    case 4U: draw_battery_header("STOP"); break;
+    case 4U: draw_battery_header("M5 VISION"); break;
+    case 5U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
   }
 
@@ -664,6 +665,52 @@ static void build_sign_line_screen(uint8_t mode_number,
   draw_text(3U, 0U, line);
 }
 
+static void build_vision_line_v4_screen(uint8_t online,
+                                        uint8_t line_found,
+                                        int16_t offset,
+                                        int16_t angle,
+                                        int16_t bottom,
+                                        uint8_t obstacle_found,
+                                        uint16_t obstacle_bottom,
+                                        uint8_t control_state)
+{
+  char line[22];
+  uint8_t index;
+
+  clear_framebuffer();
+  draw_battery_header("M5 VISION");
+
+  if (online == 0U)
+  {
+    draw_text(1U, 0U, "UART:OFF STOP");
+  }
+  else
+  {
+    index = append_string(line, 0U, "LINE:");
+    index = append_char(line, index, line_found != 0U ? 'Y' : 'N');
+    index = append_string(line, index, " O:");
+    index = append_signed(line, index, offset);
+    finish_text(line, index);
+    draw_text(1U, 0U, line);
+  }
+
+  index = append_string(line, 0U, "ANG:");
+  index = append_signed(line, index, angle);
+  index = append_string(line, index, " BOT:");
+  index = append_signed(line, index, bottom);
+  finish_text(line, index);
+  draw_text(2U, 0U, line);
+
+  index = append_string(line, 0U, "ST:");
+  index = append_unsigned(line, index, control_state);
+  index = append_string(line, index, " OBS:");
+  index = append_unsigned(line, index, obstacle_found);
+  index = append_string(line, index, " Y:");
+  index = append_unsigned(line, index, obstacle_bottom);
+  finish_text(line, index);
+  draw_text(3U, 0U, line);
+}
+
 void OledStatus_Init(void)
 {
   static const uint8_t init_commands[] =
@@ -805,6 +852,22 @@ void OledStatus_SetSignLineData(uint8_t mode_number,
   build_sign_line_screen(mode_number, line_mask, line_action,
                          vision_class, vision_score, vision_online,
                          route_state, route_direction);
+  oled_dirty = 1U;
+  next_page = 0U;
+}
+
+void OledStatus_SetVisionLineV4Data(uint8_t online,
+                                    uint8_t line_found,
+                                    int16_t offset,
+                                    int16_t angle,
+                                    int16_t bottom,
+                                    uint8_t obstacle_found,
+                                    uint16_t obstacle_bottom,
+                                    uint8_t control_state)
+{
+  cached_mode = 0xFFU;
+  build_vision_line_v4_screen(online, line_found, offset, angle, bottom,
+                              obstacle_found, obstacle_bottom, control_state);
   oled_dirty = 1U;
   next_page = 0U;
 }
