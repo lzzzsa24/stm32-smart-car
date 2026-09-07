@@ -113,61 +113,16 @@ static void confirm_direction(int8_t class_id, uint32_t start_sequence)
 
 static void test_sign_route(void)
 {
-  SignRouteCommand command;
   SignRouteStatus status;
-
   SignRoute_Init();
   confirm_direction(0, 1U);
   SignRoute_GetStatus(250U, &status);
   CHECK(status.state == SIGN_ROUTE_ARMED && status.direction == -1);
-  SignRoute_Step(15U, 250U, &command);
-  CHECK(command.active == 0U);
-  SignRoute_Step(15U, 271U, &command);
-  CHECK(command.active != 0U && command.just_started != 0U);
-  CHECK(command.left_pwm == -2700 && command.right_pwm == 2700);
-  SignRoute_Step(8U, 360U, &command);
-  CHECK(command.active != 0U);
-  SignRoute_Step(4U, 400U, &command);
-  CHECK(command.active != 0U);
-  SignRoute_Step(4U, 421U, &command);
-  CHECK(command.active == 0U && command.just_finished != 0U);
-  SignRoute_GetStatus(421U, &status);
-  CHECK(status.state == SIGN_ROUTE_LOCKED);
-
-  observe(0, 90U, 160U, 110U, 500U, 5U);
-  observe(0, 90U, 160U, 110U, 600U, 6U);
-  observe(0, 90U, 160U, 110U, 700U, 7U);
-  SignRoute_GetStatus(700U, &status);
-  CHECK(status.state == SIGN_ROUTE_LOCKED);
-  observe(-1, 0U, 0U, 0U, 800U, 8U);
-  observe(-1, 0U, 0U, 0U, 1000U, 9U);
-  SignRoute_Step(6U, 1922U, &command);
-  SignRoute_GetStatus(1922U, &status);
-  CHECK(status.state == SIGN_ROUTE_IDLE);
-
-  SignRoute_Reset();
-  observe(2, 99U, 100U, 100U, 100U, 1U);
-  observe(2, 99U, 100U, 100U, 200U, 2U);
-  observe(2, 99U, 100U, 100U, 300U, 3U);
-  SignRoute_GetStatus(300U, &status);
-  CHECK(status.state == SIGN_ROUTE_IDLE);
-
   SignRoute_Reset();
   confirm_direction(1, 1U);
-  SignRoute_Step(7U, 250U, &command);
-  SignRoute_Step(7U, 271U, &command);
-  CHECK(command.active != 0U && command.left_pwm == 2700 &&
-        command.right_pwm == -2700);
-  SignRoute_Step(6U, 5300U, &command);
-  CHECK(command.active != 0U); /* selection keeps searching until capture */
-
-  SignRoute_Reset();
-  confirm_direction(0, 1U);
-  SignRoute_Step(6U, 5300U, &command);
-  SignRoute_GetStatus(5300U, &status);
-  CHECK(status.state == SIGN_ROUTE_IDLE); /* unused reservation expires */
-
-  puts("PASS: strict $D parser, exact SL2 table and confirmed sign routing");
+  SignRoute_GetStatus(250U, &status);
+  CHECK(status.state == SIGN_ROUTE_ARMED && status.direction == 1);
+  puts("PASS: three-vote left/right confirmation");
 }
 
 static void test_slowdown(void)

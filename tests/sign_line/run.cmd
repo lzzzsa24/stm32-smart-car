@@ -8,5 +8,9 @@ cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_sign_line.c C
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_sign_line.exe
 if not "%errorlevel%"=="0" exit /b 1
+cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_ring_exit.c Core\Src\sign_route.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_ring_exit.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-sign-line-host-test\test_ring_exit.exe
+if not "%errorlevel%"=="0" exit /b 1
 python tests\sign_line\check_integration.py
 exit /b %errorlevel%

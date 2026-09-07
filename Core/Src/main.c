@@ -8,7 +8,7 @@
  *     速度自适应紧急制动、最长 45 度连续闭环转向，并在障碍另一侧
  *     重新捕获黑线。
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
- *   - 按下 KEY3：增强四线循迹 + K210 左/右标志选路。
+ *   - 按下 KEY3：SL2 四线循迹 + K210 圆环入弧/出口导航。
  *   - 遥控数字 4：独立 SL2 简化四线循迹 + 同一套标志选路。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
  *
@@ -833,6 +833,12 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->direction);
   DiagnosticUart_WriteString(" SEQ=");
   DiagnosticUart_WriteUnsigned(route_status->last_sequence);
+  DiagnosticUart_WriteString(" NAVF=");
+  DiagnosticUart_WriteUnsigned(route_status->fault);
+  DiagnosticUart_WriteString(" MM=");
+  DiagnosticUart_WriteSigned(route_status->travel_mm);
+  DiagnosticUart_WriteString(" YAW=");
+  DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
   DiagnosticUart_WriteString(" SLOW=");
   DiagnosticUart_WriteUnsigned(sign_slow_reasons);
   DiagnosticUart_WriteString(" CAP=");
@@ -877,22 +883,25 @@ static void sign_line_task(AppMode mode)
 {
   SignRouteCommand route_command;
   SignRouteStatus route_status;
+  WheelEncoderCounts counts;
   LineTrackingReading line = line_tracking_read();
   uint32_t now = HAL_GetTick();
 
   sign_line_mask = line_reading_mask(&line);
+  WheelEncoder_GetCounts(&counts);
+  SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
 
-  if (route_command.just_started != 0U)
+  if (route_command.just_started != 0U || route_command.just_finished != 0U)
   {
-    line_tracking_reset();
+    /* Never resume the old enhanced controller's latched in-place recovery.
+       Both sign modes use the same SL2 path that can follow the user's arc. */
+    SimpleLine_Stop(&simple_line_controller);
+    SimpleLine_Start(&simple_line_controller);
+    SignRoute_GetStatus(now, &route_status);
     SimpleLine_SetDirection(&simple_line_controller,
-                            route_command.direction);
-  }
-  if (route_command.just_finished != 0U &&
-      mode == APP_MODE_SIGN_LINE_ADVANCED)
-  {
-    line_tracking_reset();
+        route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
+                                               route_status.direction);
   }
 
   if (route_command.active != 0U)
@@ -903,15 +912,6 @@ static void sign_line_task(AppMode mode)
                         sign_line_mask,
                         sign_line_action);
     UltrasonicMotion_Reset();
-  }
-  else if (mode == APP_MODE_SIGN_LINE_ADVANCED)
-  {
-    LineTrackingCommand line_command;
-    LineTrackingAction action = line_tracking_compute(
-        &line, EXP7_LINE_SPEED, &line_command);
-
-    sign_line_action = (uint8_t)action;
-    apply_line_tracking_command(&line_command, (int16_t)MOTOR_PWM_PERIOD);
   }
   else
   {
@@ -1191,7 +1191,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   LineWaitAction action;
   uint32_t now = HAL_GetTick();
   uint8_t enabled = mode == APP_MODE_INTEGRATED ||
-      mode == APP_MODE_LINE_ONLY || mode == APP_MODE_SIGN_LINE_ADVANCED;
+      mode == APP_MODE_LINE_ONLY;
   uint8_t paused;
   DriveBase_GetTelemetry(&telemetry);
   paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||
@@ -1404,14 +1404,15 @@ int main(void)
       else if (app_mode == APP_MODE_SIGN_LINE_ADVANCED)
       {
         line_tracking_set_no_line_forward(0U);
-        line_tracking_set_smooth_mode(1U);
+        line_tracking_set_smooth_mode(0U);
         line_tracking_set_turn_gain_percent(100U);
         UltrasonicMotion_Reset();
         ultrasonic_forward_speed_limit = 0;
+        SimpleLine_Start(&simple_line_controller);
         SignRoute_Reset();
         vision_uart_reset_detections();
         last_sign_uart_ms = HAL_GetTick() - 500U;
-        DiagnosticUart_WriteString("SIGN3 ADV LINE START\r\n");
+        DiagnosticUart_WriteString("SIGN3 SL2 RING NAV START\r\n");
       }
       else if (app_mode == APP_MODE_SIGN_LINE_SIMPLE)
       {
@@ -1424,7 +1425,7 @@ int main(void)
         SignRoute_Reset();
         vision_uart_reset_detections();
         last_sign_uart_ms = HAL_GetTick() - 500U;
-        DiagnosticUart_WriteString("SIGN4 SL2 LINE START\r\n");
+        DiagnosticUart_WriteString("SIGN4 SL2 RING NAV START\r\n");
       }
       else
       {

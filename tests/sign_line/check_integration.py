@@ -21,6 +21,14 @@ assert "LineSensorSample_TakeAllBlack" in main
 transition = main[main.index("if (requested_mode != app_mode)"):main.index("sign_line_slowdown_task(app_mode);")]
 assert "SignSlowdown_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
+sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
+assert "line_tracking_compute(" not in sign_task
+assert "SimpleLine_Step(" in sign_task
+assert "SignRoute_UpdateEncoders(" in sign_task
+wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
+enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
+assert "SIGN_LINE" not in enable
+assert 'SIGN3 SL2 RING NAV START' in main and 'SIGN4 SL2 RING NAV START' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.2" in k210
