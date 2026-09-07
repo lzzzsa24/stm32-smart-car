@@ -11,17 +11,17 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: 64251bf
+repository_head_at_update: 0dc339e
 latest_code_commit: 2d1edaa
-flashed_source_commit: 1275257
-flash_record_commit: 64251bf
-deployed_tag: deployed/2026-09-07-mode34-line-priority-1275257
+flashed_source_commit: c44d49d
+flash_record_commit: 0dc339e
+deployed_tag: deployed/2026-09-07-line-crossing-hint-c44d49d
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82816
-flashed_bin_sha256: 8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE
-flashed_hex_sha256: 83DFE802228F0DADAEE7FA51224D061426B4B55EBE09F95A06E3155F89C62F27
-ground_test_status: not_tested_after_1275257_temporary_flash
+formal_bin_size_bytes: 82924
+flashed_bin_sha256: F2AACEF16CFF513ACC031D9B80472EE8D7DA4D4771763787EC34EB4DB7B2058E
+flashed_hex_sha256: 33597A113696F3BAED7AA66F8B4DEDCBC0C66D834A80B0D6562007E6FCBB2FC8
+ground_test_status: not_tested_after_c44d49d_temporary_flash
 k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
 candidate_source_commit: 2d1edaa
 candidate_bin_size_bytes: 82832
@@ -30,11 +30,11 @@ candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D10
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: protected_PR_sync_for_current_deployment_authorized
+remote_sync_status: local_c44d49d_deployment_record_not_pushed
 remote_sync_branch: main
-stm32_runtime_status: COM11_1275257_readback_verified_and_GO_confirmed
+stm32_runtime_status: COM11_c44d49d_readback_verified_GO_and_default_STOP_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
-temporary_flash_selector_commit: 875bc3c
+temporary_flash_selector_commit: c44d49d
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -60,36 +60,42 @@ to 0 only for the merge transaction and immediately restored to 1 afterward;
 required PRs, deletion protection and non-fast-forward protection remained
 active. Remote `origin/main` is now the durable canonical handoff.
 
-## Current flashed temporary test image (`875bc3c`)
+## Current flashed temporary test image (`c44d49d`)
 
-The user requested only to flash `875bc3c`, not merge it. That commit is a
-documentation record; its firmware tree is source `1275257`, based on
-`fc5a7b9`. It is intentionally kept on the independent
-`fix/mode34-recognition-slowdown` branch and is not canonical main.
+The user requested only to flash exact source `c44d49d`, not merge it. It is
+kept on the independent `fix/line-crossing-hint` branch. Its firmware base is
+canonical source `2d1edaa`, so it retains the GPIO-snapshot/ISR ordering fix;
+the source increment itself is not part of canonical `main`.
 
-In modes 3/4, current line evidence remains the motor authority. PROBE and
-EXIT_CLEAR no longer command blind forward motion, and route preference needs
-current black-line evidence on the selected side. Missing sign frames and
-route-geometry bounds do not stop otherwise valid line tracking. Sustained
-all-white holds after 600 ms, while 30 ms stable black evidence resumes line
-control; a sign alone cannot release that hold. Modes 1/2/5 and K210 source are
-unchanged. Because this branch predates `2d1edaa`, the currently flashed test
-image does not include the later GPIO-snapshot/ISR ordering fix.
+For KEY1/KEY2 line tracking, a still-recent left/right hint may now survive a
+short broad or multiple-black mark. The hint is held for at most 400 ms from
+the original directional observation; repeated broad samples cannot renew it.
+Stable centred evidence for 80 ms, opposing directional evidence, expiry,
+reset/mode handoff or sample-queue overwrite invalidates it. A search selected
+from this held evidence is logged as source 6 (`cross_hint`). Motor mapping,
+speed targets, modes 3/4/5 and K210 source are unchanged.
 
-Mode 3/4 sign/ring tests, mode 5 tests and the complete line-recovery/load/
-bypass suite passed. The formal ARM build passed with text/data/bss
-82748/64/11384 and produced an 82816-byte BIN with SHA-256
-`8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE`.
-COM11 was enumerated immediately before programming. Selective erase covered
-41 firmware pages, preserved the calibration page, wrote/read back all 82816
-bytes with `VERIFY OK`, and completed `GO OK: 0x08000000`. K210 was not
-rewritten; its TF card retains the verified `07f2b73` SIGN34 application.
-No lifted-wheel or ground test was performed.
+The complete line-recovery/load/bypass suite passed at both 2493 and 1870 CPS,
+including 16 direct/queued/tick-wrap crossing-hint cases and real DriveBase
+four-wheel target/PWM simulation. Mode 3/4 sign/ring and mode 5 regression
+suites also passed. The formal ARM build passed with text/data/bss
+82856/64/11384 and produced an 82924-byte BIN with SHA-256
+`F2AACEF16CFF513ACC031D9B80472EE8D7DA4D4771763787EC34EB4DB7B2058E`;
+the HEX SHA-256 is
+`33597A113696F3BAED7AA66F8B4DEDCBC0C66D834A80B0D6562007E6FCBB2FC8`.
 
-Rollback tag `rollback/2026-09-07-before-875bc3c-test` points to canonical
-source `2d1edaa`. Deployment tag
-`deployed/2026-09-07-mode34-line-priority-1275257` identifies the exact board
-source selected by requested record `875bc3c`.
+COM11 was enumerated as USB-SERIAL CH340K before programming. An initial
+recovery attempt entered the bootloader and erased 41 application pages but
+the USB serial link dropped before `WRITE OK`; it did not touch the calibration
+page. The immediate recovery pass again used selective erase, preserved the
+calibration page, wrote and read back all 82924 bytes with `VERIFY OK`, and
+completed `GO OK: 0x08000000`. The application startup banner then confirmed
+`DEFAULT STOP`; this is not a wheel-motion test. K210 was not rewritten.
+
+Rollback tag `rollback/2026-09-07-before-c44d49d-test` points to the previously
+flashed source `1275257`. Deployment tag
+`deployed/2026-09-07-line-crossing-hint-c44d49d` identifies the exact board
+source. No lifted-wheel or ground test was performed.
 
 ## Canonical main source (not currently flashed)
 
@@ -662,9 +668,9 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | temporary source `1275257`; ELF text/data/bss = 82748/64/11384 bytes; BIN is 82816 bytes; canonical `2d1edaa` artifact remains separately reproducible |
-| host regression | passed | target mode 3/4 line-priority/ring/sign, mode 5 parser/control, and complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | temporary source `1275257` selected by `875bc3c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 82816 bytes with `VERIFY OK`, then completed `GO OK` |
+| computer build/link | passed | temporary source `c44d49d`; ELF text/data/bss = 82856/64/11384 bytes; BIN is 82924 bytes; canonical `2d1edaa` remains separately reproducible |
+| host regression | passed | target crossing-hint cases at both search speeds, real DriveBase four-wheel simulation, mode 3/4 sign/ring, mode 5 parser/control, and complete line-recovery/load/bypass suites pass |
+| STM32 flash/readback/GO | passed | temporary source `c44d49d`; COM11 recovery pass selectively erased 41 pages, preserved calibration, wrote/read back 82924 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -672,13 +678,15 @@ KEY1/KEY2 as follows:
 
 ## Current open issue and next safe step
 
-The board currently runs temporary source `1275257` selected by `875bc3c`, not
-canonical main `2d1edaa`. The exact `07f2b73` SIGN34 script remains on K210.
-Next test whether modes 3/4 stay on the black line instead of steering toward a
-sign and whether all-white hold resumes only after stable black evidence. If
-accepted, port the line-priority change onto current main so the snapshot-order
-fix is retained; if rejected, restore `2d1edaa`. No wheel or ground behavior is
-established by build, programmer readback, K210 startup or GO success.
+The board currently runs temporary source `c44d49d`, not canonical main
+`2d1edaa`. Next compare both left and right broad/sharp bends, including a short
+transverse mark, and check whether the car searches in the direction observed
+before the broad mark instead of defaulting the other way. If a failure remains,
+STOP without removing power and dump `LSEARCH`/`LFAULT`; source 6 identifies the
+new bounded crossing hint. If accepted, integrate the increment into `main`; if
+rejected, restore deployment tag
+`deployed/2026-09-07-mode34-line-priority-1275257`. No wheel or ground behavior
+is established by build, programmer readback, startup text or GO success.
 
 ## Update protocol
 
