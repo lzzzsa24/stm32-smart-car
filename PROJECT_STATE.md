@@ -10,9 +10,9 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-07
-integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 6ec6f22
-latest_code_commit: dbf61e4
+integration_branch: fix/mode34-recognition-slowdown
+repository_head_at_update: 6e7aa61
+latest_code_commit: 6e7aa61
 flashed_source_commit: dbf61e4
 flash_record_commit: 6ec6f22
 deployed_tag: deployed/2026-09-07-mode34-sign-line-f991301-final
@@ -21,12 +21,12 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 75176
 flashed_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
 flashed_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
-ground_test_status: mode34_sign_line_dual_deployed_uart_lifted_ground_not_tested
+ground_test_status: recognition_slowdown_candidate_unflashed_not_ground_tested
 k210_status: SIGN34_threshold_0_20_real_model_path_hash_and_startup_verified_STM32_link_not_tested
-candidate_source_commit: dbf61e4
-candidate_bin_size_bytes: 75176
-candidate_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
-candidate_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
+candidate_source_commit: 6e7aa61
+candidate_bin_size_bytes: 76340
+candidate_bin_sha256: F4738E222E370DD3E5DFBB87F7DEC253F39D65D9BB8519E9089DEC6A2655C4AB
+candidate_hex_sha256: FB5B965A44374A682F4F1043C2EB93FCB86F3B8E92617AF817F7990DAD63178E
 user_reported_flash: tool_verified_STM32_and_K210_deployment
 ```
 
@@ -34,7 +34,31 @@ user_reported_flash: tool_verified_STM32_and_K210_deployment
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Active project and deployed firmware
+## Current unflashed recognition-slowdown candidate
+
+Source `6e7aa61` adds a 1200-CPS target ceiling in modes 3/4 upon all-four-black
+sensor evidence or one valid nonempty recognition frame. Each source holds for
+1500 ms after its last event. No-target frames do not renew it. Mode changes
+and STOP clear it. The 1 ms sampler retains short all-black events separately
+from the existing line history. All speed owners including enhanced recovery
+use the same proportional limit; position/brake/fault ownership is preserved.
+
+The candidate passed the sign-line host suite, full line-recovery/load/bypass
+suite, formal build (text/data/bss 76272/64/11160), and diff whitespace check.
+It has NOT been flashed, run lifted, or ground-tested; no serial port was opened.
+The build paths below now contain candidate artifacts, while flashed hashes and
+formal_bin_size_bytes remain the last recorded deployment. Minimum PWM can
+prevent physical speed from reaching the requested low target; this is not a
+physical speed guarantee. Track-image findings, behavior and tuning limits:
+`tests/sign_line/RECOGNITION_SLOWDOWN.md`.
+
+## Baseline integration and last recorded deployed firmware
+
+This is an intentional isolated fix worktree based on integration HEAD
+`400f1d9` (not the older remote `main` at `3bd3748`). It adds recognition
+slowdown for modes 3/4. The deployment record below belongs to the baseline;
+this branch has not been flashed. Rollback tag:
+`rollback/2026-09-07-before-mode34-slowdown`.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
@@ -44,7 +68,7 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
   `f58eac6` bypass fix and imports the
   K210 model/script assets prepared by requested commit `f991301`, while
   implementing both new STM32 modes on the live integration branch.
-- The board currently runs `dbf61e4`. Final dual-device deployment record:
+- Last recorded board source is `dbf61e4`, not re-read this turn. Final dual-device deployment record:
   `6ec6f22` (`Record final mode 3 and 4 sign-line firmware flash`).
 - The formal BIN above was rebuilt in the integration worktree, then written
   through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at 57600 baud.
@@ -391,9 +415,9 @@ KEY1/KEY2 as follows:
 | wheels off ground | not performed | programmer success does not establish mode 3/4 motor direction, STOP response or selected-route behavior |
 | ground driving | not performed | line following, junction detection and left/right branch capture remain unverified |
 
-## Open issue and next safe step
+## Baseline open issue and next safe step
 
-The requested `f991301` assets and both replacement modes are deployed. The
+The baseline record says the `f991301` assets and both replacement modes were deployed. The
 next safe check is stationary UART confirmation followed by a lifted-wheel test
 with remote `0` ready: KEY3 must run the enhanced controller, `4` must reproduce
 SL2 direction outputs, and each sign-selection turn must match the displayed
