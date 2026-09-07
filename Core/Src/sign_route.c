@@ -23,7 +23,6 @@ typedef struct
   uint32_t time_ms[SIGN_WINDOW_SIZE];
   uint8_t count;
   SignRouteState state;
-  SignRouteState resume_state;
   int8_t direction;
   int8_t last_class;
   uint8_t last_score;
@@ -40,8 +39,8 @@ typedef struct
   int32_t previous_counts[4];
   int64_t left_counts, right_counts;
   int64_t origin_left, origin_right;
-  uint32_t phase_ms, last_step_ms, line_lost_ms;
-  uint8_t odometry_valid, step_valid, line_lost, fault, frame_valid;
+  uint32_t phase_ms, last_step_ms;
+  uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   int32_t travel_mm, yaw_mdeg;
 } SignRouteContext;
@@ -253,7 +252,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
   route.phase_ms = now;
   route.origin_left = route.left_counts;
   route.origin_right = route.right_counts;
-  route.capture_active = route.departed = route.line_lost = 0U;
+  route.capture_active = route.departed = 0U;
   route.fault = 0U;
   route.travel_mm = route.yaw_mdeg = 0L;
 }
@@ -283,15 +282,6 @@ static uint8_t stable(uint8_t condition, uint32_t now)
   return now - route.capture_since_ms >= SIGN_CAPTURE_MS;
 }
 
-static void fail_route(uint8_t reason, SignRouteCommand *command)
-{
-  if (route.state != SIGN_ROUTE_FAULT) route.resume_state = route.state;
-  route.state = SIGN_ROUTE_FAULT;
-  route.fault = reason;
-  command->active = 1U;
-  command->left_pwm = command->right_pwm = 0;
-}
-
 static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
@@ -314,6 +304,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   memset(command, 0, sizeof(*command));
   command->direction = route.direction;
   line_mask &= 15U;
+  route.last_line_mask = line_mask;
   junction = is_junction(line_mask);
   center = is_center_line(line_mask);
   if (route.step_valid && now - route.last_step_ms > SIGN_SAMPLE_MAX_GAP_MS)
@@ -325,29 +316,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   route.last_step_ms = now;
   update_geometry();
 
-  if (route.state == SIGN_ROUTE_FAULT)
-  {
-    if (!stable(line_mask != 0U, now))
-    {
-      fail_route(route.fault, command);
-      return;
-    }
-    /* Only actual stable line evidence resumes a line-loss stop; a fresh
-       visual detection alone cannot start the vehicle. */
-    route.state = route.resume_state;
-    route.fault = route.line_lost = route.capture_active = 0U;
-  }
-  if (line_mask == 0U)
-  {
-    if (!route.line_lost) { route.line_lost = 1U; route.line_lost_ms = now; }
-    if (now - route.line_lost_ms >= SIGN_LINE_LOST_TIMEOUT_MS)
-    {
-      route.capture_active = 0U;
-      fail_route(4U, command);
-      return;
-    }
-  }
-  else route.line_lost = 0U;
+  /* All-white belongs to SL2's continuous counter-rotation search. Neither
+     elapsed time nor a fresh sign is allowed to replace it with a zero target. */
   if ((route.state == SIGN_ROUTE_ARMED || route.state == SIGN_ROUTE_PROBE) &&
       route.direction != 0 &&
       (now - route.armed_ms > SIGN_PENDING_MAX_AGE_MS ||
@@ -511,6 +481,7 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->vision_online = route.frame_valid &&
       now - route.last_frame_ms <= SIGN_ONLINE_MAX_AGE_MS ? 1U : 0U;
   status->last_sequence = route.last_sequence;
+  status->searching = route.step_valid && route.last_line_mask == 0U;
   status->fault = route.fault;
   status->travel_mm = route.travel_mm;
   status->yaw_mdeg = route.yaw_mdeg;

@@ -146,9 +146,9 @@ static void test_bounds(void)
   assert(status.state==SIGN_ROUTE_EXIT_SELECT); /* late physical exit still usable */
   init(100); start_arc(-1);
   for(i=0;i<65;++i) step(0,0,0);
-  assert(status.state==SIGN_ROUTE_FAULT && status.fault==4U);
+  assert(status.state==SIGN_ROUTE_ARC && status.searching);
   for(i=0;i<10;++i) { observe(1); step(0,0,0); }
-  assert(status.state==SIGN_ROUTE_FAULT && motor_left==0 && motor_right==0);
+  assert(status.state==SIGN_ROUTE_ARC && motor_left==-motor_right && motor_left!=0);
   for(i=0;i<4;++i) step(6,0,0);
   assert(status.state==SIGN_ROUTE_ARC && motor_left>0 && motor_right>0);
   init(100); confirm(1); enter_probe(); leave_probe(0);
@@ -164,8 +164,9 @@ static void test_bounds(void)
   for(i=0;i<15;++i) step(0,1,1);
   assert(status.state==SIGN_ROUTE_EXIT_CLEAR && !cmd.active);
   for(i=0;i<55;++i) step(0,0,0);
-  assert(status.state==SIGN_ROUTE_FAULT && status.fault==4U);
-  puts("PASS: navigation bounds don't stop live line; actual line-loss holds and stable line resumes");
+  assert(status.state==SIGN_ROUTE_EXIT_CLEAR && status.searching);
+  assert(motor_left==-motor_right && motor_left!=0);
+  puts("PASS: navigation bounds never stop tracking/search; live line resumes tracking");
 }
 static void test_live_line_priority(void)
 {
@@ -201,10 +202,39 @@ static void test_live_line_priority(void)
   }
   puts("PASS: sign-only straight, stationary crossbar, probe/selection line priority, immediate white guard");
 }
+static void test_continuous_search(void)
+{
+  unsigned phase,i;
+  for(phase=0;phase<4;++phase)
+  {
+    init(UINT32_MAX-1000U);
+    if(phase==1) { confirm(-1); enter_probe(); leave_probe(0); }
+    if(phase==2) start_arc(-1);
+    if(phase==3)
+    {
+      start_arc(1); half_arc(1);
+      for(i=0;i<4;++i) step(3,1,1);
+      finish_select(1,SIGN_ROUTE_EXIT_CLEAR);
+    }
+    for(i=0;i<12000;++i) /* two simulated minutes, no encoder progress */
+    {
+      if(i%10==0) observe(0);
+      step(0,0,0);
+      assert(!cmd.active && motor_left==-motor_right && motor_left!=0);
+      assert(status.searching && status.state!=SIGN_ROUTE_FAULT);
+    }
+    step(6,0,0); step(6,0,0);
+    assert(!status.searching && motor_left>0 && motor_right>0);
+    SimpleLine_Stop(&line); SignRoute_Reset(); step(0,0,0);
+    assert(motor_left==0 && motor_right==0); /* operator reset cannot restart */
+  }
+  puts("PASS: 2-minute search from approach/entry/arc/exit, frame refresh, wrap, reacquisition and STOP");
+}
 int main(void)
 {
   test_exit(-1,100U); test_exit(1,100U);
   test_exit(-1,UINT32_MAX-1000U); test_exit(1,UINT32_MAX-1000U);
   test_crossbar_and_missing_sign(); test_bounds(); test_live_line_priority();
+  test_continuous_search();
   return 0;
 }
