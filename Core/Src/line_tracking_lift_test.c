@@ -41,7 +41,7 @@ typedef struct
 
 static LineTrackingReading reading_from_mask(uint8_t mask)
 {
-  LineTrackingReading reading;
+  LineTrackingReading reading = {0};
 
   reading.x1_black = (mask & 0x01U) != 0U ? 1U : 0U;
   reading.x2_black = (mask & 0x02U) != 0U ? 1U : 0U;
