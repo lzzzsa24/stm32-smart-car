@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: f42fc77
+repository_head_at_update: 1f70810
 latest_code_commit: 39b9327
-flashed_source_commit: 9a5d22d
-flash_record_commit: f42fc77
-deployed_tag: deployed/2026-09-07-alternating-corner-hints-9a5d22d
+flashed_source_commit: f4099cf
+flash_record_commit: 1f70810
+deployed_tag: deployed/2026-09-07-lower-straight-speed-f4099cf
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 73640
-flashed_bin_sha256: EF6AB1A545C4E3E0D8EB3ED9B98439532944B372F5FC3ECE0C597F756880AABC
-flashed_hex_sha256: 8F9CCCE94A0AAE55C6866D12DDBC8B41985F20D094FFD5549D75297F17C3C391
-ground_test_status: not_tested_after_9a5d22d_flash
+flashed_bin_sha256: 0354BCF4B7FFEDC9126DDED3A55D2A6669DB7CDDF6F9F5ADD2C8024F686F6B9E
+flashed_hex_sha256: C6CAFE4B6107FD917E5A0198CEFE78B9AFFF03EA48E154628D85DCCD756D672B
+ground_test_status: not_tested_after_f4099cf_flash
 k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: 9a5d22d
+candidate_source_commit: f4099cf
 candidate_bin_size_bytes: 73640
-candidate_bin_sha256: EF6AB1A545C4E3E0D8EB3ED9B98439532944B372F5FC3ECE0C597F756880AABC
-candidate_hex_sha256: 8F9CCCE94A0AAE55C6866D12DDBC8B41985F20D094FFD5549D75297F17C3C391
+candidate_bin_sha256: 0354BCF4B7FFEDC9126DDED3A55D2A6669DB7CDDF6F9F5ADD2C8024F686F6B9E
+candidate_hex_sha256: C6CAFE4B6107FD917E5A0198CEFE78B9AFFF03EA48E154628D85DCCD756D672B
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: v2_display_optimization_host_tested_not_deployed
@@ -38,14 +38,14 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Current STM32 deployed test image
 
-At the user's explicit request, exact source `9a5d22d` from independent branch
+At the user's explicit request, exact source `f4099cf` from independent branch
 `feature/line-search-axle-balance` was rebuilt and flashed without merging it
-into the integration branch. It retains parent `b5c1145`'s direct lost-line
-counter-rotation without a whole-car brake, and preserves a fresh direction
-hint across corner capture/settle handoffs. The full line-recovery/load/bypass
-host suite passed, including 12 alternating corners from each initial side with
-live and queued samples. Formal ARM build text/data/bss was 73572/64/10424 and
-BIN size was 73640 bytes.
+into the integration branch. It retains `b5c1145`'s direct lost-line rotation
+and `9a5d22d`'s fresh direction-hint handoff, while reducing enhanced line
+tracking's straight target ceiling from about 5273 to 3815 CPS. Sharp-turn and
+lost-line search effort remains 2493 CPS. The full line-recovery/load/bypass
+host suite passed. Formal ARM build text/data/bss was 73572/64/10424 and BIN
+size was 73640 bytes.
 
 COM11 was enumerated as USB-SERIAL CH340K immediately before programming.
 At 57600 baud, selective erase covered 36 firmware pages, preserved the final
@@ -56,8 +56,8 @@ test has been performed for this image.
 This exact historical branch predates the mode 3/4 sign-line integration:
 KEY3 is encoder figure-eight and KEY4 is encoder square. The separately
 deployed K210 SIGN34 program may continue running, but this STM32 image does
-not consume it. Rollback tag `rollback/2026-09-07-before-9a5d22d-test` points
-to the previous STM32 source `b5c1145`.
+not consume it. Rollback tag `rollback/2026-09-07-before-f4099cf-test` points
+to the previous STM32 source `9a5d22d`.
 
 ## Unflashed K210 optimization candidate
 
@@ -68,7 +68,7 @@ display, periodic/low-memory GC and clipped valid-frame centres are included.
 Threshold 0.2, model, camera orientation, arrows-only routing and frame format
 are unchanged. Full sign-line suite and simulated actual Python main-loop
 tests passed. No hardware port was opened and this candidate was not deployed.
-The K210 candidate remains independent of the currently flashed `9a5d22d`
+The K210 candidate remains independent of the currently flashed `f4099cf`
 STM32 image.
 Details: `K210/V2_OPTIMIZATION.md`.
 
@@ -474,23 +474,22 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | exact `9a5d22d`; ELF text/data/bss = 73572/64/10424 bytes; BIN is 73640 bytes |
-| host regression | passed | zero wrong directions across alternating capture/normal handoffs, 12 alternating corners from both initial sides, rolling search, STOP/ownership and prior load/bypass suites pass |
+| computer build/link | passed | exact `f4099cf`; ELF text/data/bss = 73572/64/10424 bytes; BIN is 73640 bytes |
+| host regression | passed | reduced straight targets, alternating corner hints, rolling search, STOP/ownership and prior load/bypass suites pass |
 | STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; final 73640-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
 | wheels off ground | not performed | programmer success does not establish rolling search direction or STOP response |
-| ground driving | not performed | alternating-corner direction retention and line reacquisition remain unverified |
+| ground driving | not performed | reduced straight speed, corner direction retention and line reacquisition remain unverified |
 
 ## Current open issue and next safe step
 
-The exact `9a5d22d` test image is on the STM32. The next safe check is a
-lifted-wheel KEY2 loss/reacquisition test with remote `0` ready, followed by a
-ground run containing consecutive left and right sharp corners without mode
-reset between them. Confirm that each newly captured middle-sensor bias controls
-the next search direction. K210 sign routing cannot be tested with this
-historical STM32 image. No physical driving outcome is established by the build
-or programmer readback.
+The exact `f4099cf` test image is on the STM32. The next safe check is a ground
+KEY2 run comparing centred straight speed with the previous image, followed by
+consecutive left and right sharp corners without a mode reset. Straight speed
+should be lower while sharp-turn/search effort remains unchanged. K210 sign
+routing cannot be tested with this historical STM32 image. No physical driving
+outcome is established by the build or programmer readback.
 
 ## Update protocol
 
