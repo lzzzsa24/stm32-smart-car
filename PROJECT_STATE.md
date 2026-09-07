@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 6e7aa61
-latest_code_commit: 6e7aa61
+repository_head_at_update: 39b9327
+latest_code_commit: 39b9327
 flashed_source_commit: dbf61e4
 flash_record_commit: 6ec6f22
 deployed_tag: deployed/2026-09-07-mode34-sign-line-f991301-final
@@ -21,20 +21,44 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 75176
 flashed_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
 flashed_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
-ground_test_status: recognition_slowdown_candidate_unflashed_not_ground_tested
+ground_test_status: user_reports_mode3_uturn_mode4_repeated_laps_ring_exit_candidate_unflashed
 k210_status: SIGN34_threshold_0_20_real_model_path_hash_and_startup_verified_STM32_link_not_tested
-candidate_source_commit: 6e7aa61
-candidate_bin_size_bytes: 76340
-candidate_bin_sha256: F4738E222E370DD3E5DFBB87F7DEC253F39D65D9BB8519E9089DEC6A2655C4AB
-candidate_hex_sha256: FB5B965A44374A682F4F1043C2EB93FCB86F3B8E92617AF817F7990DAD63178E
-user_reported_flash: tool_verified_STM32_and_K210_deployment
+candidate_source_commit: 39b9327
+candidate_bin_size_bytes: 78828
+candidate_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
+candidate_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
+user_reported_flash: latest_driving_observation_source_hash_unverified
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Current unflashed recognition-slowdown candidate
+## Current unflashed ring-exit candidate
+
+The user's newest observation is: mode 3 makes an in-place U-turn and is not
+usable; mode 4 follows the ring but continues around it at the opposite exit.
+Their drawing distinguishes following a circular track from spinning in place.
+No contemporary flash readback or runtime trace accompanied that observation.
+
+Source `39b9327` replaces mode 3's enhanced recovery with the same SL2 baseline
+as mode 4 and excludes both sign modes from automatic-wait forced rotation.
+SignRoute now probes through transverse marks, selects an entry branch with a
+forward pivot, tracks ARC, selects the outward exit and clears the exit line.
+Route selection/capture depends on sensor evidence and encoder travel bounds;
+it no longer completes the whole ring at the first entry-line capture. A real
+branch without a confirmed arrow waits stopped. Bounds or persistent loss
+latch a navigation fault until STOP/mode reset. Existing slowdown is retained.
+
+Sign and full line-recovery host suites passed. Formal ARM build passed with
+text/data/bss 78760/64/11240 and BIN 78828 bytes. This source has NOT been
+flashed, tested lifted, or driven on the floor. Entry/exit thresholds and the
+wheel-based heading estimate need physical calibration; this does not assert
+that either reported physical failure is already resolved on the board.
+Details and test cases: `tests/sign_line/RING_EXIT_FIX.md`.
+Rollback: `rollback/2026-09-07-before-ring-exit` -> `1d1280e`.
+
+## Retained recognition-slowdown change
 
 Source `6e7aa61` adds a 1200-CPS target ceiling in modes 3/4 upon all-four-black
 sensor evidence or one valid nonempty recognition frame. Each source holds for
@@ -43,7 +67,7 @@ and STOP clear it. The 1 ms sampler retains short all-black events separately
 from the existing line history. All speed owners including enhanced recovery
 use the same proportional limit; position/brake/fault ownership is preserved.
 
-The candidate passed the sign-line host suite, full line-recovery/load/bypass
+The slowdown revision passed the sign-line host suite, full line-recovery/load/bypass
 suite, formal build (text/data/bss 76272/64/11160), and diff whitespace check.
 It has NOT been flashed, run lifted, or ground-tested; no serial port was opened.
 The build paths below now contain candidate artifacts, while flashed hashes and
@@ -105,7 +129,7 @@ this branch has not been flashed. Rollback tag:
   K210 runtime output and STM32 parser host tests do not prove the physical
   IO8/TX -> PD6/RX path is delivering frames.
 
-## Integrated modes 3 and 4 sign-line behavior
+## Baseline modes 3 and 4 behavior (superseded by the candidate above)
 
 - KEY3 / remote or serial `3` selects the existing enhanced four-sensor line
   controller plus sign routing. Remote or serial `4` selects the exact SL2
@@ -168,7 +192,7 @@ this branch has not been flashed. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Integrated mode map
+## Baseline deployed mode map (candidate 3/4 both use SL2 ring navigation)
 
 | Input | Mode | Motor owner |
 |---|---|---|
