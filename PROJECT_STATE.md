@@ -10,24 +10,24 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-07
-integration_branch: feature/line-reacquire-lock
-repository_head_at_update: 6ec6f22
-latest_code_commit: dbf61e4
-flashed_source_commit: dbf61e4
-flash_record_commit: 6ec6f22
-deployed_tag: deployed/2026-09-07-mode34-sign-line-f991301-final
+integration_branch: feature/mode5-visual-line-v4
+repository_head_at_update: ad31859
+latest_code_commit: 27a05aa
+flashed_source_commit: 27a05aa
+flash_record_commit: ad31859
+deployed_tag: deployed/2026-09-07-mode5-visual-line-v4
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 75176
-flashed_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
-flashed_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
-ground_test_status: mode34_sign_line_dual_deployed_uart_lifted_ground_not_tested
-k210_status: SIGN34_threshold_0_20_real_model_path_hash_and_startup_verified_STM32_link_not_tested
-candidate_source_commit: dbf61e4
-candidate_bin_size_bytes: 75176
-candidate_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
-candidate_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
-user_reported_flash: tool_verified_STM32_and_K210_deployment
+formal_bin_size_bytes: 79172
+flashed_bin_sha256: 1F7D39C95EA321A26760012250CABDB3B930370933863D9BC61C5FBFCBB8729E
+flashed_hex_sha256: B1EBE492CC64153DF2C3B5732B6ED8BA6617E095DD3BEBFAF2C7A0415C638C57
+ground_test_status: mode5_visual_line_v4_deployed_stationary_uart_passed_wheels_ground_not_tested
+k210_status: visual_line_v4_runtime_and_STM32_board_uart_verified_script_readback_not_performed
+candidate_source_commit: 27a05aa
+candidate_bin_size_bytes: 79172
+candidate_bin_sha256: 1F7D39C95EA321A26760012250CABDB3B930370933863D9BC61C5FBFCBB8729E
+candidate_hex_sha256: B1EBE492CC64153DF2C3B5732B6ED8BA6617E095DD3BEBFAF2C7A0415C638C57
+user_reported_flash: tool_verified_STM32_mode5_merge_and_live_K210_v4_runtime
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -37,49 +37,38 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 ## Active project and deployed firmware
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
-- Integration branch: `feature/line-reacquire-lock`
-- Latest integrated source is `dbf61e4`; its parent feature commit `31026c3`
-  replaces modes 3/4 with sign-line tracking, and `dbf61e4` ensures the mode 3
-  recovery direction cannot be influenced by infrared. It retains the
-  `f58eac6` bypass fix and imports the
-  K210 model/script assets prepared by requested commit `f991301`, while
-  implementing both new STM32 modes on the live integration branch.
-- The board currently runs `dbf61e4`. Final dual-device deployment record:
-  `6ec6f22` (`Record final mode 3 and 4 sign-line firmware flash`).
+- Integration branch: `feature/mode5-visual-line-v4`
+- Latest integrated source is `27a05aa`; it starts from the deployed mode 3/4
+  integration at `400f1d9`, retains modes 1--4, and adds mode 5 K210 curve
+  visual-line control plus a STOP-state `v` link diagnostic.
+- The board currently runs `27a05aa`. Deployment evidence is recorded by
+  `ad31859` and `MODE5_VISUAL_LINE_V4_DEPLOYMENT_20260907.md`.
 - The formal BIN above was rebuilt in the integration worktree, then written
   through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at 57600 baud.
-  Selective erase covered 37 firmware pages, preserved the final calibration
-  page, wrote and read back 75176 bytes with `VERIFY OK`, and completed
+  Selective erase covered 39 firmware pages, preserved the final calibration
+  page, wrote and independently read back 79172 bytes with an exact match, and completed
   `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
-- Rollback tag `rollback/2026-09-07-before-mode4-sign-line` preserves the prior
-  integrated deployment. Earlier continuous-bypass, bounded-wait and isolated
-  VL1 tags remain available.
+- Rollback tag `rollback/2026-09-07-before-mode5-visual-line-v4` preserves the
+  previous mode 3/4 integration. Earlier rollback and deployed tags remain available.
 
-## Current K210 sign-recognition deployment
+## Current K210 visual-line deployment
 
-- COM13 identified CanMV Yahboom 2.1.1 with GC2145 and mounted TF card. A live
-  recursive listing found the actual model at
-  `/sd/KPU/road_sign_det/road_sign_det.kmodel`, not the path originally written
-  in `f991301`.
-- Device-side SHA-256 is
-  `B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`,
-  exactly matching the 571432-byte source model, so it was not uploaded again.
-- `/sd/main.py` was changed to the actual path and read back byte-for-byte:
-  4908 bytes, SHA-256
-  `8FBD27D0C401E4F24E9D70D6DDF8B55D89E247C58EAA3F6D75D1558CA8B7C472`.
-  Soft reboot reported `SIGN34 ready`, threshold 0.20, vflip/hmirror 0/0 and
-  successful model loading. Runtime printed changing right-class detections;
-  this proves inference ran, not that those classifications were correct.
-- The immediately previous `/sd/main.py` and unchanged `/flash/main.py`, plus
-  deployment metadata and startup log, are backed up at
-  `F:\myproject\jidian\validation\mode34-sign-line\backup-20260907-095842`.
-  Older VL1 files, models and captured images were not deleted.
-- The K210-to-STM32 UART result has not yet been observed after this flash.
-  K210 runtime output and STM32 parser host tests do not prove the physical
-  IO8/TX -> PD6/RX path is delivering frames.
+- COM14 identified CanMV Yahboom 2.1.1 with GC2145. Runtime output shows the
+  v4 curve visual-line script producing `s/off/ang/bot/obs` at about 8--9 FPS.
+- The active mode 5 script uses RGB565/QVGA and sends the strict eight-field
+  `$status,off,angle,bottom,obs,obs_bottom,obs_left,obs_right#` frame every
+  50 ms. It does not load KPU or perform sign recognition.
+- STM32 STOP-state diagnostics observed valid v4 counts increasing from 77 to
+  229 and later 241 to 276. Frame ages stayed at or below 90 ms in the first
+  check and 12/66/50 ms in the final samples. `BAD` remained constant within
+  each observation window and `SIGN=0`.
+- This verifies the live IO8/UART1_TX -> PD6/USART2_RX path while the car is
+  stopped. The exact active `/sd/main.py` bytes were not read back in this run.
+- The former mode 3/4 sign script remains in source as `K210/sign_mode34.py`;
+  it is not active in or consumed by mode 5.
 
 ## Integrated modes 3 and 4 sign-line behavior
 
@@ -105,6 +94,20 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 - Infrared and ultrasonic readings do not own motors in modes 3/4. The figure-8
   and square source modules remain for history/reuse but have no key binding.
   Power-on and remote/serial `0` remain STOP.
+
+## Integrated mode 5 K210 visual-line behavior
+
+- Remote number `5` or serial `5` selects mode 5. It consumes only the v4
+  eight-field visual-line frame; it does not call the sign-route state machine.
+- STM32 uses filtered horizontal offset for differential steering, line angle
+  for curve-speed selection, and bottom-centre position for near-horizontal
+  sharp-turn direction. DriveBase remains the only motor-output owner.
+- A stale UART frame older than 150 ms stops the car. Line loss keeps the last
+  known turn for at most 400 ms and then stops. A reported visual obstacle with
+  lower edge at y >= 150 stops the car; uncalibrated automatic bypass is not enabled.
+- In STOP, serial `v` prints `VLINK` counts and the last v4 frame without
+  changing mode or requesting motor motion. Remote/serial `0` remains the
+  operator STOP command.
 
 ## Integrated bounded automatic-wait behavior
 
@@ -153,6 +156,7 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 | KEY2 / `2` | black-line tracking only; obstacle sensors do not take the motors | line controller |
 | KEY3 / `3` | enhanced four-line tracking plus confirmed K210 left/right route selection | enhanced line controller or sign route selector |
 | KEY4 / `4` | independent SL2 simplified four-line tracking plus the same sign selection | simple line controller or sign route selector |
+| remote / serial `5` | K210 v4 curve visual-line tracking; no sign recognition | visual-line v4 controller |
 | remote direction-pad centre (`0x05`) | play the preset buzzer phrase once without changing mode | non-blocking phrase player; safety warnings retain priority |
 
 The infrared remote also supplies the virtual mode keys and a stop command.
@@ -372,8 +376,8 @@ KEY1/KEY2 as follows:
 - M2 is mapped to PA15/PB3; do not restore the obsolete fallback.
 - Wheel order is M1 left-front, M2 left-rear, M3 right-front, M4 right-rear.
 - Motor direction compensation remains centralized in `Core/Src/motorPWM.c`.
-- K210 is connected as COM13 and currently runs the `SIGN34` road-sign script.
-  Board-to-board UART1 IO8/TX to STM32 USART2 PD6/RX still needs a stationary
+- K210 is connected as COM14 and currently runs the v4 curve visual-line script.
+  Board-to-board UART1 IO8/TX to STM32 USART2 PD6/RX passed a stationary
   receive check; common ground remains required.
 - OLED is the external J12 display and includes battery/status information.
 - Encoder distance/angle is a wheel-motion estimate; ground yaw requires
@@ -383,23 +387,22 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated `dbf61e4`; ELF text/data/bss = 75108/64/11136 bytes; BIN is 75176 bytes; `SignRoute`, `SimpleLine`, USART2 IRQ and parser symbols are linked |
-| host regression | passed | strict detection parser, exact SL2 decision table, sign confirmation/routing, mode binding, model identity and complete prior line/bypass suites pass |
-| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 37-page selective erase; calibration page preserved; final 75176-byte write/readback; `VERIFY OK`; `GO OK` |
-| K210 deployment/runtime | passed, stationary only | COM13; existing model hash matched; 4908-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
-| board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
-| wheels off ground | not performed | programmer success does not establish mode 3/4 motor direction, STOP response or selected-route behavior |
-| ground driving | not performed | line following, junction detection and left/right branch capture remain unverified |
+| computer build/link | passed | integrated `27a05aa`; ELF text/data/bss = 79104/64/11280 bytes; BIN is 79172 bytes; both sign and v4 parsers plus the mode 5 controller are linked |
+| host regression | passed | v4 strict parser/control states and preserved mode 3/4 sign parser/routing tests pass |
+| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 39-page selective erase; calibration page preserved; independent 79172-byte exact readback; `GO OK` |
+| K210 deployment/runtime | passed, stationary only | COM14; v4 `s/off/ang/bot/obs` output observed at about 8--9 FPS; exact `/sd/main.py` readback not performed |
+| board-to-board UART | passed, stationary only | STOP-state `VLINK` v4 count increased 77 -> 229 and 241 -> 276; final frame ages 12/66/50 ms; `BAD` stable and `SIGN=0` |
+| wheels off ground | not performed | programmer and UART success do not establish mode 5 motor direction or STOP timing under moving wheels |
+| ground driving | not performed | visual line following, curve direction, sharp turns and visual obstacle stop remain unverified |
 
 ## Open issue and next safe step
 
-The requested `f991301` assets and both replacement modes are deployed. The
-next safe check is stationary UART confirmation followed by a lifted-wheel test
-with remote `0` ready: KEY3 must run the enhanced controller, `4` must reproduce
-SL2 direction outputs, and each sign-selection turn must match the displayed
-left/right route. Ground tests then need separate no-sign, left-sign and
-right-sign runs over the real junction. No physical driving outcome is
-established by the build, K210 runtime or programmer readback.
+The modified merged firmware and stationary K210->STM32 v4 link are deployed.
+The next safe step is a lifted-wheel mode 5 test with remote `0` ready: confirm
+offset-left produces a left request, offset-right produces a right request,
+UART loss stops within 150 ms, and prolonged line loss stops after the bounded
+400 ms hold. Ground tests then need straight, curve, sharp-corner and visual
+obstacle-stop runs. No physical driving outcome is established yet.
 
 ## Update protocol
 
