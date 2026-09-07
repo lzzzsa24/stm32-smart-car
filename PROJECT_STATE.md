@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: c3200d9
+repository_head_at_update: bcb3edf
 latest_code_commit: 2d1edaa
 flashed_source_commit: 4947f9c
 flash_record_commit: c3200d9
@@ -30,11 +30,15 @@ candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D10
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: 4947f9c_source_branch_on_origin_deployment_record_and_tags_local_only_PR4_contains_older_1186ba8_state
+remote_sync_status: current_main_and_release_pushed_PR4_updated_review_required
 remote_sync_branch: main
 stm32_runtime_status: COM11_4947f9c_readback_verified_GO_and_default_STOP_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
 temporary_flash_selector_commit: 4947f9c
+github_release_tag: v1.1.0-main-20260907
+github_release_source_commit: bcb3edf
+github_release_firmware_commit: 2d1edaa
+github_release_status: prerelease_published_host_verified_not_reflashed_or_ground_tested
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -59,6 +63,14 @@ has only one available writer, its Ruleset approval count was changed from 1
 to 0 only for the merge transaction and immediately restored to 1 afterward;
 required PRs, deletion protection and non-fast-forward protection remained
 active. Remote `origin/main` is now the durable canonical handoff.
+
+On 2026-09-07 the existing protected-main PR #4 was fast-forwarded to the
+current local canonical history and retitled accordingly. It remains open
+because the active ruleset requires one approving review and the current
+account cannot approve its own PR. Pre-release `v1.1.0-main-20260907` points to
+repository snapshot `bcb3edf` and publishes the main firmware code tree
+`2d1edaa` as BIN/HEX plus checksums. This release is not the independently
+flashed `4947f9c` image and makes no new physical-test claim.
 
 ## Current flashed temporary test image (`4947f9c`)
 
@@ -675,6 +687,7 @@ KEY1/KEY2 as follows:
 | computer build/link | passed | temporary source `4947f9c`; ELF text/data/bss = 83264/64/11512 bytes; BIN is 83332 bytes |
 | host regression | passed | both line-recovery speed configurations, all direction/ordering/load/bypass cases, mode 3/4 sign/ring and mode 5 suites pass |
 | STM32 flash/readback/GO | passed | temporary source `4947f9c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 83332 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
+| GitHub main candidate release | passed, pre-release | `v1.1.0-main-20260907` points to snapshot `bcb3edf`; firmware code `2d1edaa` rebuilt as 82832-byte BIN and passed line/sign/mode-5 host suites; no new flash or physical test |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -690,10 +703,11 @@ hint age should search toward the most recent real side instead of defaulting
 or accepting a broken centre confirmation. Test both directions and operator
 STOP before judging the change. If this version is rejected, rollback tag
 `rollback/2026-09-07-before-4947f9c-test` identifies the immediately replaced
-`d1d22d9` source. GitHub PR #4 contains the older `1186ba8` state and remains
-open; it must not be treated as the current deployment record. No ground
-behavior is established by build, programmer readback, startup text or GO
-success.
+`d1d22d9` source. GitHub PR #4 now carries the latest local canonical state but
+still needs one external approval before protected `main` can advance. Release
+`v1.1.0-main-20260907` contains the canonical main candidate, not the board's
+temporary `4947f9c` image. No ground behavior is established by build,
+programmer readback, startup text or GO success.
 
 ## Update protocol
 
