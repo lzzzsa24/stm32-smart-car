@@ -11,17 +11,17 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: 1eff16c
+repository_head_at_update: d5de066
 latest_code_commit: 2d1edaa
-flashed_source_commit: 1186ba8
-flash_record_commit: 1eff16c
-deployed_tag: deployed/2026-09-07-continuous-sign-search-1186ba8
+flashed_source_commit: d1d22d9
+flash_record_commit: d5de066
+deployed_tag: deployed/2026-09-07-sign-fork-selection-d1d22d9
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82780
-flashed_bin_sha256: 566A0001A0252D99BB9809A166F633FE450CB20968B5E69DA89988418AEDE8F2
-flashed_hex_sha256: 4AC4C92BEE77DAA08B3197CC8585D7A70A8F3C34D3D79703F599E31EDDD45CF8
-ground_test_status: not_tested_after_1186ba8_restore
+formal_bin_size_bytes: 82912
+flashed_bin_sha256: 66DF371163A7993DEB2E4782400302709881CED24AF64FE46C24513C0068487D
+flashed_hex_sha256: DF72AAE5C529ADE81C9F0E155E4AF645028AF7ECC71FB5434196DE3F4C72BB68
+ground_test_status: not_tested_after_d1d22d9_temporary_flash
 k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
 candidate_source_commit: 2d1edaa
 candidate_bin_size_bytes: 82832
@@ -30,11 +30,11 @@ candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D10
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: protected_PR_sync_current_1186ba8_deployment
+remote_sync_status: d1d22d9_deployment_local_only_PR4_contains_older_1186ba8_state
 remote_sync_branch: main
-stm32_runtime_status: COM11_1186ba8_readback_verified_GO_and_default_STOP_confirmed
+stm32_runtime_status: COM11_d1d22d9_readback_verified_GO_and_default_STOP_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
-temporary_flash_selector_commit: 1186ba8
+temporary_flash_selector_commit: d1d22d9
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -60,44 +60,46 @@ to 0 only for the merge transaction and immediately restored to 1 afterward;
 required PRs, deletion protection and non-fast-forward protection remained
 active. Remote `origin/main` is now the durable canonical handoff.
 
-## Current flashed temporary test image (`1186ba8`)
+## Current flashed temporary test image (`d1d22d9`)
 
-At the user's request, exact source `1186ba8` was restored after the temporary
-`c44d49d` comparison. It is a historical increment on
-`fix/mode34-recognition-slowdown`, based on `875bc3c`/source `1275257`, and is
-not canonical `main`. It therefore does not contain the later canonical
-GPIO-snapshot/ISR ordering fix `2d1edaa` or the KEY1/KEY2 crossing-hint
-increment `c44d49d`.
+The user requested only to flash exact source `d1d22d9`, not merge it. It is on
+the independent `fix/sign-fork-selection` branch. The branch starts from main
+state `71f0306`, ports the mode 3/4 line-priority and continuous-search changes
+as `9827b9d` and `e7c4f08`, and retains canonical source `2d1edaa`'s GPIO
+snapshot/ISR ordering fix. It does not contain the separate KEY1/KEY2
+crossing-hint increment `c44d49d`.
 
-In modes 3/4, sustained all-white evidence no longer becomes a navigation-owned
-zero target after 600 ms. The underlying line controller keeps counter-rotating
-to search while retaining the current route phase; seeing line evidence again
-returns to line following. Recognition/all-black slowdown remains active for
-translation, but does not cap an opposite-sign left/right search command to
-1200 CPS. OLED exposes the condition as `SEARCH`, and diagnostics report the
-effective speed cap and search flag. Motor mapping, modes 1/2/5 and K210 source
-are unchanged from this historical branch.
+For modes 3/4, a confirmed left/right sign can no longer be overwritten while
+PROBE is active. Stable sensor mask `1001` (both outside sensors black and both
+middle sensors white) is accepted as split-arc evidence and starts selection
+for the reserved side; all-black remains crossbar evidence. Continuous centre
+evidence must persist for 120 ms before cancelling PROBE, reducing cancellation
+from brief centre/broad chatter. All-white still removes forward ownership and
+uses the retained continuous line-search behavior. Digit detections remain
+non-steering observations.
 
-The previously verified mode 3/4 sign/ring suite passed, including two simulated
-minutes of search from approach, entry, arc and exit states, recognition
-refresh, tick wrap, reacquisition and STOP. The complete line-recovery/load/
-bypass suite passed at both 2493 and 1870 CPS, and the mode 5 suite passed. The
-restored artifact was rechecked against the exact detached source before
-flashing. Its 82780-byte BIN SHA-256 is
-`566A0001A0252D99BB9809A166F633FE450CB20968B5E69DA89988418AEDE8F2`;
+The mode 3/4 sign/ring suite passed in both directions, including split arcs,
+digit/opposite-arrow noise, centre chatter, clock wrap, crossbars, continuous
+search, reacquisition and STOP. The complete line-recovery/load/bypass suite
+passed at both 2493 and 1870 CPS, and the mode 5 suite passed. The formal ARM
+build passed with text/data/bss 82844/64/11376 and produced an 82912-byte BIN
+with SHA-256
+`66DF371163A7993DEB2E4782400302709881CED24AF64FE46C24513C0068487D`;
 the HEX SHA-256 is
-`4AC4C92BEE77DAA08B3197CC8585D7A70A8F3C34D3D79703F599E31EDDD45CF8`.
+`DF72AAE5C529ADE81C9F0E155E4AF645028AF7ECC71FB5434196DE3F4C72BB68`.
 
-COM11 was enumerated as USB-SERIAL CH340K immediately before programming and a
-STOP command was sent first. Selective erase covered 41 application pages,
-preserved the calibration page, wrote and read back all 82780 bytes with
-`VERIFY OK`, and completed `GO OK: 0x08000000`. The startup banner confirmed
-`DEFAULT STOP`; this is not a wheel-motion test. K210 was not rewritten.
+Two attempts before USB reconnect failed to enter the ROM bootloader and ended
+before erase, leaving `1186ba8` intact. After reconnect, COM11 was enumerated as
+USB-SERIAL CH340K and a STOP command was sent. Selective erase covered 41
+application pages, preserved the calibration page, wrote and read back all
+82912 bytes with `VERIFY OK`, and completed `GO OK: 0x08000000`. The startup
+banner confirmed `DEFAULT STOP`; this is not a wheel-motion test. K210 was not
+rewritten.
 
-Rollback tag `rollback/2026-09-07-before-1186ba8-restore` points to the replaced
-source `c44d49d`. Deployment tag
-`deployed/2026-09-07-continuous-sign-search-1186ba8` identifies the exact
-current board source. No lifted-wheel or ground test was performed by Codex.
+Rollback tag `rollback/2026-09-07-before-d1d22d9-test` points to the replaced
+source `1186ba8`. Deployment tag
+`deployed/2026-09-07-sign-fork-selection-d1d22d9` identifies the exact board
+source. No lifted-wheel or ground test was performed by Codex.
 
 ## Canonical main source (not currently flashed)
 
@@ -670,9 +672,9 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | restored source `1186ba8`; ELF text/data/bss = 82712/64/11376 bytes; BIN is 82780 bytes; exact prior artifact hash rechecked before flashing |
-| host regression | passed | mode 3/4 continuous sign-search, sign/ring, both line-recovery speed configurations, complete load/bypass and mode 5 suites previously passed on this exact source |
-| STM32 flash/readback/GO | passed | restored source `1186ba8`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 82780 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
+| computer build/link | passed | temporary source `d1d22d9`; ELF text/data/bss = 82844/64/11376 bytes; BIN is 82912 bytes |
+| host regression | passed | mode 3/4 split-fork selection and continuous search, both line-recovery speed configurations, complete load/bypass and mode 5 suites pass |
+| STM32 flash/readback/GO | passed | temporary source `d1d22d9`; after USB reconnect COM11 selectively erased 41 pages, preserved calibration, wrote/read back 82912 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -680,16 +682,17 @@ KEY1/KEY2 as follows:
 
 ## Current open issue and next safe step
 
-The board currently runs temporary source `1186ba8`, not canonical main
-`2d1edaa`. Test mode 3 or 4 with a real all-white loss: OLED should show
-`SEARCH`, the car should keep counter-rotating, and valid line evidence should
-resume tracking without a mode reset. If OLED shows `SEARCH` but the wheels do
-not turn, inspect actual four-wheel speed/PWM and DriveBase fault telemetry;
-software state alone does not prove sufficient ground torque. If this version
-is rejected, deployment tag
-`deployed/2026-09-07-line-crossing-hint-c44d49d` can restore the immediately
-preceding image. No ground behavior is established by build, programmer
-readback, startup text or GO success.
+The board currently runs temporary source `d1d22d9`, not canonical main
+`2d1edaa`. Test both left- and right-arrow forks in mode 3 or 4. During PROBE,
+brief centre chatter should not clear the reserved direction; stable `1001`
+should start the chosen split turn, and all-white should continue searching
+without blind forward motion. A raw digit on the K210 display may still appear,
+but must not directly change route direction. If this version is rejected,
+deployment tag `deployed/2026-09-07-continuous-sign-search-1186ba8` restores the
+immediately preceding image. GitHub PR #4 contains the older `1186ba8` state
+and remains open; it must not be treated as the current deployment record. No
+ground behavior is established by build, programmer readback, startup text or
+GO success.
 
 ## Update protocol
 
