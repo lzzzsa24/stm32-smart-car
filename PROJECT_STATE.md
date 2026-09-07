@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: e70de1f
+repository_head_at_update: 07f2b73
 latest_code_commit: 39b9327
 flashed_source_commit: 39b9327
 flash_record_commit: 109eb1f
@@ -28,11 +28,25 @@ candidate_bin_size_bytes: 78828
 candidate_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
 candidate_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
+k210_candidate_source_commit: 07f2b73
+k210_candidate_status: v2_display_optimization_host_tested_not_deployed
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
+
+## Unflashed K210 optimization candidate
+
+`07f2b73` updates only the K210 script and its tests/documentation, based on
+the user's `F:/myproject/jidian/sign_detect v2.0(1).zip` reference. Default raw
+display, debounced BOOT overlay toggle, bounded LCD/debug refresh, UART before
+display, periodic/low-memory GC and clipped valid-frame centres are included.
+Threshold 0.2, model, camera orientation, arrows-only routing and frame format
+are unchanged. Full sign-line suite and simulated actual Python main-loop
+tests passed. No hardware port was opened and this candidate was not deployed.
+The STM32 source/hash fields below remain `39b9327`; its code was not modified.
+Details: `K210/V2_OPTIMIZATION.md`.
 
 ## Current flashed ring-exit build
 
