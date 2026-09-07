@@ -387,6 +387,53 @@ static void test_fast_exit_after_transverse(void)
   assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_age_ms>=250);
   { uint32_t preserved=LineFaultLog_SearchCount(); line_tracking_reset(); assert(LineFaultLog_SearchCount()==preserved); }
 }
+static void test_alternating_corner_handoffs(void)
+{
+  unsigned first,iteration,queued,mismatches=0;
+  tick=UINT32_MAX-100;
+  LineSensorSample_Start();
+  for(first=0;first<2;++first)
+  {
+    reset(0,0); hold(first?8:2,30);
+    /* No reset between corners: a confirmed one-sided middle is also the
+       last directional evidence before this narrow stripe disappears. */
+    for(iteration=0;iteration<12;++iteration)
+    {
+      unsigned right=(first+iteration+1)%2;
+      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      sample(right?4:1,1,3000); sample(right?4:1,4,3000);
+      assert(output.valid && !BuzzerPhrase400_IsPlaying());
+      sample(0,61,3000);
+      if(telemetry.requested_cps[0]!=expected) ++mismatches;
+    }
+  }
+  for(first=0;first<2;++first) for(queued=0;queued<2;++queued)
+  {
+    unsigned inner=first?1:4;
+    int32_t expected=first?-LINE_SEARCH_TARGET_CPS:LINE_SEARCH_TARGET_CPS;
+    reset(0,0); hold(first?8:2,30);
+    sample(5,1,3000); sample(5,4,3000); /* capture starts at t=0 */
+    if(queued)
+    {
+      hold(5,480);
+      background_sample(5,15); background_sample(first?2:8,1);
+      background_sample(inner,4); sample(inner,0,3000);
+    }
+    else
+    {
+      hold(5,490);
+      sample(inner,1,3000); sample(inner,4,3000); /* new side confirmed at t=495 */
+      sample(inner,5,3000); /* t=500: transition into normal tracking */
+    }
+    sample(0,61,3000);
+    if(telemetry.requested_cps[0]!=expected) ++mismatches;
+  }
+  printf("Alternating capture/normal handoffs: wrong directions=%u (live/queued, tick wrap)\n",mismatches);
+  fflush(stdout);
+  assert(mismatches==0);
+  line_tracking_reset();
+}
+
 static void test_external_brake_ownership(void)
 {
   reset(0,0); hold(5,100);
@@ -406,6 +453,7 @@ static void test_external_brake_ownership(void)
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_alternating_corner_handoffs();
   test_external_brake_ownership();
   test_fast_exit_after_transverse();
   test_queue_handoff_interrupt();

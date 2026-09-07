@@ -529,10 +529,14 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     }
     if (result == LINE_RECOVERY_CAPTURED)
     {
-      /* Recovery can correct its side after a brief middle crossing. Transfer
-         that side and discard pre-recovery hints before low-speed rejoin. */
+      /* Drop pre-recovery hints, but keep the current one-sided middle as
+         fresh exit evidence. Otherwise a narrow stripe can end immediately
+         after capture and silently restore the previous corner's side. */
       recovery_turn_direction = LineRecovery_GetDirection();
-      predicted_turn_direction = direction_candidate = 0;
+      predicted_turn_direction = direction_candidate =
+          reading->x1_black && !reading->x3_black ? -1 :
+          (reading->x3_black && !reading->x1_black ? 1 : 0);
+      direction_last_seen_ms = direction_candidate_since_ms = now;
       direction_center_active = 0U;
       recovery_state = LINE_RECOVERY_SETTLE;
       recovery_state_started_ms = now;
@@ -590,8 +594,10 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     {
       LineRecovery_Commit();
       recovery_state = LINE_RECOVERY_NORMAL;
-      predicted_turn_direction = recovery_turn_direction = direction_candidate = 0;
-      direction_center_active = 0U;
+      /* End only the old recovery fallback. The position observer may just
+         have confirmed the next corner (including queued samples); changing
+         speed/state must not erase that fresh hint or its confirmation. */
+      recovery_turn_direction = 0;
     }
     else settling = 1U;
   }

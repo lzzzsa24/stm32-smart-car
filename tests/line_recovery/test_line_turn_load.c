@@ -391,6 +391,42 @@ static void test_rolling_loss_reentry(unsigned right)
   printf("PASS: KEY2 narrow-line reentry side=%u has no whole-car stop; operator reset stops all wheels\n",right);
 }
 
+static void test_real_alternating_corners(unsigned first_right)
+{
+  DriveBaseTelemetry t;
+  LineTrackingReading reading;
+  LineTrackingCommand output;
+  unsigned ms,w,mask,leg,right;
+  LineSearchRecord decision;
+  line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+  line_tracking_set_smooth_mode(0);
+  for(ms=0;ms<2600;++ms)
+  {
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick);
+    leg=ms<200?0:(ms-200)/200;
+    right=(first_right+leg+1)%2;
+    mask=ms<200?(first_right?8:2):((ms-200)%200<5?(right?4:1):0);
+    reading=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    line_tracking_compute(&reading,3000,&output);
+    line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&t);
+    assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
+    if(ms>=200 && (ms-200)%200>=70)
+    {
+      assert(t.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      assert(t.requested_cps[1]==t.requested_cps[0]);
+      assert(t.requested_cps[2]==-t.requested_cps[0] && t.requested_cps[3]==t.requested_cps[2]);
+      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+      assert(decision.source==LINE_SEARCH_HINT && decision.hint==(right?1:-1));
+    }
+  }
+  line_tracking_reset();
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  printf("PASS: real DriveBase first=%u, 12 alternating corners without reset, fresh hint logged\n",first_right);
+}
+
 static void test_real_search_capture(void)
 {
   DriveBaseTelemetry t;
@@ -891,6 +927,8 @@ int main(void)
   test_recognition_speed_cap();
   test_rolling_loss_reentry(0);
   test_rolling_loss_reentry(1);
+  test_real_alternating_corners(0);
+  test_real_alternating_corners(1);
   test_position_coast_handoff(1);
   test_position_coast_handoff(-1);
   test_real_search_capture();
