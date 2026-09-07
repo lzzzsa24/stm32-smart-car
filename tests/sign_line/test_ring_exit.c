@@ -140,10 +140,10 @@ static void test_bounds(void)
   unsigned i;
   init(100); start_arc(1);
   for(i=0;i<400;++i) step(6,2,4);
-  assert(status.state==SIGN_ROUTE_ARC && status.fault==3U && !cmd.active);
+  assert(status.state==SIGN_ROUTE_CANCELLED && status.fault==3U && !cmd.active);
   assert(motor_left>0 && motor_right>0); /* uncertain odometry cannot stop on-line */
   for(i=0;i<4;++i) step(3,0,0);
-  assert(status.state==SIGN_ROUTE_EXIT_SELECT); /* late physical exit still usable */
+  assert(status.state==SIGN_ROUTE_CANCELLED && !cmd.active); /* no invented exit */
   init(100); start_arc(-1);
   for(i=0;i<65;++i) step(0,0,0);
   assert(status.state==SIGN_ROUTE_ARC && status.searching);
@@ -153,9 +153,9 @@ static void test_bounds(void)
   assert(status.state==SIGN_ROUTE_ARC && motor_left>0 && motor_right>0);
   init(100); confirm(1); enter_probe(); leave_probe(0);
   for(i=0;i<260;++i) step(1,0,0);
-  assert(status.state==SIGN_ROUTE_SELECTING && status.fault==2U);
+  assert(status.state==SIGN_ROUTE_CANCELLED && status.fault==2U && !cmd.active);
   for(i=0;i<4;++i) step(6,0,0);
-  assert(status.state==SIGN_ROUTE_ARC); /* capture doesn't wait for assumed yaw */
+  assert(status.state==SIGN_ROUTE_CANCELLED && motor_left>0 && motor_right>0);
   init(100); confirm(1); enter_probe();
   for(i=0;i<190;++i) { step(15,0,0); assert(status.state!=SIGN_ROUTE_FAULT); }
   init(100); start_arc(1); half_arc(1);
@@ -250,6 +250,26 @@ static void test_split_choice(int8_t side)
   step(0,0,0); assert(!cmd.active); /* still never drive blind */
   puts("PASS: split arcs choose confirmed side despite digit/arrow noise and centre chatter");
 }
+static void test_exit_recovery(int8_t side)
+{
+  unsigned i;
+  init(UINT32_MAX-1000U); start_arc(side); half_arc(side);
+  for(i=0;i<10;++i) step(15,0,0);
+  assert(status.state==SIGN_ROUTE_ARC && !cmd.active); /* photo's all-black */
+  for(i=0;i<10;++i) step(9,0,0);
+  assert(status.state==SIGN_ROUTE_ARC && !cmd.active); /* ambiguous both sides */
+  for(i=0;i<4;++i) step(side<0?12:3,0,0);
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT);
+  for(i=0;i<260;++i) { observe(side<0?0:1); step(15,0,0); }
+  assert(status.state==SIGN_ROUTE_CANCELLED && !cmd.active && status.direction==0);
+  assert(motor_left>0 && motor_right>0);
+  for(i=0;i<200;++i) { observe(side<0?0:1); step(side<0?12:3,0,0); }
+  assert(status.state==SIGN_ROUTE_CANCELLED && !cmd.active); /* same sign cannot retry */
+  for(i=0;i<100;++i) { observe(-1); step(6,0,0); }
+  assert(status.state==SIGN_ROUTE_IDLE);
+  confirm(-side); assert(status.state==SIGN_ROUTE_ARMED && status.direction==-side);
+  puts("PASS: wide marks cannot become exits, failed exit withdraws steering and requires fresh rearm");
+}
 int main(void)
 {
   test_exit(-1,100U); test_exit(1,100U);
@@ -257,5 +277,6 @@ int main(void)
   test_crossbar_and_missing_sign(); test_bounds(); test_live_line_priority();
   test_continuous_search();
   test_split_choice(-1); test_split_choice(1);
+  test_exit_recovery(-1); test_exit_recovery(1);
   return 0;
 }

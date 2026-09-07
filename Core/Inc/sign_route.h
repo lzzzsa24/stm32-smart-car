@@ -17,12 +17,13 @@ typedef enum
   SIGN_ROUTE_EXIT_SELECT,
   SIGN_ROUTE_EXIT_CLEAR,
   SIGN_ROUTE_FAULT,       /* reserved legacy state; no timed line-loss hold */
-  SIGN_ROUTE_SEARCHING    /* display-only; search keeps the underlying route phase */
+  SIGN_ROUTE_SEARCHING,   /* display-only; search keeps the underlying route phase */
+  SIGN_ROUTE_CANCELLED    /* route withdrawn; line controller still runs */
 } SignRouteState;
 
 typedef struct
 {
-  uint8_t active;         /* visible-edge steering preference, or line-loss hold */
+  uint8_t active;         /* visible-edge steering preference */
   uint8_t just_started;
   uint8_t just_finished;
   int8_t direction;       /* -1 left, +1 right */

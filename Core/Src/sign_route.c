@@ -282,6 +282,18 @@ static uint8_t stable(uint8_t condition, uint32_t now)
   return now - route.capture_since_ms >= SIGN_CAPTURE_MS;
 }
 
+static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command)
+{
+  route.state = SIGN_ROUTE_CANCELLED;
+  route.fault = reason;
+  route.direction = 0;
+  route.finished_ms = now;
+  route.none_since_ms = 0U;
+  route.capture_active = route.junction_active = 0U;
+  clear_window();
+  memset(command, 0, sizeof(*command)); /* withdraw, never replace SL2 with STOP */
+}
+
 static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
@@ -327,7 +339,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     clear_window();
     if (route.state == SIGN_ROUTE_ARMED) route.state = SIGN_ROUTE_IDLE;
   }
-  if (route.state == SIGN_ROUTE_LOCKED)
+  if (route.state == SIGN_ROUTE_LOCKED || route.state == SIGN_ROUTE_CANCELLED)
   {
     if (now - route.finished_ms >= SIGN_REARM_COOLDOWN_MS &&
         route.none_since_ms != 0U &&
@@ -337,6 +349,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     {
       route.state = SIGN_ROUTE_IDLE;
       route.direction = 0;
+      route.fault = 0U;
       route.junction_active = 0U;
       clear_window();
     }
@@ -419,7 +432,10 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     select_command(command, line_mask);
     if (now - route.phase_ms > SIGN_SELECT_TIMEOUT_MS ||
         turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
-      route.fault = 2U; /* encoder/time assumptions cannot suppress a live line */
+    {
+      cancel_route(2U, now, command);
+      return;
+    }
     if (!junction && !center) route.departed = 1U;
     if (stable(route.departed && center, now))
     {
@@ -445,12 +461,15 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         route.travel_mm > SIGN_ARC_MAX_MM ||
         directed_arc_yaw > SIGN_ARC_MAX_YAW_MDEG ||
         directed_arc_yaw < -90000L)
-      route.fault = 3U;
+    {
+      cancel_route(3U, now, command);
+      return;
+    }
     /* Curvature toward the circle is opposite the selected entry side.
        The outgoing line appears on the outside after substantial arc travel. */
-    if (stable(((route.travel_mm >= SIGN_ARC_MIN_MM &&
-                 directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG) || route.fault == 3U) &&
-               (line_mask & exit_side) && (line_mask & 6U), now))
+    if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
+               directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG &&
+               line_mask == (exit_side == 8U ? 12U : 3U), now))
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
       route.departed = 1U;
@@ -463,8 +482,11 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   if (route.state == SIGN_ROUTE_EXIT_CLEAR)
   {
     if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS)
-      route.fault = 5U;
-    if (stable(center && (route.travel_mm >= SIGN_EXIT_CLEAR_MM || route.fault == 5U), now))
+    {
+      cancel_route(5U, now, command);
+      return;
+    }
+    if (stable(center && route.travel_mm >= SIGN_EXIT_CLEAR_MM, now))
     {
       route.state = SIGN_ROUTE_LOCKED;
       route.finished_ms = now;
