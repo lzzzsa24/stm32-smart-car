@@ -183,6 +183,8 @@ static void test_live_line_priority(void)
     /* Refresh the reservation then observe a bar with no encoder movement. */
     confirm(side); enter_probe();
     for(i=0;i<4;++i) step(6,0,0);
+    assert(status.state==SIGN_ROUTE_PROBE && !cmd.active);
+    for(i=0;i<9;++i) step(6,0,0);
     assert(status.state==SIGN_ROUTE_ARMED && !cmd.active);
     enter_probe();
     step(0,0,0);
@@ -230,11 +232,30 @@ static void test_continuous_search(void)
   }
   puts("PASS: 2-minute search from approach/entry/arc/exit, frame refresh, wrap, reacquisition and STOP");
 }
+static void test_split_choice(int8_t side)
+{
+  unsigned i, repeat;
+  init(UINT32_MAX-200U); confirm(side); enter_probe();
+  /* Brief centre/broad chatter must not repeatedly cancel entry. Digits and
+     even contrary arrows cannot overwrite this already committed approach. */
+  for(repeat=0;repeat<3;++repeat)
+  {
+    for(i=0;i<6;++i) { observe(i<3?4:(side<0?1:0)); step(6,0,0); }
+    assert(status.state==SIGN_ROUTE_PROBE && status.direction==side);
+    step(15,0,0);
+  }
+  for(i=0;i<5;++i) step(9,0,0);
+  assert(status.state==SIGN_ROUTE_SELECTING && status.direction==side && cmd.active);
+  assert(side<0 ? (motor_left==0 && motor_right>0) : (motor_right==0 && motor_left>0));
+  step(0,0,0); assert(!cmd.active); /* still never drive blind */
+  puts("PASS: split arcs choose confirmed side despite digit/arrow noise and centre chatter");
+}
 int main(void)
 {
   test_exit(-1,100U); test_exit(1,100U);
   test_exit(-1,UINT32_MAX-1000U); test_exit(1,UINT32_MAX-1000U);
   test_crossbar_and_missing_sign(); test_bounds(); test_live_line_priority();
   test_continuous_search();
+  test_split_choice(-1); test_split_choice(1);
   return 0;
 }
