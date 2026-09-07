@@ -67,14 +67,14 @@ static int8_t last_logged_side;
 #define TRACKING_SETTLE_INNER_PWM           2200
 #define TRACKING_SETTLE_OUTER_PWM           2400
 #define TRACKING_SETTLE_CENTER_PWM          2200
-#define TRACKING_NORMAL_CENTER_PWM          3000
+#define TRACKING_NORMAL_CENTER_PWM          2700
 #define TRACKING_SMOOTH_UPDATE_MS              10U
 #define TRACKING_SMOOTH_STEER_LIMIT          1400
 #define TRACKING_SMOOTH_STEER_DEADBAND        100
 #define TRACKING_SMOOTH_CURVE_CENTER_PWM      2800
 #define TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM     100
-#define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2800
-#define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       3000
+#define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2600
+#define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       2700
 #define TRACKING_SMOOTH_CENTER_HOLD_MS          350U
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
@@ -748,8 +748,8 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
         return LINE_ACTION_RIGHT_ADJUST;
       }
 
-      /* Only a continuously centred run earns the gradual straight boost;
-         otherwise this remains at the 2800 PWM migration baseline. */
+      /* Only a continuously centred run earns the reduced 2600..2700
+         straight boost. Curve/search targets retain their existing effort. */
       command_set_pwm(command, smooth_straight_pwm, smooth_straight_pwm,
                       LINE_ACTION_FORWARD);
       return LINE_ACTION_FORWARD;

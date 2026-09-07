@@ -475,6 +475,7 @@ int main(void)
     hold(5,180); assert(output.valid && output.left_cps>0 && !BuzzerPhrase400_IsPlaying() && !buzzer);
     hold(2,2000); assert(!output.valid && telemetry.requested_cps[0]<0 && telemetry.requested_cps[2]>0);
     hold(5,750); assert(output.left_cps>2400 && !BuzzerPhrase400_IsPlaying());
+    hold(5,500); assert(output.left_cps==2700 && output.right_cps==2700);
     sample(0,10,3000); hold(0,160); assert_search();
     /* Same cancellation hook that main calls on remote STOP / mode handoff. */
     line_tracking_reset(); assert(telemetry.mode==DRIVE_BASE_STOPPED && !BuzzerPhrase400_IsPlaying() && !buzzer);

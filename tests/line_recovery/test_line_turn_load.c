@@ -468,7 +468,7 @@ static void test_real_search_capture(void)
     if(found && tick-found_ms>750) break;
   }
   assert(saw_reverse && found && tick-found_ms>750);
-  assert(output.valid && output.left_cps==5273 && output.right_cps==5273);
+  assert(output.valid && output.left_cps==3815 && output.right_cps==3815);
   assert(!DriveBase_GetFaultMask());
   line_tracking_reset(); DriveBase_Stop(DRIVE_STOP_COAST);
   assert(!BuzzerPhrase400_IsPlaying() && !buzzer);
@@ -509,7 +509,7 @@ static void test_real_white_search(void)
     }
     assert(!DriveBase_GetFaultMask());
   }
-  assert(output.left_cps==5273 && output.right_cps==5273 && !BuzzerPhrase400_IsPlaying() && !buzzer);
+  assert(output.left_cps==3815 && output.right_cps==3815 && !BuzzerPhrase400_IsPlaying() && !buzzer);
   DriveBase_Stop(DRIVE_STOP_COAST); line_tracking_reset();
   puts("PASS: real 90-second rotation/audio -> confirmed line -> silent normal driving");
 }
