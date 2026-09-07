@@ -174,6 +174,7 @@ static void passive_ultrasonic_motion_task(void);
 static void oled_application_task(AppMode mode);
 static void battery_telemetry_task(void);
 static void drive_base_telemetry_task(void);
+static void vision_line_v4_diagnostic_dump(void);
 static void apply_line_tracking_command(const LineTrackingCommand *command, int16_t forward_limit);
 static void make_bypass_input(LineObstacleBypassInput *input,
                               const LineTrackingReading *line,
@@ -439,6 +440,10 @@ static uint8_t app_take_serial_virtual_key(void)
     case '3': return IR_REMOTE_VIRTUAL_KEY3;
     case '4': return IR_REMOTE_VIRTUAL_KEY4;
     case '5': return IR_REMOTE_VIRTUAL_KEY5;
+    case 'v':
+    case 'V':
+      vision_line_v4_diagnostic_dump();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'b':
       (void)BuzzerPhrase400_Start(1U);
       DiagnosticUart_WriteString("BUZZER PHRASE x1\r\n");
@@ -996,6 +1001,41 @@ static void vision_line_v4_task(void)
   DiagnosticUart_WriteString(" BAD=");
   DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
                                stats.ring_overflows);
+  DiagnosticUart_WriteString("\r\n");
+}
+
+static void vision_line_v4_diagnostic_dump(void)
+{
+  VisionLineV4Reading reading = vision_uart_get_line_v4();
+  VisionUartStats stats;
+  uint32_t now = HAL_GetTick();
+
+  vision_uart_get_stats(&stats);
+  DiagnosticUart_WriteString("VLINK V4=");
+  DiagnosticUart_WriteUnsigned(stats.line_v4_frames);
+  DiagnosticUart_WriteString(" SIGN=");
+  DiagnosticUart_WriteUnsigned(stats.valid_frames + stats.none_frames);
+  DiagnosticUart_WriteString(" BAD=");
+  DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
+                               stats.ring_overflows +
+                               stats.queue_overflows);
+  DiagnosticUart_WriteString(" F=");
+  DiagnosticUart_WriteUnsigned(reading.frame_valid);
+  DiagnosticUart_WriteString(" AGE=");
+  DiagnosticUart_WriteUnsigned(reading.frame_valid != 0U ?
+                               now - reading.received_ms : 0U);
+  DiagnosticUart_WriteString(" L=");
+  DiagnosticUart_WriteUnsigned(reading.line_found);
+  DiagnosticUart_WriteString(" O=");
+  DiagnosticUart_WriteSigned(reading.offset);
+  DiagnosticUart_WriteString(" A=");
+  DiagnosticUart_WriteSigned(reading.angle);
+  DiagnosticUart_WriteString(" BOT=");
+  DiagnosticUart_WriteSigned(reading.bottom);
+  DiagnosticUart_WriteString(" OBS=");
+  DiagnosticUart_WriteUnsigned(reading.obstacle_found);
+  DiagnosticUart_WriteString(" AY=");
+  DiagnosticUart_WriteUnsigned(reading.obstacle_bottom);
   DiagnosticUart_WriteString("\r\n");
 }
 
