@@ -1,13 +1,12 @@
 #ifndef SIGN_ROUTE_CONFIG_H
 #define SIGN_ROUTE_CONFIG_H
-/* Initial geometry guards, not ground-calibrated yaw or distance guarantees. */
-#define SIGN_PROBE_MIN_MM 8L
+/* Geometry/time bounds are navigation warnings while line evidence exists.
+   Only sustained all-white latches a recoverable line-loss stop. */
 #define SIGN_PROBE_MAX_MM 80L
 #define SIGN_PROBE_TIMEOUT_MS 1800U
 #define SIGN_CAPTURE_MS 30U
 #define SIGN_SAMPLE_MAX_GAP_MS 50U
 #define SIGN_SELECT_TIMEOUT_MS 2500U
-#define SIGN_SELECT_MIN_YAW_MDEG 25000L
 #define SIGN_SELECT_MAX_YAW_MDEG 135000L
 #define SIGN_ARC_MIN_MM 150L
 #define SIGN_ARC_MAX_MM 3000L

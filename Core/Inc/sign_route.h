@@ -21,7 +21,7 @@ typedef enum
 
 typedef struct
 {
-  uint8_t active;
+  uint8_t active;         /* visible-edge steering preference, or line-loss hold */
   uint8_t just_started;
   uint8_t just_finished;
   int8_t direction;       /* -1 left, +1 right */
@@ -37,7 +37,7 @@ typedef struct
   uint8_t last_score;
   uint8_t vision_online;
   uint32_t last_sequence;
-  uint8_t fault;          /* 1 probe, 2 selection, 3 arc bound, 4 lost line, 5 exit */
+  uint8_t fault;          /* 1/2/3/5 navigation warnings; only 4 holds on line loss */
   int32_t travel_mm;
   int32_t yaw_mdeg;       /* encoder estimate; not measured chassis yaw */
 } SignRouteStatus;
