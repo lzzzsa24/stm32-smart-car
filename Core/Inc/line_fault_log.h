@@ -7,7 +7,8 @@
 typedef enum { LINE_SEARCH_DEFAULT=0, LINE_SEARCH_HINT=1,
                LINE_SEARCH_REJOIN=2, LINE_SEARCH_CORNER=3,
                LINE_SEARCH_CORRECTION=4, LINE_SEARCH_WAIT_RECOVERY=5,
-               LINE_SEARCH_CROSS_HINT=6 } LineSearchSource;
+               LINE_SEARCH_CROSS_HINT=6,
+               LINE_SEARCH_INNER_PROBE=7 } LineSearchSource;
 typedef struct
 {
   uint32_t time_ms, edge_age_ms, wide_age_ms, queue_overwritten;

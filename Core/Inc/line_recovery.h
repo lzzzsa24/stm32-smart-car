@@ -24,6 +24,10 @@ void LineRecovery_Reset(void);
 /* Rolling loss entry: Step issues spin targets without an entry brake.
    DriveBase retains wheel-reversal ramping and externally owned braking. */
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now);
+/* A lone inner probe does not establish track direction. Start continuously,
+   but reverse expanding encoder-bounded sweeps until stronger evidence or a
+   middle capture is found. */
+void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now);
 /* Begin an observed corner without a stop/roll/spin timer cycle. Each fresh
    unambiguous outer edge followed by white can correct its side.
    DriveBase ramps handle wheel reversal; audio starts only if all-white. */

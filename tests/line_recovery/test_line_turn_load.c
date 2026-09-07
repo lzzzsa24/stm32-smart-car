@@ -391,7 +391,7 @@ static void test_rolling_loss_reentry(unsigned right)
   printf("PASS: KEY2 narrow-line reentry side=%u has no whole-car stop; operator reset stops all wheels\n",right);
 }
 
-static void test_real_alternating_corners(unsigned first_right)
+static void test_real_ambiguous_inner_handoffs(unsigned first_right)
 {
   DriveBaseTelemetry t;
   LineTrackingReading reading;
@@ -414,17 +414,20 @@ static void test_real_alternating_corners(unsigned first_right)
     assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
     if(ms>=200 && (ms-200)%200>=70)
     {
-      assert(t.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      /* Alternating lone-inner contacts are not geometric turn evidence.
+         During active recovery they retain the direction that found them. */
+      assert(t.requested_cps[0]==(first_right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
       assert(t.requested_cps[1]==t.requested_cps[0]);
       assert(t.requested_cps[2]==-t.requested_cps[0] && t.requested_cps[3]==t.requested_cps[2]);
       assert(BuzzerPhrase400_IsPlaying());
       assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
-      assert(decision.source==LINE_SEARCH_HINT && decision.hint==(right?1:-1));
+      assert(decision.source==LINE_SEARCH_REJOIN &&
+             decision.chosen_side==(first_right?1:-1));
     }
   }
   line_tracking_reset();
   for(w=0;w<4;++w) assert(pins[w]==0);
-  printf("PASS: real DriveBase first=%u, 12 alternating corners without reset, fresh hint logged\n",first_right);
+  printf("PASS: real DriveBase first=%u, ambiguous inner contacts retain measured search direction\n",first_right);
 }
 
 static void test_real_broad_corner_directions(unsigned overlapping)
@@ -977,8 +980,8 @@ int main(void)
   test_recognition_speed_cap();
   test_rolling_loss_reentry(0);
   test_rolling_loss_reentry(1);
-  test_real_alternating_corners(0);
-  test_real_alternating_corners(1);
+  test_real_ambiguous_inner_handoffs(0);
+  test_real_ambiguous_inner_handoffs(1);
   test_real_broad_corner_directions(0);
   test_real_broad_corner_directions(1);
   test_position_coast_handoff(1);

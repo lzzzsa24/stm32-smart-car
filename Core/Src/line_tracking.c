@@ -20,6 +20,9 @@ static uint8_t line_has_been_seen;
 static int8_t predicted_turn_direction;
 static uint8_t direction_crossing_hold;
 static uint8_t direction_hint_mask;
+static int8_t ambiguous_inner_side;
+static uint8_t ambiguous_inner_mask;
+static uint32_t ambiguous_inner_last_seen_ms;
 static int8_t direction_candidate;
 static uint32_t direction_candidate_since_ms;
 static uint32_t direction_last_seen_ms;
@@ -66,6 +69,7 @@ static int8_t last_logged_side;
    recent side. This is an absolute age from real directional evidence;
    repeated wide samples never renew it. */
 #define TRACKING_CROSS_HINT_MAX_AGE_MS        400U
+#define TRACKING_INNER_PROBE_MAX_AGE_MS       200U
 #define TRACKING_HINT_CENTER_CLEAR_MS          80U
 #define TRACKING_REACQUIRE_SETTLE_MS         500U
 #define TRACKING_MIN_INNER_PWM             2200
@@ -212,6 +216,8 @@ static void update_direction_hint(const LineTrackingReading *reading,
      command gate are separate, so this observation cannot itself start a spin. */
   if (line_tracking_direction_evidence(reading))
   {
+    ambiguous_inner_side = 0;
+    ambiguous_inner_mask = 0U;
     predicted_turn_direction = direction_candidate = side;
     direction_crossing_hold = 0U;
     direction_last_seen_ms = direction_candidate_since_ms = now;
@@ -221,6 +227,8 @@ static void update_direction_hint(const LineTrackingReading *reading,
   }
   if (reading->x2_black && reading->x4_black)
   {
+    ambiguous_inner_side = 0;
+    ambiguous_inner_mask = 0U;
     predicted_turn_direction = 0;
     direction_crossing_hold = 0U;
     direction_candidate = 0;
@@ -233,8 +241,22 @@ static void update_direction_hint(const LineTrackingReading *reading,
     direction_center_active = 0U;
     return;
   }
+  /* A single inner probe says where the line intersects this sensor row, not
+     which way an oblique track continues. Keep proportional steering, but do
+     not turn this geometrically ambiguous snapshot into a persistent hint. */
+  if (active_count == 1U && (reading->x1_black || reading->x3_black))
+  {
+    ambiguous_inner_side = side;
+    ambiguous_inner_mask = reading_mask(reading);
+    ambiguous_inner_last_seen_ms = now;
+    direction_candidate = 0;
+    direction_center_active = 0U;
+    return;
+  }
   if (side == 0)
   {
+    ambiguous_inner_side = 0;
+    ambiguous_inner_mask = 0U;
     direction_candidate = 0;
     if (direction_center_active == 0U)
     {
@@ -249,6 +271,8 @@ static void update_direction_hint(const LineTrackingReading *reading,
     return;
   }
   direction_center_active = 0U;
+  ambiguous_inner_side = 0;
+  ambiguous_inner_mask = 0U;
   if (side != direction_candidate)
   {
     direction_candidate = side;
@@ -302,6 +326,9 @@ void line_tracking_reset(void)
   predicted_turn_direction = 0;
   direction_crossing_hold = 0U;
   direction_hint_mask = 0U;
+  ambiguous_inner_side = 0;
+  ambiguous_inner_mask = 0U;
+  ambiguous_inner_last_seen_ms = HAL_GetTick();
   direction_candidate = 0;
   direction_center_active = 0U;
   direction_candidate_since_ms = HAL_GetTick();
@@ -394,9 +421,18 @@ static void record_search(uint32_t now, LineSearchSource source)
   r.edge_age_ms = last_edge_mask ? now - last_edge_ms : UINT32_MAX;
   r.wide_age_ms = last_wide_mask ? now - last_wide_ms : UINT32_MAX;
   r.queue_overwritten = LineSensorSample_Overwritten();
-  r.hint = predicted_turn_direction;
-  r.hint_mask = predicted_turn_direction ? direction_hint_mask : 0U;
-  r.hint_age_ms = predicted_turn_direction ? now - direction_last_seen_ms : UINT32_MAX;
+  if (source == LINE_SEARCH_INNER_PROBE)
+  {
+    r.hint = ambiguous_inner_side;
+    r.hint_mask = ambiguous_inner_mask;
+    r.hint_age_ms = now - ambiguous_inner_last_seen_ms;
+  }
+  else
+  {
+    r.hint = predicted_turn_direction;
+    r.hint_mask = predicted_turn_direction ? direction_hint_mask : 0U;
+    r.hint_age_ms = predicted_turn_direction ? now - direction_last_seen_ms : UINT32_MAX;
+  }
   r.chosen_side = recovery_turn_direction > 0 ? 1 : -1;
   last_logged_side = r.chosen_side;
   r.source = source;
@@ -412,6 +448,8 @@ static void observe_crossing(uint32_t now)
   crossing_active = 1U;
   crossing_last_ms = now;
   middle_recent_valid = 0U;
+  ambiguous_inner_side = 0;
+  ambiguous_inner_mask = 0U;
   /* A broad mark cancels the motor turn, but is not evidence for the opposite
      side. Keep only a still-recent hint; never extend its acquisition time. */
   if (predicted_turn_direction && now - direction_last_seen_ms <=
@@ -434,6 +472,8 @@ static void consume_sampled_evidence(uint32_t through_ms)
     /* Missing history cannot support an old normal-mode directional hint. */
     predicted_turn_direction = direction_candidate = corner_candidate = 0;
     direction_crossing_hold = 0U;
+    ambiguous_inner_side = 0;
+    ambiguous_inner_mask = 0U;
     direction_center_active = 0U;
     sample_overwritten = lost;
   }
@@ -485,6 +525,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   uint8_t middle_only;
   int8_t edge_side;
   uint8_t settling = 0U;
+  uint8_t inner_probe_start = 0U;
   LineSearchSource search_source = LINE_SEARCH_DEFAULT;
   uint32_t now = HAL_GetTick();
 
@@ -583,16 +624,16 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     }
     if (result == LINE_RECOVERY_CAPTURED)
     {
-      /* Drop pre-recovery hints, but keep the current one-sided middle as
-         fresh exit evidence. Otherwise a narrow stripe can end immediately
-         after capture and silently restore the previous corner's side. */
+      /* A one-sided inner capture is geometrically ambiguous: it proves line
+         contact, not the direction of an oblique track. Re-loss during settle
+         therefore reuses the direction that actually found this contact. */
       recovery_turn_direction = LineRecovery_GetDirection();
-      predicted_turn_direction = direction_candidate =
-          reading->x1_black && !reading->x3_black ? -1 :
-          (reading->x3_black && !reading->x1_black ? 1 : 0);
+      predicted_turn_direction = direction_candidate = 0;
       direction_last_seen_ms = direction_candidate_since_ms = now;
-      direction_hint_mask = reading_mask(reading);
+      direction_hint_mask = 0U;
       direction_crossing_hold = 0U;
+      ambiguous_inner_side = 0;
+      ambiguous_inner_mask = 0U;
       direction_center_active = 0U;
       recovery_state = LINE_RECOVERY_SETTLE;
       recovery_state_started_ms = now;
@@ -630,10 +671,23 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       recovery_turn_direction = predicted_turn_direction;
       search_source = direction_crossing_hold ? LINE_SEARCH_CROSS_HINT : LINE_SEARCH_HINT;
     }
+    else if (recovery_state == LINE_RECOVERY_NORMAL &&
+             ambiguous_inner_side != 0 &&
+             now - ambiguous_inner_last_seen_ms <= TRACKING_INNER_PROBE_MAX_AGE_MS)
+    {
+      recovery_turn_direction = ambiguous_inner_side;
+      search_source = LINE_SEARCH_INNER_PROBE;
+      inner_probe_start = 1U;
+    }
     else if (recovery_state == LINE_RECOVERY_NORMAL) recovery_turn_direction = 0;
     else search_source = LINE_SEARCH_REJOIN;
     record_search(now, search_source);
-    LineRecovery_Begin(recovery_turn_direction, now);
+    if (inner_probe_start)
+      LineRecovery_BeginAmbiguous(recovery_turn_direction, now);
+    else
+      LineRecovery_Begin(recovery_turn_direction, now);
+    ambiguous_inner_side = 0;
+    ambiguous_inner_mask = 0U;
     recovery_state = LINE_RECOVERY_ACTIVE;
     /* Issue the new spin targets in this same iteration. Repeated narrow-line
        captures/losses must not insert a brake or a generic zero-speed command. */

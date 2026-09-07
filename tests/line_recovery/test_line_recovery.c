@@ -70,6 +70,12 @@ static void sample(unsigned mask,uint32_t dt,int16_t base)
 }
 static void hold(unsigned mask,uint32_t ms)
 { while(ms) { uint32_t dt=ms>10?10:ms; sample(mask,dt,3000); ms-=dt; } }
+static void advance_all_encoder_transitions(uint32_t count)
+{
+  unsigned wheel;
+  for(wheel=0;wheel<DRIVE_BASE_WHEEL_COUNT;++wheel)
+    telemetry.legal_transition_count[wheel]+=count;
+}
 static void reset(uint8_t forward,uint8_t smooth)
 {
   line_tracking_reset(); memset(&telemetry,0,sizeof telemetry); BuzzerPhrase400_Init();
@@ -210,6 +216,51 @@ static void test_single_outer_flash_search_direction(void)
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
   tick=UINT32_MAX-20; reset(0,0); sample(8,1,3000); hold(0,180);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+}
+static void test_lone_inner_uses_encoder_bounded_probe(void)
+{
+  unsigned mirror;
+  for(mirror=0;mirror<2;++mirror)
+  {
+    unsigned mask=mirror?4U:1U;
+    int32_t initial=mirror?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+    int32_t reversed=-initial;
+    unsigned before_reversals;
+    LineSearchRecord decision;
+
+    reset(0,1);
+    hold(5,100);
+    hold(mask,40);
+    hold(0,180);
+    assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED);
+    assert(telemetry.requested_cps[0]==initial);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_INNER_PROBE);
+    assert(decision.hint_mask==mask);
+    assert(decision.chosen_side==(mirror?1:-1));
+
+    before_reversals=reversals;
+    advance_all_encoder_transitions(100000U);
+    sample(0,1,3000);
+    assert(telemetry.requested_cps[0]==reversed);
+    assert(reversals==before_reversals+1U);
+
+    /* Time alone must not cause another reversal; each sweep is bounded by
+       measured motion from all four repaired wheel encoders. */
+    hold(0,5000);
+    assert(telemetry.requested_cps[0]==reversed);
+    assert(reversals==before_reversals+1U);
+
+    /* Re-contact on the same lone inner sensor is still ambiguous. If it is
+       lost during settle, retain the direction that physically found it. */
+    sample(mask,1,3000);
+    sample(mask,4,3000);
+    assert(output.valid && !BuzzerPhrase400_IsPlaying());
+    hold(0,250);
+    assert(!output.valid && telemetry.requested_cps[0]==reversed);
+  }
+  puts("PASS: lone X1/X3 loss uses mirrored encoder-bounded expanding probes");
+  line_tracking_reset();
 }
 static void test_direction_after_unconfirmed_middle(void)
 {
@@ -434,12 +485,12 @@ static void test_alternating_corner_handoffs(void)
   for(first=0;first<2;++first)
   {
     reset(0,0); hold(first?8:2,30);
-    /* No reset between corners: a confirmed one-sided middle is also the
-       last directional evidence before this narrow stripe disappears. */
+    /* No reset between contacts: a one-sided inner capture is ambiguous, so
+       re-loss retains the search direction that physically found it. */
     for(iteration=0;iteration<12;++iteration)
     {
       unsigned right=(first+iteration+1)%2;
-      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      int32_t expected=first?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
       sample(right?4:1,1,3000); sample(right?4:1,4,3000);
       assert(output.valid && !BuzzerPhrase400_IsPlaying());
       sample(0,61,3000);
@@ -467,7 +518,7 @@ static void test_alternating_corner_handoffs(void)
     sample(0,61,3000);
     if(telemetry.requested_cps[0]!=expected) ++mismatches;
   }
-  printf("Alternating capture/normal handoffs: wrong directions=%u (live/queued, tick wrap)\n",mismatches);
+  printf("Ambiguous capture/normal probe handoffs: wrong directions=%u (live/queued, tick wrap)\n",mismatches);
   fflush(stdout);
   assert(mismatches==0);
   line_tracking_reset();
@@ -608,7 +659,10 @@ static void test_direction_survives_short_wide_mark(void)
     else { hold(right?1:4,8); sample(right?1:4,4,3000); hold(0,10); }
     hold(0,150);
     assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
-    assert(decision.source==LINE_SEARCH_HINT && decision.chosen_side==(right?-1:1));
+    /* A lone inner contact cannot overturn the still-fresh, unambiguous
+       outer-edge direction retained across the transverse strip. */
+    assert(decision.source==LINE_SEARCH_CROSS_HINT &&
+           decision.hint_mask==edge && decision.chosen_side==(right?1:-1));
 
     reset(0,1); sample(edge,1,3000); hold(15,120); reset(0,1); hold(0,120);
     assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
@@ -622,7 +676,7 @@ static void test_direction_survives_short_wide_mark(void)
   reset(0,1); hold(15,120); hold(5,20); hold(0,150);
   assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
   assert(decision.source==LINE_SEARCH_DEFAULT && decision.hint==0);
-  puts("PASS: crossing hold expiry, centre clear, newest side, inner confirmation, reset, overflow, unknown side");
+  puts("PASS: crossing hold expiry, centre clear, newest side, inner probe, reset, overflow, unknown side");
   line_tracking_reset();
 }
 
@@ -724,6 +778,7 @@ int main(void)
   test_sampling_during_blocked_main();
   test_direction_after_unconfirmed_middle();
   test_single_outer_flash_search_direction();
+  test_lone_inner_uses_encoder_bounded_probe();
   test_three_black_cancels_corner();
   test_patterns_and_narrow_windows();
   test_corner_edge_chatter();
@@ -746,7 +801,8 @@ int main(void)
     for(i=0;i<100;++i) sample(5,10,0);
     assert(output.valid && !output.left_cps && !BuzzerPhrase400_IsPlaying());
 
-    /* Last confirmed right hint determines rotation, not timed side swapping. */
+    /* A lone inner observation starts an encoder-bounded probe. With no
+       simulated wheel motion, elapsed time alone must not reverse it. */
     reset((uint8_t)forward,(uint8_t)smooth); hold(4,40); sample(0,10,3000); hold(0,500);
     assert_search(); assert(telemetry.requested_cps[0]>0);
     sample(5,10,3000); line_tracking_reset();
