@@ -9,10 +9,10 @@ or physical test.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-07
+state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: bcb3edf
-latest_code_commit: 2d1edaa
+repository_head_at_update: 3eb6889
+latest_code_commit: 36551f3
 flashed_source_commit: 4947f9c
 flash_record_commit: c3200d9
 deployed_tag: deployed/2026-09-07-line-direction-evidence-4947f9c
@@ -21,23 +21,23 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 83332
 flashed_bin_sha256: D17F7ED9926CB33150CFD0681613038AD8425E96272CF1FC94EB74446418E6E1
 flashed_hex_sha256: 4ED1A0D75E674997F0764A2F42332E477410DA5591D4772BF829679B65E28C35
-ground_test_status: not_tested_after_4947f9c_temporary_flash
+ground_test_status: not_tested_after_v1.2.0_rc1_host_build
 k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
-candidate_source_commit: 2d1edaa
-candidate_bin_size_bytes: 82832
-candidate_bin_sha256: A3B7332FAC58B3789F494076FDA6DFE828821C4F227E0B6A0EE304F1F8FCE82A
-candidate_hex_sha256: 6DF23B8CEB374FC28032F9CD44DF9F2E138A863BBCF0BBD77070266D1093DD31
+candidate_source_commit: 36551f3
+candidate_bin_size_bytes: 84412
+candidate_bin_sha256: 5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB
+candidate_hex_sha256: 2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: current_main_and_release_pushed_PR4_updated_review_required
+remote_sync_status: current_main_and_v1.2.0_rc1_published_via_required_PR
 remote_sync_branch: main
 stm32_runtime_status: COM11_4947f9c_readback_verified_GO_and_default_STOP_confirmed
 k210_requested_deployment: SIGN34_07f2b73_complete
 temporary_flash_selector_commit: 4947f9c
-github_release_tag: v1.1.0-main-20260907
-github_release_source_commit: bcb3edf
-github_release_firmware_commit: 2d1edaa
+github_release_tag: v1.2.0-rc.1
+github_release_source_commit: 3eb6889
+github_release_firmware_commit: 36551f3
 github_release_status: prerelease_published_host_verified_not_reflashed_or_ground_tested
 ```
 
@@ -56,21 +56,16 @@ as history; they are not alternate definitions of “latest”. The exact workfl
 and temporary historical-image exception are documented in
 `BRANCH_WORKFLOW.md`.
 
-GitHub PR #1 merged the complete canonical history into protected `main` as
-merge commit `af0bf4d`. The original `feature/mode5-visual-line-v4` branch and
-this task's deployment/rollback tags are also pushed. Because the repository
-has only one available writer, its Ruleset approval count was changed from 1
-to 0 only for the merge transaction and immediately restored to 1 afterward;
-required PRs, deletion protection and non-fast-forward protection remained
-active. Remote `origin/main` is now the durable canonical handoff.
+GitHub PR #4 merged the all-mode integration into protected `main` as merge
+commit `3eb6889`. The active ruleset still requires a pull request and protects
+against deletion and non-fast-forward updates; its current required approving
+review count is zero. No ruleset was bypassed or disabled for this merge.
 
-On 2026-09-07 the existing protected-main PR #4 was fast-forwarded to the
-current local canonical history and retitled accordingly. It remains open
-because the active ruleset requires one approving review and the current
-account cannot approve its own PR. Pre-release `v1.1.0-main-20260907` points to
-repository snapshot `bcb3edf` and publishes the main firmware code tree
-`2d1edaa` as BIN/HEX plus checksums. This release is not the independently
-flashed `4947f9c` image and makes no new physical-test claim.
+Pre-release `v1.2.0-rc.1` points to `3eb6889` and publishes the STM32 BIN/HEX,
+checksums, both mutually exclusive K210 `/sd/main.py` choices, the mode 3/4
+road-sign model and instructions. It contains firmware code `36551f3`; it is
+not the independently flashed `4947f9c` image and makes no new physical-test
+claim. The previous `v1.1.0-main-20260907` release remains available as history.
 
 ## Current flashed temporary test image (`4947f9c`)
 
@@ -113,33 +108,38 @@ source `d1d22d9`. Deployment tag
 `deployed/2026-09-07-line-direction-evidence-4947f9c` identifies the exact
 board source. No lifted-wheel or ground test was performed by Codex.
 
-## Canonical main source (not currently flashed)
+## Canonical main source and current release (not currently flashed)
 
-Source `2d1edaa` is a direct child of the previous canonical main and fixes the
-ordering between a four-GPIO line snapshot and queued 1 ms ISR evidence. Each
-real `LineTrackingReading` now carries the interrupt-protected acquisition
-timestamp. `line_tracking_compute()` drains only history up to that snapshot,
-so an outer edge arriving after the GPIO read remains queued for the next
-cycle instead of being replayed and then erased by the older live snapshot.
-Synthetic callers retain compute-time behavior through explicit zero
-initialization. Motor polarity, speeds, mode bindings, K210/SIGN34 and obstacle
-logic are unchanged.
+Functional source `36551f3`, merged by PR #4 as `3eb6889`, updates every active
+mode from its latest accepted branch. KEY1/KEY2 include line commit `4947f9c`
+plus the new lone-inner ambiguity fix `1b42805`. KEY3/KEY4 include the complete
+latest sign-route stack through `36551f3`. KEY5's controller, protocol and K210
+script are blob-identical to accepted mode-5 commit `5d761e4`.
 
-The full line-recovery/load/bypass suite passed, including 64 combinations of
-pre-snapshot GPIO data, post-snapshot ISR edges, tick wrap and both active and
-normal recovery states. Mode 3/4 SIGN34 and mode 5 regression suites also
-passed. The formal ARM build passed with text/data/bss 82764/64/11384 and
-produced an 82832-byte BIN with SHA-256
-`A3B7332FAC58B3789F494076FDA6DFE828821C4F227E0B6A0EE304F1F8FCE82A`.
-COM11 was enumerated immediately before flashing. Selective erase covered 41
-firmware pages, preserved the calibration page, wrote/read back all 82832 bytes
-with `VERIFY OK`, and completed `GO OK: 0x08000000`. No lifted-wheel or ground
-test was performed. Rollback tag
-`rollback/2026-09-07-before-line-snapshot-order` points to `da6971c`.
+A lone X1 or X3 detection is no longer stored as a certain curve direction.
+If it is followed by loss, recovery starts toward that sensor as a probe and
+uses all four repaired encoder transition counters for expanding 30/60/90/120
+degree sweeps. Time and battery state do not advance those sweeps. Fresh outer
+evidence remains authoritative, and a re-loss after lone-inner capture retains
+the direction that actually found the contact.
 
-K210 source was not changed by `2d1edaa`. Its previously verified TF card still
-contains the exact `07f2b73` SIGN34 script and model; COM14 was not enumerated
-at this STM32 flash, so no K210 write was attempted.
+Modes 3/4 now keep live line feedback authoritative, continue lost-line search
+without a sign-recognition speed cap, retain a confirmed fork direction and
+withdraw failed or ambiguous exit selection. Their K210 program and road-sign
+model remain the previously verified `07f2b73` pair; they were packaged, not
+rewritten to hardware, in this update.
+
+The line-recovery/load/bypass suite passed at both 2493 and 1870 CPS, including
+all 16 masks, 256 mirrored ordered pairs, queued-sample ordering, X1/X3 mirrored
+encoder probes and real DriveBase four-wheel targets. The sign-line and visual
+line v4 suites also passed. The formal ARM build passed with text/data/bss
+84344/64/11536 and produced an 84412-byte BIN with SHA-256
+`5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB`;
+HEX SHA-256 is
+`2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F`.
+No serial port was opened and no STM32/K210 flash, lifted-wheel or ground test
+was performed. The rollback tag
+`rollback/2026-09-08-before-all-modes-update` points to `41e5ae6`.
 
 ## Previous flashed integrated source (`7ce4944`)
 
@@ -444,7 +444,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`2d1edaa`)
+## Current STM32 mode map (`36551f3`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -460,19 +460,20 @@ The infrared remote also supplies the virtual mode keys and a stop command.
 
 ## Integrated line-loss behavior
 
-Latest user observations before this deployment (2026-09-05): KEY2 could emit
-1-, 5- or 8-beep drive alarms, alternate very small rotations, or stop silently.
-The user then explicitly requested continued searching and fault observation
-instead of stopping the line mode.
+The latest observation before this integration was that one repeatable approach
+angle produced only X1 or X3 and could lock recovery in the wrong direction.
+Current `36551f3` retains continuous recovery and adds an explicit ambiguity
+path for that physical pattern. KEY1/KEY2 behave as follows:
 
-The persistent recovery retained from `ec858dc` in current `dbf61e4` changes
-KEY1/KEY2 as follows:
-
-- On line loss it briefly brakes, then continuously rotates in the most recent
-  reliable direction; without a hint it defaults left. Search uses equal and
-  opposite 2493-CPS wheel groups. It no longer retreats, reverses search side,
-  returns to encoder start counts, or stops for distance, attempt or time
-  budgets.
+- On ordinary line loss it rolls directly into continuous rotation in the most
+  recent reliable direction; without a hint it defaults left. Search uses equal
+  and opposite 2493-CPS wheel groups. It no longer retreats, returns to encoder
+  start counts, or stops for distance, attempt or time budgets.
+- A lone inner X1/X3 observation is not a reliable curve direction. If loss
+  follows within 200 ms, it starts a probe toward that side, then reverses after
+  four-wheel encoder travel corresponding to 30 degrees. Each new sweep grows
+  by 30 degrees up to 120 degrees; later sweeps alternate at that bound. Time
+  and battery level alone cannot reverse the probe.
 - While searching it continuously repeats the existing 1.53-second preset
   buzzer phrase. A middle X1/X3 line hit, excluding the both-outer wide-line
   case, must confirm for 4 ms before the phrase is stopped.
@@ -512,18 +513,21 @@ KEY1/KEY2 as follows:
   debounce still applies. If the line becomes all-white after the short-gap
   windows expire, search follows this remembered side rather than defaulting
   left.
-- A later opposite outer edge can replace the hint. Transverse/ambiguous input
-  clears it and its following 100 ms tail ignores edge hints; stable centered
-  input for 80 ms, 200 ms expiry and mode reset also clear it. A physical LED
-  flash that falls entirely between software samples still cannot be recovered.
+- A later opposite outer edge can replace the hint. A short broad/transverse
+  mark can retain a genuinely recent direction for at most 400 ms without
+  refreshing its age; stable centered input, expiry, contradictory strong
+  evidence and mode reset clear it. A physical LED flash that falls entirely
+  between software samples still cannot be recovered.
 - While persistent recovery is already active, an unconfirmed middle-line hit
   opens one fresh 200 ms exit-direction window. The next unambiguous single
   outer edge followed by all-white updates the active spin direction. Consuming
   that update closes the window, so later outer-only chatter cannot repeatedly
   reverse the car; another correction requires a new middle hit.
 - A corrected recovery direction is handed into low-speed rejoin after capture,
-  and the older pre-recovery hint is cleared. Direction reversal continues
-  through the existing DriveBase ramp and adds no stop/brake timing cycle.
+  and the older pre-recovery hint is cleared. A lone-inner capture does not
+  replace that direction; if it is lost during settle, search continues in the
+  direction that physically found it. Direction reversal uses the existing
+  DriveBase ramp and adds no stop/brake timing cycle.
 - After tracking GPIO initialization, the HAL 1 ms tick records all four sensor
   inputs into a 256-entry static queue. The interrupt path only reads GPIO and
   records timestamped masks; it never drives motors, plays audio, prints or
@@ -684,30 +688,32 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | temporary source `4947f9c`; ELF text/data/bss = 83264/64/11512 bytes; BIN is 83332 bytes |
-| host regression | passed | both line-recovery speed configurations, all direction/ordering/load/bypass cases, mode 3/4 sign/ring and mode 5 suites pass |
+| computer build/link | passed | release firmware `36551f3`; ELF text/data/bss = 84344/64/11536 bytes; BIN is 84412 bytes |
+| host regression | passed | both line-recovery speed configurations, X1/X3 encoder probes, all direction/ordering/load/bypass cases, latest mode 3/4 sign/ring and mode 5 suites pass |
 | STM32 flash/readback/GO | passed | temporary source `4947f9c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 83332 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
-| GitHub main candidate release | passed, pre-release | `v1.1.0-main-20260907` points to snapshot `bcb3edf`; firmware code `2d1edaa` rebuilt as 82832-byte BIN and passed line/sign/mode-5 host suites; no new flash or physical test |
+| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.1` points to merged main `3eb6889`; firmware code `36551f3` is published as BIN/HEX with checksums and separate mode-3/4 and mode-5 K210 assets; no new flash or physical test |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
 | board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
-| ground driving | not performed | latest outer-direction behavior, reduced ultrasonic margins, mode 3/4 routing and mode 5 curve tracking remain unverified |
+| ground driving | not performed | lone-inner bidirectional probing, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The board currently runs temporary source `4947f9c`, not canonical main
-`2d1edaa`. Ground-test KEY1 and KEY2 through left and right sharp curves where
-an adjacent three-probe overlap is followed by a broad mark and then all-white.
-The crossing segment should remain forward, while a loss within the bounded
-hint age should search toward the most recent real side instead of defaulting
-or accepting a broken centre confirmation. Test both directions and operator
-STOP before judging the change. If this version is rejected, rollback tag
-`rollback/2026-09-07-before-4947f9c-test` identifies the immediately replaced
-`d1d22d9` source. GitHub PR #4 now carries the latest local canonical state but
-still needs one external approval before protected `main` can advance. Release
-`v1.1.0-main-20260907` contains the canonical main candidate, not the board's
-temporary `4947f9c` image. No ground behavior is established by build,
-programmer readback, startup text or GO success.
+The board currently runs temporary source `4947f9c`, not release firmware
+`36551f3`. The next safe step is a separately authorized flash that preserves
+the last calibration page, followed first by an operator STOP check and then a
+ground test of KEY1/KEY2 from both lone-X1 and lone-X3 approach angles. The
+first probe should start toward the lit sensor and, only after measured wheel
+travel, reverse and expand rather than remaining permanently locked.
+
+Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
+packaged road-sign model. Mode 5 instead requires
+`k210-mode5-visual-line-main.py` as `/sd/main.py`; both cannot be active under
+that filename at once. Test mode 3/4 exit withdrawal and mode 5 stale-UART stop
+separately. If the release is rejected, rollback tag
+`rollback/2026-09-08-before-all-modes-update` identifies the immediately prior
+canonical source. No ground behavior is established by host tests, build,
+release publication, programmer readback, startup text or GO success.
 
 ## Update protocol
 
