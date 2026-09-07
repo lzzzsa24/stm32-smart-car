@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 8f6048d
+repository_head_at_update: f42fc77
 latest_code_commit: 39b9327
-flashed_source_commit: b5c1145
-flash_record_commit: 8f6048d
-deployed_tag: deployed/2026-09-07-line-search-rolling-entry-b5c1145
+flashed_source_commit: 9a5d22d
+flash_record_commit: f42fc77
+deployed_tag: deployed/2026-09-07-alternating-corner-hints-9a5d22d
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 73604
-flashed_bin_sha256: 2DB65AB75F6DE5FB003BA958FAD66C5B03CC1DF885C5185B3B66BD7E0B716561
-flashed_hex_sha256: 1312CC446183B263A5FC0F4A5EDD8778C20DE64387E4F6CBF9BFA16C8B1EE79E
-ground_test_status: not_tested_after_b5c1145_flash
+formal_bin_size_bytes: 73640
+flashed_bin_sha256: EF6AB1A545C4E3E0D8EB3ED9B98439532944B372F5FC3ECE0C597F756880AABC
+flashed_hex_sha256: 8F9CCCE94A0AAE55C6866D12DDBC8B41985F20D094FFD5549D75297F17C3C391
+ground_test_status: not_tested_after_9a5d22d_flash
 k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: b5c1145
-candidate_bin_size_bytes: 73604
-candidate_bin_sha256: 2DB65AB75F6DE5FB003BA958FAD66C5B03CC1DF885C5185B3B66BD7E0B716561
-candidate_hex_sha256: 1312CC446183B263A5FC0F4A5EDD8778C20DE64387E4F6CBF9BFA16C8B1EE79E
+candidate_source_commit: 9a5d22d
+candidate_bin_size_bytes: 73640
+candidate_bin_sha256: EF6AB1A545C4E3E0D8EB3ED9B98439532944B372F5FC3ECE0C597F756880AABC
+candidate_hex_sha256: 8F9CCCE94A0AAE55C6866D12DDBC8B41985F20D094FFD5549D75297F17C3C391
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: v2_display_optimization_host_tested_not_deployed
@@ -38,24 +38,26 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Current STM32 deployed test image
 
-At the user's explicit request, exact source `b5c1145` from independent branch
+At the user's explicit request, exact source `9a5d22d` from independent branch
 `feature/line-search-axle-balance` was rebuilt and flashed without merging it
-into the integration branch. Its change enters lost-line counter-rotation
-without inserting a whole-car brake, while retaining external brake/STOP
-ownership. The full line-recovery/load/bypass host suite passed. Formal ARM
-build text/data/bss was 73536/64/10424 and BIN size was 73604 bytes.
+into the integration branch. It retains parent `b5c1145`'s direct lost-line
+counter-rotation without a whole-car brake, and preserves a fresh direction
+hint across corner capture/settle handoffs. The full line-recovery/load/bypass
+host suite passed, including 12 alternating corners from each initial side with
+live and queued samples. Formal ARM build text/data/bss was 73572/64/10424 and
+BIN size was 73640 bytes.
 
 COM11 was enumerated as USB-SERIAL CH340K immediately before programming.
 At 57600 baud, selective erase covered 36 firmware pages, preserved the final
-calibration page, wrote and read back all 73604 bytes with `VERIFY OK`, then
+calibration page, wrote and read back all 73640 bytes with `VERIFY OK`, then
 completed `GO OK: 0x08000000`. Power-on remains STOP. No lifted-wheel or ground
 test has been performed for this image.
 
 This exact historical branch predates the mode 3/4 sign-line integration:
 KEY3 is encoder figure-eight and KEY4 is encoder square. The separately
 deployed K210 SIGN34 program may continue running, but this STM32 image does
-not consume it. Rollback tag `rollback/2026-09-07-before-b5c1145-test` points
-to the previous STM32 source `39b9327`.
+not consume it. Rollback tag `rollback/2026-09-07-before-9a5d22d-test` points
+to the previous STM32 source `b5c1145`.
 
 ## Unflashed K210 optimization candidate
 
@@ -66,7 +68,8 @@ display, periodic/low-memory GC and clipped valid-frame centres are included.
 Threshold 0.2, model, camera orientation, arrows-only routing and frame format
 are unchanged. Full sign-line suite and simulated actual Python main-loop
 tests passed. No hardware port was opened and this candidate was not deployed.
-The STM32 source/hash fields below remain `39b9327`; its code was not modified.
+The K210 candidate remains independent of the currently flashed `9a5d22d`
+STM32 image.
 Details: `K210/V2_OPTIMIZATION.md`.
 
 ## Previous flashed ring-exit build
@@ -471,23 +474,23 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | exact `b5c1145`; ELF text/data/bss = 73536/64/10424 bytes; BIN is 73604 bytes |
-| host regression | passed | rolling lost-line entry, external brake/reset ownership, real line recovery/load assistance and prior bypass suites pass |
-| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; final 73604-byte write/readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | exact `9a5d22d`; ELF text/data/bss = 73572/64/10424 bytes; BIN is 73640 bytes |
+| host regression | passed | zero wrong directions across alternating capture/normal handoffs, 12 alternating corners from both initial sides, rolling search, STOP/ownership and prior load/bypass suites pass |
+| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; final 73640-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
-| wheels off ground | not performed | programmer success does not establish rolling search motion or STOP response |
-| ground driving | not performed | line reacquisition and continuity after removing the brake pause remain unverified |
+| wheels off ground | not performed | programmer success does not establish rolling search direction or STOP response |
+| ground driving | not performed | alternating-corner direction retention and line reacquisition remain unverified |
 
 ## Current open issue and next safe step
 
-The exact `b5c1145` test image is on the STM32. The next safe check is a
-lifted-wheel KEY2 loss/reacquisition test with remote `0` ready, confirming that
-counter-rotation begins without an all-wheel stop and that operator STOP still
-halts every wheel. Ground testing must then compare corner continuity and
-overshoot against the previous image. K210 sign routing cannot be tested with
-this historical STM32 image. No physical driving outcome is established by the
-build or programmer readback.
+The exact `9a5d22d` test image is on the STM32. The next safe check is a
+lifted-wheel KEY2 loss/reacquisition test with remote `0` ready, followed by a
+ground run containing consecutive left and right sharp corners without mode
+reset between them. Confirm that each newly captured middle-sensor bias controls
+the next search direction. K210 sign routing cannot be tested with this
+historical STM32 image. No physical driving outcome is established by the build
+or programmer readback.
 
 ## Update protocol
 
