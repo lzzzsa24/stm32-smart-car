@@ -27,6 +27,23 @@ The older worktrees under `F:/myproject/jidian/worktrees` are retained rather
 than deleted. Their branch tips are historical inputs. Start all future work
 from current `main`, not from one of those tips.
 
+## Preserved legacy branch inventory
+
+| Branch group | Status after canonicalization | Use |
+|---|---|---|
+| `fix/mode34-recognition-slowdown` | integrated through `fc5a7b9` | deployment-history reference; do not add new work |
+| `feature/mode5-visual-line-v4` | original worker source ending at `5d761e4` | provenance/comparison for mode 5; integrated equivalent is on `main` |
+| `feature/line-reacquire-lock` | older integrated baseline | historical source only |
+| `feature/line-search-axle-balance` | earlier line-search worker | historical source only |
+| `feature/mode3-sign-line` | earlier mode 3/4 worker | historical source only |
+| `feature/k210-visual-line` | earlier VL1 experiment | historical source only |
+| `feature/simple-four-line` | standalone SL2 experiment | historical source only |
+| `test/*` | isolated comparison images | never use as the integrated base |
+
+This inventory is organizational, not authorization to delete anything. Once
+the user confirms no old tasks still need these worktrees, pruning can be done
+as a separate, explicitly approved cleanup.
+
 ## Starting one feature
 
 From the canonical checkout, first confirm `main` is clean and current. Then
@@ -80,3 +97,8 @@ lifted-wheel and ground evidence separately.
 Feature branches need to be pushed only when another task/computer must consume
 their original commit identity. Old remote branches are preserved until the
 user explicitly approves pruning; branch deletion is not part of routine sync.
+
+If GitHub branch protection requires a pull request, push the local `main` tip
+to a short-lived `integration/<topic>` branch, open a PR, and record the pending
+review in `PROJECT_STATE.md`. Do not bypass required review just to make the
+remote branch name catch up.

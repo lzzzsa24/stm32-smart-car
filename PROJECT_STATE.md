@@ -30,6 +30,8 @@ candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E8
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 7ce4944
 k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
+remote_sync_status: PR_1_review_required_origin_main_still_3bd3748
+remote_sync_branch: integration/canonical-main-20260907
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -46,6 +48,14 @@ review/build/deployment pass. Existing worktrees and branches remain preserved
 as history; they are not alternate definitions of “latest”. The exact workflow
 and temporary historical-image exception are documented in
 `BRANCH_WORKFLOW.md`.
+
+GitHub's protected `main` requires an approving review. The complete canonical
+history is pushed to `integration/canonical-main-20260907` and is proposed by
+PR #1; the original `feature/mode5-visual-line-v4` branch and this task's
+deployment/rollback tags are also pushed. Until PR #1 is approved and merged,
+remote `origin/main` remains at `3bd3748`; local `main` and the PR branch are
+the current integrated source. Direct main push and automatic merge were both
+rejected by repository policy, and no administrator bypass was used.
 
 ## Current flashed integrated source
 
