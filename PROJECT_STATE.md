@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 1275257
-latest_code_commit: 1275257
+repository_head_at_update: 1186ba8
+latest_code_commit: 1186ba8
 flashed_source_commit: 7ce4944
 flash_record_commit: bd60373
 deployed_tag: deployed/2026-09-07-mode5-slow-near-dual-7ce4944
@@ -21,12 +21,12 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 82744
 flashed_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
 flashed_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
-ground_test_status: user_reports_mode34_stops_and_drives_off_line_toward_sign_candidate_unflashed
+ground_test_status: user_photo_M4_LINE0000_LINE_LOST_L_after_brief_turn_continuous_search_candidate_unflashed
 k210_status: COM14_mode5_7ce4944_main_readback_and_startup_telemetry_verified_board_link_not_reverified
-candidate_source_commit: 1275257
-candidate_bin_size_bytes: 82816
-candidate_bin_sha256: 8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE
-candidate_hex_sha256: 83DFE802228F0DADAEE7FA51224D061426B4B55EBE09F95A06E3155F89C62F27
+candidate_source_commit: 1186ba8
+candidate_bin_size_bytes: 82780
+candidate_bin_sha256: 566A0001A0252D99BB9809A166F633FE450CB20968B5E69DA89988418AEDE8F2
+candidate_hex_sha256: 4AC4C92BEE77DAA08B3197CC8585D7A70A8F3C34D3D79703F599E31EDDD45CF8
 user_reported_flash: latest_drive_feedback_source_hash_unverified
 k210_candidate_source_commit: 7ce4944
 k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
@@ -36,7 +36,31 @@ k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Current unflashed mode 3/4 line-priority candidate
+## Current unflashed mode 3/4 continuous-search candidate
+
+Latest user observation: after sign recognition and losing the line, the car
+turns slightly left and stops. The photo reads M4 SIMPLE, LINE:0000 A:5,
+VIS:L 20 and ROUTE:LINE LOST L. This matches the previous source's 600 ms
+all-white navigation stop. No readback establishes the physical source hash.
+
+`1186ba8` is based on clean integration HEAD `875bc3c`. It removes that
+navigation stop and lets SL2 continue counter-rotation until line reacquisition.
+The route phase is preserved; OLED displays SEARCH and telemetry adds SEARCH.
+Recognition slowdown still caps positive driving at 1200 CPS, but no longer
+caps opposite-sign wheel targets during search. The cap is selected only at
+the final command adapter, avoiding re-clamping before the next DriveBase_Task.
+Raw-white line priority, operator STOP and existing drive fault ownership remain.
+
+Sign/ring/slowdown host regression passed, including two simulated minutes of
+all-white in approach/entry/arc/exit with sign refresh, clock wrap, reacquisition
+and STOP. Full line-recovery/load/bypass and mode 5 suites passed. Formal ARM
+build passed: text/data/bss 82712/64/11376, BIN 82780 bytes. No serial access,
+flash, lifted-wheel or ground testing occurred; physical motion remains unverified.
+The formal paths hold candidate artifacts; flashed hashes remain historical.
+See `tests/sign_line/CONTINUOUS_SIGN_SEARCH.md`.
+Rollback: `rollback/2026-09-07-before-continuous-sign-search` -> `875bc3c`.
+
+## Previous line-priority candidate (`1275257`, superseded)
 
 User feedback: modes 3/4 sometimes stop unexpectedly and, after detecting a
 sign, can ignore the black line and drive toward the sign. The user cannot
