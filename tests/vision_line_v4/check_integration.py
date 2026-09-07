@@ -13,6 +13,8 @@ assert "case '5': return IR_REMOTE_VIRTUAL_KEY5;" in main
 assert "vision_line_v4_task();" in main
 assert "VisionLineV4Control_Step" in main
 assert '"VLINE5 CURVE V4 START\\r\\n"' in main
+assert "vision_line_v4_diagnostic_dump();" in main
+assert 'DiagnosticUart_WriteString("VLINK V4=");' in main
 assert "#define IR_COMMAND_NUMBER_5          0x15U" in ir_source
 assert "return IR_REMOTE_VIRTUAL_KEY5;" in ir_source
 assert "VisionDetectionParser_Consume" in vision_uart

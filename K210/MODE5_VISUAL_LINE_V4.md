@@ -17,6 +17,9 @@ $status,off,angle,bottom,obs,obs_bottom,obs_left,obs_right#
 视觉障碍下边缘达到 150 时先停车，绕障路径尚未经过实车标定，因此本模式不
 自动绕行。
 
+在 STOP 状态通过 STM32 调试串口发送 `v`，可只读输出 `VLINK` 收帧统计和
+最后一帧数据，不启动模式 5，也不驱动电机。
+
 K210 IO8/TX 接 STM32 PD6/RX，IO6/RX 接 STM32 PD5/TX，双方共地，串口为
 115200、8-N-1。叠加绘制默认关闭，短按 BOOT 键切换。
 
