@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: afd7a03
-latest_code_commit: 7ce4944
+repository_head_at_update: 1275257
+latest_code_commit: 1275257
 flashed_source_commit: 7ce4944
 flash_record_commit: bd60373
 deployed_tag: deployed/2026-09-07-mode5-slow-near-dual-7ce4944
@@ -21,13 +21,13 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 82744
 flashed_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
 flashed_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
-ground_test_status: not_tested_after_7ce4944_flash
+ground_test_status: user_reports_mode34_stops_and_drives_off_line_toward_sign_candidate_unflashed
 k210_status: COM14_mode5_7ce4944_main_readback_and_startup_telemetry_verified_board_link_not_reverified
-candidate_source_commit: 7ce4944
-candidate_bin_size_bytes: 82744
-candidate_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
-candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
-user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
+candidate_source_commit: 1275257
+candidate_bin_size_bytes: 82816
+candidate_bin_sha256: 8193D5C1AB41556B40A273A7D79940F610095D1A2128FFF93679C1D0FC0EDEFE
+candidate_hex_sha256: 83DFE802228F0DADAEE7FA51224D061426B4B55EBE09F95A06E3155F89C62F27
+user_reported_flash: latest_drive_feedback_source_hash_unverified
 k210_candidate_source_commit: 7ce4944
 k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
 ```
@@ -36,7 +36,36 @@ k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Current flashed integrated source
+## Current unflashed mode 3/4 line-priority candidate
+
+User feedback: modes 3/4 sometimes stop unexpectedly and, after detecting a
+sign, can ignore the black line and drive toward the sign. The user cannot
+recall the OLED route state. No contemporaneous diagnostic trace or flash
+readback was obtained; the exact physical trigger remains unconfirmed.
+
+`1275257` is based on clean integration HEAD `fc5a7b9`. PROBE and EXIT_CLEAR
+no longer command blind forward movement. Route preference requires current
+selected-side black evidence, and SL2 runs continuously; raw all-white cannot
+replay the previous positive forward target. Missing sign frames and geometry
+warnings no longer stop on-line tracking. Sustained all-white still holds
+after 600 ms, and 30 ms stable black evidence resumes it. A sign alone cannot
+release that hold. Manual STOP and existing drive-fault ownership are retained.
+Modes 1/2/5 and both K210 programs were not modified.
+
+Sign-line/ring/slowdown, mode 5, full line-recovery/load/bypass host tests,
+formal ARM build and whitespace checks passed. Candidate text/data/bss is
+82748/64/11384, BIN 82816 bytes. The formal paths contain candidate artifacts;
+flashed hashes and formal_bin_size_bytes below remain the old verified record.
+No serial port, flash, lifted-wheel or ground operation occurred in this turn.
+See `tests/sign_line/LINE_PRIORITY_FIX.md`; it supersedes the original ring
+document's mandatory forward probing and navigation-fault stop behavior.
+Rollback: `rollback/2026-09-07-before-mode34-line-priority` -> `fc5a7b9`.
+
+Latest deployment record says K210 runs mode 5. Modes 3/4 require the preserved
+`K210/sign_mode34.py` as device `/sd/main.py`, not the repository's mode-5
+`K210/main.py`. This turn did not read back or replace the K210 application.
+
+## Last recorded flashed integrated source (not read back this turn)
 
 Source `7ce4944` integrates requested worker `5d761e4` and its required
 STOP-state UART diagnostic commit `27a05aa` on top of the previously deployed
