@@ -99,6 +99,11 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
   int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
       (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
   if (phase != REC_SEARCH) return;
+  /* History may invalidate live capture continuity, but must never complete
+     capture on its own. A white/outer ISR hit between two live middle hits
+     breaks the confirmation even if the main loop missed that hit. */
+  if (!(r->x1_black || r->x3_black) || r->x2_black || r->x4_black)
+    center_candidate = 0U;
   /* Every fresh unambiguous outer edge is evidence, not just the first edge
      after a middle hit. Switching still waits for its subsequent all-white
      exit, so contact alone does not reverse the active turn. */
