@@ -9,7 +9,7 @@ K210 路标识别（目标检测模型）—— 5 类蓝底圆形路标
   1. 把 det.kmodel 复制到 SD 卡，路径见下方 KMODEL_PATH；
   2. 脚本存为 main.py（或 IDE 直接运行）。
 
-首阶段：屏幕显示五类，串口仅发送用于圆环选弧的 left/right。
+首阶段：默认显示原始画面，短按 BOOT 切换五类检测框；串口仅发送 left/right。
 同帧出现两个方向视为歧义，发送无候选，等待重新确认。
 串口输出（发给主控 STM32，8=TX 6=RX 115200）：
   $D,<class>,<score>,<cx>,<cy>#
@@ -24,6 +24,7 @@ import time
 import sensor
 import lcd
 from maix import KPU
+from maix import GPIO
 from machine import UART
 from board import board_info
 from fpioa_manager import fm
@@ -40,12 +41,56 @@ ANCHOR         = (1.69, 2.28, 2.75, 4.22, 3.91, 4.02,
 THRESHOLD      = 0.2          # 2026-09-07 用户指定；动作确认由 STM32 多帧判定
 NMS_VALUE      = 0.3          # 非极大值抑制，一般不用改
 SEND_INTERVAL  = 100          # 串口发送间隔 ms
+SHOW_BOXES     = False        # 参考 v2.0：短按 BOOT 切换框/标签/FPS
+DISPLAY_INTERVAL = 100        # LCD 最多 10 fps；不限制 KPU 推理循环
+BOOT_DEBOUNCE_MS = 30
+DEBUG_PRINT    = False        # 避免每 100 ms 打印拖慢串口和推理
+DEBUG_INTERVAL = 500
+GC_INTERVAL    = 200          # 定期回收；低内存时提前回收
+GC_LOW_BYTES   = 64 * 1024
+
+
+class BootToggle:
+    def __init__(self, initial, now):
+        self.stable = initial
+        self.candidate = initial
+        self.since = now
+
+    def update(self, value, now):
+        if value != self.candidate:
+            self.candidate = value
+            self.since = now
+        elif value != self.stable and time.ticks_diff(now, self.since) >= BOOT_DEBOUNCE_MS:
+            self.stable = value
+            return value == 0  # 按下只切换一次；长按不重复
+        return False
+
+
+def valid_detection(item):
+    return (len(item) >= 6 and item[4] in (0, 1, 2, 3, 4)
+            and THRESHOLD <= item[5] <= 1.0
+            and item[2] > 0 and item[3] > 0
+            and item[0] < 320 and item[1] < 240
+            and item[0] + item[2] > 0 and item[1] + item[3] > 0)
+
+
+def detection_frame(best):
+    if best is None:
+        return "$D,-1,0,0,0#\n"
+    # 框可能部分超出图像；发送可见区域中心，满足 STM32 严格范围检查。
+    x0, y0 = max(0, best[0]), max(0, best[1])
+    x1, y1 = min(320, best[0] + best[2]), min(240, best[1] + best[3])
+    cx = min(319, int((x0 + x1) // 2))
+    cy = min(239, int((y0 + y1) // 2))
+    return "$D,%d,%d,%d,%d#\n" % (best[4], int(best[5] * 100), cx, cy)
 
 def select_route_detection(detections):
     """只在箭头中选最高分；左右同时出现时不猜测路线。"""
     best = None
     direction = None
     for item in detections:
+        if not valid_detection(item):
+            continue
         cls = item[4]
         if cls not in (0, 1):
             continue
@@ -74,6 +119,9 @@ fm.register(8, fm.fpioa.UART1_TX, force=True)
 fm.register(6, fm.fpioa.UART1_RX, force=True)
 uart = UART(UART.UART1, 115200, 8, 0, 1, timeout=1000, read_buf_len=4096)
 
+fm.register(board_info.BOOT_KEY, fm.fpioa.GPIOHS0)
+boot = GPIO(GPIO.GPIOHS0, GPIO.IN)
+
 # 加载模型
 print("loading model ...")
 kpu = KPU()
@@ -88,47 +136,52 @@ kpu.init_yolo2(ANCHOR,
                classes=len(LABELS))
 print("SIGN34 ready; model=%s threshold=%.2f; vflip=%d hmirror=%d" %
       (KMODEL_PATH, THRESHOLD, SENSOR_VFLIP, SENSOR_HMIRROR))
+print("SIGN34 v2-display; BOOT toggles boxes; UART arrows only")
 
-last_send = 0
+last_gc = time.ticks_ms()
+last_send = time.ticks_add(last_gc, -SEND_INTERVAL)
+last_display = time.ticks_add(last_gc, -DISPLAY_INTERVAL)
+last_debug = time.ticks_add(last_gc, -DEBUG_INTERVAL)
+boot_toggle = BootToggle(boot.value(), last_gc)
 
 # ---------------- 主循环 ----------------
 while True:
-    gc.collect()
+    now = time.ticks_ms()
+    if time.ticks_diff(now, last_gc) >= GC_INTERVAL or gc.mem_free() < GC_LOW_BYTES:
+        gc.collect()
+        last_gc = time.ticks_ms()
     clock.tick()
+    if boot_toggle.update(boot.value(), time.ticks_ms()):
+        SHOW_BOXES = not SHOW_BOXES
     img = sensor.snapshot()
 
     kpu.run_with_output(img)
-    dect = kpu.regionlayer_yolo2()
-    fps = clock.fps()
-
-    # 屏幕保留所有类别，便于观察；UART 只给圆环左右选弧候选。
-    for item in dect:
-        x, y, w, h, cls, score = item[:6]
-        img.draw_rectangle(x, y, w, h, color=(0, 255, 0))
-        img.draw_string(x, y, "%s %.2f" % (LABELS[cls], score),
-                        color=(255, 0, 0), scale=2.0)
+    dect = kpu.regionlayer_yolo2() or ()
     best = select_route_detection(dect)
 
-    if best is not None:
-        x, y, w, h, cls, score = best[0], best[1], best[2], best[3], best[4], best[5]
-        cx = x + w // 2
-        cy = y + h // 2
-        name = LABELS[cls]
+    # 当前帧结果优先发给主控，绘图/LCD 放在后面，不重发缓存识别结果。
+    now = time.ticks_ms()
+    if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
+        frame = detection_frame(best)
+        uart.write(frame)
+        last_send = now
+        if DEBUG_PRINT and time.ticks_diff(now, last_debug) >= DEBUG_INTERVAL:
+            print(frame.strip())
+            last_debug = now
 
-        # 串口发送（限频）
-        now = time.ticks_ms()
-        if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
-            uart.write("$D,%d,%d,%d,%d#\n" % (cls, int(score * 100), cx, cy))
-            last_send = now
-            print("sign:", name, "score=%.2f" % score, "cx=%d cy=%d" % (cx, cy))
-    else:
-        # 无箭头候选，或左右同时出现无法唯一选弧
-        now = time.ticks_ms()
-        if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
-            uart.write("$D,-1,0,0,0#\n")
-            last_send = now
-
-    img.draw_string(0, 0, "%2.1ffps" % fps, color=(0, 60, 255), scale=2.0)
-    lcd.display(img)
+    if time.ticks_diff(now, last_display) >= DISPLAY_INTERVAL:
+        if SHOW_BOXES:
+            for item in dect:
+                if not valid_detection(item):
+                    continue
+                x, y, w, h, cls, score = item[:6]
+                img.draw_rectangle(x, y, w, h, color=(0, 255, 0))
+                img.draw_string(max(0, x), max(0, y), "%s %.2f" % (LABELS[cls], score),
+                                color=(255, 0, 0), scale=2.0)
+            img.draw_string(0, 0, "%2.1ffps" % clock.fps(), color=(0, 60, 255), scale=2.0)
+        lcd.display(img)
+        last_display = time.ticks_ms()
+    # 不让上一帧的图像/检测列表拖到下一次 sensor.snapshot() 后才释放。
+    del img, dect, best
 
 # kpu.deinit()  # 主循环不会到这里，仅示意

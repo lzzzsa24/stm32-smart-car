@@ -13,4 +13,6 @@ if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_ring_exit.exe
 if not "%errorlevel%"=="0" exit /b 1
 python tests\sign_line\check_integration.py
+if not "%errorlevel%"=="0" exit /b 1
+python tests\sign_line\test_k210_runtime.py
 exit /b %errorlevel%
