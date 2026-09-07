@@ -9,25 +9,25 @@ or physical test.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-06
+state_updated_at: 2026-09-07
 integration_branch: feature/line-reacquire-lock
-repository_head_at_update: a04a851
-latest_code_commit: ec858dc
-flashed_source_commit: 8ee2432
-flash_record_commit: a04a851
-deployed_tag: test-deployed/2026-09-06-vl1-8ee2432
-formal_bin_path: ../vision-line-test-8ee2432/manual-build-visual-line/visual_line.bin
-formal_hex_path: ../vision-line-test-8ee2432/manual-build-visual-line/visual_line.hex
-formal_bin_size_bytes: 11072
-flashed_bin_sha256: E45CE39B882255090B3C8928E2A971D438FE73A4CCE5012D25420176BE632C0E
-flashed_hex_sha256: F814B17405F667DA52250F8D3D2900E7FF1A711F8D879FCCF7DAA2B39FBB4656
-ground_test_status: isolated_VL1_both_ends_deployed_UART_link_no_valid_frames_ground_not_tested
-k210_status: VL1_files_readback_verified_runtime_ready_STM32_seq_zero
-candidate_source_commit: 8ee2432
-candidate_bin_size_bytes: 11072
-candidate_bin_sha256: E45CE39B882255090B3C8928E2A971D438FE73A4CCE5012D25420176BE632C0E
-candidate_hex_sha256: F814B17405F667DA52250F8D3D2900E7FF1A711F8D879FCCF7DAA2B39FBB4656
-user_reported_flash: tool_verified_isolated_test_candidate_not_merged
+repository_head_at_update: ee059a3
+latest_code_commit: 6f7a0db
+flashed_source_commit: 6f7a0db
+flash_record_commit: ee059a3
+deployed_tag: deployed/2026-09-07-continuous-bypass-turn
+formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
+formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
+formal_bin_size_bytes: 73704
+flashed_bin_sha256: 376482E0A8CA6D01D3C2DBC0A18A873C619145748136451C1B5E5887FDE467E7
+flashed_hex_sha256: DCFD3B4863B73EE246E2A9E1A3605111E56F7F43260CC6A322F96B3E15F9F35C
+ground_test_status: continuous_bypass_turn_flashed_lifted_and_ground_tests_pending
+k210_status: VL1_files_retained_on_K210_but_not_redeployed_or_required_by_current_STM32_image
+candidate_source_commit: 6f7a0db
+candidate_bin_size_bytes: 73704
+candidate_bin_sha256: 376482E0A8CA6D01D3C2DBC0A18A873C619145748136451C1B5E5887FDE467E7
+candidate_hex_sha256: DCFD3B4863B73EE246E2A9E1A3605111E56F7F43260CC6A322F96B3E15F9F35C
+user_reported_flash: tool_verified_current_integrated_candidate
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -38,22 +38,22 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
 - Integration branch: `feature/line-reacquire-lock`
-- Latest integrated source remains `ec858dc` (`fix(line): bound automatic stops with timed recovery and retry`) and was not changed or merged with the visual branch.
-- The board currently runs isolated test source `8ee2432` (`Implement K210 three-band visual line follower and STM32 controller`) from local test branch `test/vision-line-8ee2432` and sibling worktree `F:\myproject\jidian\worktrees\vision-line-test-8ee2432`.
-- Flash/readback record: `a04a851` (`Record isolated VL1 8ee2432 test deployment`).
-- The VL1 BIN above was rebuilt from the exact clean test checkout, then
-  written through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at
-  57600 baud. Selective erase covered 6 firmware pages, preserved the final
-  calibration page, wrote and read back 11072 bytes with `VERIFY OK`, and
-  completed `GO OK: 0x08000000`.
+- Latest integrated source is `6f7a0db` (`fix(line): drive bypass turns continuously and accept IR early finish`). It is the integration-branch cherry-pick of requested worker commit `f58eac619d122672474499c775ef95ca97077eb6`; the visual branch was not merged.
+- The board currently runs that integrated source. Flash/readback record:
+  `ee059a3` (`Record continuous bypass turn firmware flash`).
+- The formal BIN above was rebuilt in the integration worktree, then written
+  through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at 57600 baud.
+  Selective erase covered 36 firmware pages, preserved the final calibration
+  page, wrote and read back 73704 bytes with `VERIFY OK`, and completed
+  `GO OK: 0x08000000`.
 - Build products under `manual-build-*` are intentionally ignored by Git. A
   different computer must rebuild the named source commit rather than assume
   the artifact was transferred.
-- The integrated `ec858dc` BIN and deployment tag
-  `deployed/2026-09-06-bounded-auto-wait` remain available for restoration;
-  testing VL1 did not merge its history into the integration branch.
+- Rollback tag `rollback/2026-09-07-before-continuous-bypass-turn` preserves the
+  integration state immediately before this change. The prior bounded-wait
+  deployment tag and the isolated VL1 test tag remain available.
 
-## Current isolated VL1 test deployment
+## Retained isolated VL1 test assets (not currently flashed on STM32)
 
 - K210 COM13 identified CanMV Yahboom 2.1.1, mounted `/sd` and detected GC2145.
   Exact `8ee2432` files `/sd/line_core.py` (5509 bytes),
@@ -63,16 +63,16 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 - The previous K210 `/flash/main.py` and `/sd/main.py` are backed up under
   `F:\myproject\jidian\validation\k210-vl1-deploy-8ee2432\backup-20260906-171712`.
   Existing road-sign model files and photos were not removed.
-- STM32 passively reported `VL1 STOP USER seq=0 ... L=0 R=0 err=0` throughout
-  five seconds. Thus boot STOP and zero motor output are confirmed, but no VL1
-  frame reached the STM32 parser. Do not press START until K210 IO8/TX -> STM32
-  PD6/USART2_RX and common GND are physically checked and `seq` advances.
+- During the prior isolated test, STM32 passively reported
+  `VL1 STOP USER seq=0 ... L=0 R=0 err=0` throughout five seconds. No VL1 frame
+  reached that test image. This remains historical evidence for the isolated
+  branch; it does not describe the currently flashed integrated controller.
 - This standalone image intentionally omits four-sensor tracking, obstacle
   avoidance, encoders, OLED, figure eight, square and buzzer audio. KEY1/KEY2
   start only after two fresh trusted vision frames; KEY3, remote 0/3, serial
   0/3/s/S/space stop it.
 
-## Integrated bounded automatic-wait behavior (restore image only)
+## Integrated bounded automatic-wait behavior
 
 - In KEY1/KEY2, a continuously stopped, braking or faulted DriveBase remains
   under its current controller for 800 ms. If still paused, the candidate logs
@@ -90,7 +90,25 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
   drive/bypass fault masks. This code has passed host tests, formal build and
   programmer readback; its physical motion remains unverified.
 
-## Integrated mode map (restore image only)
+## Integrated continuous KEY1 bypass turning
+
+- KEY1 bypass turn segments now use `line_bypass_turn` instead of the shared
+  endpoint-position turn controller. Both wheels on one side request `-1800`
+  CPS while both wheels on the other side request `+1800` CPS (signs reverse
+  for the opposite direction), using the existing DriveBase 20 ms speed loop,
+  acceleration ramp, battery compensation and bounded slow-wheel assistance.
+- A segment drives all four wheels continuously until average encoder travel
+  reaches the requested angle and every wheel reaches at least half the target;
+  then the whole car brakes together and accumulates at least 120 ms of settling
+  travel. It does not perform per-wheel tail pulses or reversal correction.
+- A stable side-infrared boundary may end the turn early, including before a
+  nonzero encoder angle is accumulated. Encoder/DriveBase failures and bounded
+  action timeouts remain faults; STOP or a mode change cancels the turn owner.
+- Encoder-derived angle bounds wheel travel but is not a direct chassis-yaw
+  measurement. Continuous-turn direction, obstacle clearance and overshoot are
+  still pending lifted-wheel and ground validation at the current battery/load.
+
+## Integrated mode map
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -103,14 +121,15 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 The infrared remote also supplies the virtual mode keys and a stop command.
 
-## Integrated line-loss behavior (restore image only)
+## Integrated line-loss behavior
 
 Latest user observations before this deployment (2026-09-05): KEY2 could emit
 1-, 5- or 8-beep drive alarms, alternate very small rotations, or stop silently.
 The user then explicitly requested continued searching and fault observation
 instead of stopping the line mode.
 
-The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
+The persistent recovery retained from `ec858dc` in current `6f7a0db` changes
+KEY1/KEY2 as follows:
 
 - On line loss it briefly brakes, then continuously rotates in the most recent
   reliable direction; without a hint it defaults left. Search uses equal and
@@ -205,7 +224,7 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
   and long interrupt masking can still delay sampling. It preserves sensor
   evidence but cannot remove the main-loop delay before a motor response.
 
-## Integrated line-search decision log (restore image only)
+## Integrated line-search decision log
 
 - A separate 16-entry RAM ring records every initial search, confirmed corner
   entry and ACTIVE direction correction. Each record includes chosen side,
@@ -218,9 +237,9 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
   receiving until `LSEARCH END`. Source 0 means default direction, 1 hint,
   2 rejoin, 3 corner and 4 ACTIVE correction.
 
-## Integrated line-turn load assistance (restore image only)
+## Integrated line-turn load assistance
 
-- Commit `63dbfe6`, retained in `ec858dc`, keeps the requested four-wheel CPS targets and adds a
+- Commit `63dbfe6`, retained in current `6f7a0db`, keeps the requested four-wheel CPS targets and adds a
   bounded PWM supplement only to an accepted line-tracking differential or
   counter-rotation command. Straight travel, wide-line travel, stop, encoder
   position retrace/rollback and non-line modes do not receive this supplement.
@@ -247,7 +266,7 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
   explicit coast stop; `valid=0` recovery retains motor ownership, and active
   braking, position control and drive faults still take priority.
 
-## Integrated line-drive fault observation (restore image only)
+## Integrated line-drive fault observation
 
 - Normal line tracking and persistent search enable a line-only observation
   policy. Existing no-motion, wrong-direction and illegal-encoder thresholds
@@ -273,9 +292,9 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
   serial port at 115200 8N1 without resetting DTR/RTS, and send `f` or `F`.
   Preserve the final complete block from `LFAULT BEGIN` through `LFAULT END`.
 
-## Integrated position-control handoff (restore image only)
+## Integrated position-control handoff
 
-- Commit `b424189`, retained in `ec858dc`, fixes the shared DriveBase transition from continuous
+- Commit `b424189`, retained in current `6f7a0db`, fixes the shared DriveBase transition from continuous
   position-control PWM to the short-pulse region used near a target.
 - When an individual wheel enters that low-speed region, its previous
   continuous PWM is first set to zero and a fresh stop-settle window is
@@ -288,7 +307,7 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
   recovery no longer invokes position mode. Host tests reproduce both forward
   and reverse handoff; actual wheel inertia and alarm behavior remain untested.
 
-## Integrated infrared-remote audio behavior (restore image only)
+## Integrated infrared-remote audio behavior
 
 - Latest physical observation before this fix: pressing the intended sound
   button produced no audible result. Source inspection found that the active
@@ -309,7 +328,7 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
 - The serial `b` command remains an equivalent one-shot diagnostic entry.
 - After flashing `0d31f10`, the user short-pressed the intended sound button
   and explicitly confirmed audible output (`响了`). The same fix remains in
-  deployed `ec858dc`.
+  current `6f7a0db`.
 
 ## Confirmed hardware facts
 
@@ -317,7 +336,9 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
 - M2 is mapped to PA15/PB3; do not restore the obsolete fallback.
 - Wheel order is M1 left-front, M2 left-rear, M3 right-front, M4 right-rear.
 - Motor direction compensation remains centralized in `Core/Src/motorPWM.c`.
-- K210 is physically removed for now.
+- K210 was reinserted for the prior VL1 test and retains the verified `/sd`
+  files. Its USB serial port was not enumerated during this STM32-only flash;
+  the current integrated image does not depend on the VL1 program.
 - OLED is the external J12 display and includes battery/status information.
 - Encoder distance/angle is a wheel-motion estimate; ground yaw requires
   calibration because slip and battery/load change the result.
@@ -326,22 +347,22 @@ The persistent recovery in deployed `ec858dc` changes KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | exact isolated `8ee2432`; VL1 BIN is 11072 bytes; 24-source manifest, BIN/HEX identity, reserved Flash bounds and CubeIDE routing pass |
-| host regression | passed | 8 synthetic camera tests, 4 simulated K210-runtime tests, 6985 protocol/controller checks and 18096 real board/IRQ/motor-source stub checks pass |
-| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 6-page selective erase; calibration page preserved; 11072-byte write/readback; `VERIFY OK`; `GO OK` |
-| K210 deployment/runtime | partial | three exact files read back successfully; SD/GC2145 and `VL1 ready` confirmed; K210 emits `$L` frames, but STM32 remains at `seq=0` |
-| stationary two-board UART | failed | five-second passive STM32 status shows no valid frame and no parser error; physical IO8-to-PD6/common-ground path needs inspection |
-| wheels off ground | not performed | STOP output only; no START was sent because vision link is not valid |
-| ground driving | not performed | UART must be fixed and lifted-wheel direction/STOP tested first |
+| computer build/link | passed | integrated `6f7a0db`; ELF text/data/bss = 73636/64/10424 bytes; BIN is 73704 bytes; new `LineBypassTurn_*` symbols are present in the map |
+| host regression | passed | complete `tests/line_recovery/run.cmd`, geometry self-test and diff checks pass; includes continuous left/right 15/45-degree turns, slow/stopped wheels, early IR finish, timeout and STOP ownership |
+| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; 73704-byte write/readback; `VERIFY OK`; `GO OK` |
+| K210 deployment/runtime | retained, inactive | prior exact VL1 files remain on K210; K210 was not redeployed and its USB port was not present during this STM32 flash |
+| wheels off ground | not performed | programmer success does not establish motor direction, four-wheel continuity or sensor transition behavior |
+| ground driving | not performed | continuous bypass turn geometry, clearance and overshoot remain unverified |
 
 ## Open issue and next safe step
 
-The requested isolated VL1 source is built and both STM32/K210 applications are
-deployed without merging into the integration branch. The next blocker is the
-physical K210-to-STM32 UART path: verify K210 IO8/TX reaches STM32 PD6/RX and
-both boards share GND, then passively confirm STM32 `seq` increments before any
-START command. Keep the car lifted and remote STOP ready for the first motion
-test. Restore integrated `ec858dc` if VL1 testing is abandoned.
+The requested `f58eac6` bypass-turn increment is integrated, built and
+programmer-verified on STM32; K210 was not changed. The next safe check is a
+lifted-wheel KEY1 test with remote STOP ready: confirm both left wheels and both
+right wheels counter-rotate continuously during each bypass turn and all four
+stop together. Ground testing must then check left/right clearance, stable IR
+early finish and turn overshoot separately. None of those physical outcomes is
+established by this flash record.
 
 ## Update protocol
 
