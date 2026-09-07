@@ -32,6 +32,7 @@ k210_candidate_source_commit: 7ce4944
 k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
 remote_sync_status: PR_1_review_required_origin_main_still_3bd3748
 remote_sync_branch: integration/canonical-main-20260907
+stm32_runtime_status: flash_bytes_verified_but_post_diagnostic_execution_state_unconfirmed_ports_disconnected
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -81,6 +82,12 @@ The image was written through the enumerated CH340K COM11 at 57600 baud.
 Selective erase covered 41 firmware pages, preserved the calibration page,
 read back all 82744 bytes with `VERIFY OK`, and completed
 `GO OK: 0x08000000`. No lifted-wheel or ground test was performed.
+
+After the later stationary VLINK attempt toggled BOOT/RESET, a final repeat
+deployment could no longer enter the ROM bootloader and failed before erase or
+write. On the next retry both COM11 and COM14 had disappeared from Windows.
+The verified Flash bytes remain unchanged, but current application execution
+is not claimed until the STM32 is reconnected and a final verified GO succeeds.
 
 After the user reconnected the K210, COM14 identified CanMV Yahboom 2.1.1 with
 GC2145 and mounted TF storage. The previous 5353-byte `/sd/main.py` was backed
@@ -578,7 +585,7 @@ KEY1/KEY2 as follows:
 |---|---|---|
 | computer build/link | passed | integrated `7ce4944`; ELF text/data/bss = 82676/64/11384 bytes; BIN is 82744 bytes |
 | host regression | passed | mode 3/4 ring/sign and K210 v2, updated mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | integrated `7ce4944`; CH340K COM11 at 57600 baud; 41-page selective erase; calibration page preserved; final 82744-byte write/readback; `VERIFY OK`; `GO OK` |
+| STM32 flash/readback/GO | Flash bytes passed; current execution unconfirmed | integrated `7ce4944`; first COM11 deployment preserved calibration, verified 82744 bytes and completed GO; later diagnostic toggled BOOT/RESET, repeat deployment failed before erase/write, then both USB ports disappeared |
 | K210 deployment/runtime | passed, stationary only | COM14; 8545-byte `/sd/main.py` SHA-256 `380CE27C...E5711` read back exactly; GC2145 initialized and mode 5 telemetry ran at about 8.2 FPS |
 | board-to-board UART | current script not reverified | STOP-state VLINK attempt returned no diagnostic line; an earlier `27a05aa` runtime did pass fresh-frame diagnostics on the same wiring |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -587,11 +594,12 @@ KEY1/KEY2 as follows:
 ## Current open issue and next safe step
 
 The integrated `7ce4944` STM32 image and matching K210 slow-near script are now
-deployed with independent readback evidence. Current board-to-board receipt
-still needs a successful stationary VLINK freshness check. Next perform that
-check, then a lifted-wheel steering/STOP check, and only then ground curve
-tracking. No wheel or ground behavior is established by build, programmer
-readback, K210 telemetry or GO success.
+stored with independent readback evidence. Reconnect the USB devices, enumerate
+their new ports and perform one final STM32 `VERIFY OK` plus `GO OK` before any
+motion test. Current board-to-board receipt also needs a successful stationary
+VLINK freshness check. Then perform a lifted-wheel steering/STOP check, and
+only then ground curve tracking. No wheel or ground behavior is established by
+build, programmer readback, K210 telemetry or GO success.
 
 ## Update protocol
 
