@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 39b9327
+repository_head_at_update: 109eb1f
 latest_code_commit: 39b9327
-flashed_source_commit: dbf61e4
-flash_record_commit: 6ec6f22
-deployed_tag: deployed/2026-09-07-mode34-sign-line-f991301-final
+flashed_source_commit: 39b9327
+flash_record_commit: 109eb1f
+deployed_tag: deployed/2026-09-07-mode34-ring-exit-39b9327
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 75176
-flashed_bin_sha256: 5866C2E8524595E251D25B7F4C50BCCE1CDB70E938E4FCD0C66894FBB1696910
-flashed_hex_sha256: 050F0D7AF522FB7608C40C67745EB463E132A3A5A9CC2DE16442FD37B1A247B2
-ground_test_status: user_reports_mode3_uturn_mode4_repeated_laps_ring_exit_candidate_unflashed
+formal_bin_size_bytes: 78828
+flashed_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
+flashed_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
+ground_test_status: not_tested_after_ring_exit_flash
 k210_status: SIGN34_threshold_0_20_real_model_path_hash_and_startup_verified_STM32_link_not_tested
 candidate_source_commit: 39b9327
 candidate_bin_size_bytes: 78828
 candidate_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
 candidate_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
-user_reported_flash: latest_driving_observation_source_hash_unverified
+user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Current unflashed ring-exit candidate
+## Current flashed ring-exit build
 
 The user's newest observation is: mode 3 makes an in-place U-turn and is not
 usable; mode 4 follows the ring but continues around it at the opposite exit.
@@ -51,8 +51,12 @@ branch without a confirmed arrow waits stopped. Bounds or persistent loss
 latch a navigation fault until STOP/mode reset. Existing slowdown is retained.
 
 Sign and full line-recovery host suites passed. Formal ARM build passed with
-text/data/bss 78760/64/11240 and BIN 78828 bytes. This source has NOT been
-flashed, tested lifted, or driven on the floor. Entry/exit thresholds and the
+text/data/bss 78760/64/11240 and BIN 78828 bytes. Source `39b9327` (the firmware
+tree selected by requested documentation commit `ff8cf2e`) was flashed on
+2026-09-07 through STM32 ROM bootloader COM11 at 57600 baud. Selective erase
+covered 39 firmware pages and preserved the final calibration page; all 78828
+bytes read back with `VERIFY OK`, followed by `GO OK: 0x08000000`. It has not
+been tested lifted or driven on the floor. Entry/exit thresholds and the
 wheel-based heading estimate need physical calibration; this does not assert
 that either reported physical failure is already resolved on the board.
 Details and test cases: `tests/sign_line/RING_EXIT_FIX.md`.
@@ -69,19 +73,17 @@ use the same proportional limit; position/brake/fault ownership is preserved.
 
 The slowdown revision passed the sign-line host suite, full line-recovery/load/bypass
 suite, formal build (text/data/bss 76272/64/11160), and diff whitespace check.
-It has NOT been flashed, run lifted, or ground-tested; no serial port was opened.
-The build paths below now contain candidate artifacts, while flashed hashes and
-formal_bin_size_bytes remain the last recorded deployment. Minimum PWM can
+It is included in the current flashed `39b9327` source, but has not been run
+lifted or ground-tested. Minimum PWM can
 prevent physical speed from reaching the requested low target; this is not a
 physical speed guarantee. Track-image findings, behavior and tuning limits:
 `tests/sign_line/RECOGNITION_SLOWDOWN.md`.
 
-## Baseline integration and last recorded deployed firmware
+## Historical baseline integration and deployment
 
-This is an intentional isolated fix worktree based on integration HEAD
-`400f1d9` (not the older remote `main` at `3bd3748`). It adds recognition
-slowdown for modes 3/4. The deployment record below belongs to the baseline;
-this branch has not been flashed. Rollback tag:
+This isolated fix worktree was based on integration HEAD `400f1d9` (not the
+older remote `main` at `3bd3748`). The deployment record below belongs to that
+historical baseline. Rollback tag:
 `rollback/2026-09-07-before-mode34-slowdown`.
 
 - Repository: `F:\myproject\jidian\project\test-exp7-unified-motion-v1`
@@ -92,9 +94,9 @@ this branch has not been flashed. Rollback tag:
   `f58eac6` bypass fix and imports the
   K210 model/script assets prepared by requested commit `f991301`, while
   implementing both new STM32 modes on the live integration branch.
-- Last recorded board source is `dbf61e4`, not re-read this turn. Final dual-device deployment record:
+- The previous recorded board source was `dbf61e4`. Its final dual-device deployment record was:
   `6ec6f22` (`Record final mode 3 and 4 sign-line firmware flash`).
-- The formal BIN above was rebuilt in the integration worktree, then written
+- That previous 75176-byte formal BIN was rebuilt in the integration worktree, then written
   through the STM32 ROM bootloader on USB-SERIAL CH340K COM11 at 57600 baud.
   Selective erase covered 37 firmware pages, preserved the final calibration
   page, wrote and read back 75176 bytes with `VERIFY OK`, and completed
@@ -431,23 +433,23 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated `dbf61e4`; ELF text/data/bss = 75108/64/11136 bytes; BIN is 75176 bytes; `SignRoute`, `SimpleLine`, USART2 IRQ and parser symbols are linked |
-| host regression | passed | strict detection parser, exact SL2 decision table, sign confirmation/routing, mode binding, model identity and complete prior line/bypass suites pass |
-| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 37-page selective erase; calibration page preserved; final 75176-byte write/readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | `39b9327`; ELF text/data/bss = 78760/64/11240 bytes; BIN is 78828 bytes; ring-entry, ARC, exit-turn and slowdown modules are linked |
+| host regression | passed | strict detection parser, slowdown, SL2 table, left/right semicircle exit, mode binding and complete prior line/bypass suites pass |
+| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 39-page selective erase; calibration page preserved; final 78828-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing model hash matched; 4908-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
 | wheels off ground | not performed | programmer success does not establish mode 3/4 motor direction, STOP response or selected-route behavior |
 | ground driving | not performed | line following, junction detection and left/right branch capture remain unverified |
 
-## Baseline open issue and next safe step
+## Current open issue and next safe step
 
-The baseline record says the `f991301` assets and both replacement modes were deployed. The
-next safe check is stationary UART confirmation followed by a lifted-wheel test
-with remote `0` ready: KEY3 must run the enhanced controller, `4` must reproduce
-SL2 direction outputs, and each sign-selection turn must match the displayed
-left/right route. Ground tests then need separate no-sign, left-sign and
-right-sign runs over the real junction. No physical driving outcome is
-established by the build, K210 runtime or programmer readback.
+The `39b9327` ring-exit candidate is now on the STM32, while K210 content was
+unchanged. The next safe check is stationary UART confirmation followed by a
+lifted-wheel test with remote `0` ready: KEY3 and KEY4 must both use SL2 line
+control, and each sign-selection turn must match the displayed left/right route.
+Ground tests then need separate no-sign, left-sign and right-sign semicircle
+runs over the real junction. No physical driving outcome is established by the
+build, K210 runtime or programmer readback.
 
 ## Update protocol
 
