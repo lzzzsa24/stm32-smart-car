@@ -14,4 +14,6 @@ void SignSlowdown_ObserveBlack(uint32_t sampled_ms);
 /* Call only for a complete, validated parser frame in an active sign mode. */
 void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now);
 uint8_t SignSlowdown_Reasons(uint32_t now);
+/* Slow translation, but retain the calibrated counter-rotation search effort. */
+int32_t SignSlowdown_TargetLimit(uint8_t reasons, int16_t left_pwm, int16_t right_pwm);
 #endif
