@@ -139,7 +139,7 @@ static void try_confirm(uint32_t now)
   uint8_t i;
 
   if ((route.state != SIGN_ROUTE_IDLE && route.state != SIGN_ROUTE_PROBE &&
-       route.state != SIGN_ROUTE_WAIT_SIGN) || route.count < 3U)
+       route.state != SIGN_ROUTE_WAIT_SIGN) || route.direction != 0 || route.count < 3U)
   {
     return;
   }
@@ -318,7 +318,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   /* All-white belongs to SL2's continuous counter-rotation search. Neither
      elapsed time nor a fresh sign is allowed to replace it with a zero target. */
-  if ((route.state == SIGN_ROUTE_ARMED || route.state == SIGN_ROUTE_PROBE) &&
+  if (route.state == SIGN_ROUTE_ARMED &&
       route.direction != 0 &&
       (now - route.armed_ms > SIGN_PENDING_MAX_AGE_MS ||
        now - route.last_frame_ms > SIGN_ONLINE_MAX_AGE_MS))
@@ -370,7 +370,12 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     }
     /* Cross the transverse stroke first. A continuing middle line is a
        painted crossbar, not a command to turn into the circle. */
-    if (stable((uint8_t)(!junction ? (center ? 1U : 2U) : 0U), now))
+    /* Split arcs can keep both outside sensors black while the middle is
+       white. This is already branch evidence; waiting for !junction lets
+       ordinary tracking choose a side first. All-black remains a crossbar. */
+    uint8_t split = line_mask == 9U;
+    if (stable((uint8_t)(split ? 3U : (!junction ? (center ? 1U : 2U) : 0U)), now) &&
+        (!center || now - route.capture_since_ms >= SIGN_PROBE_CENTER_CLEAR_MS))
     {
       if (center)
       {
