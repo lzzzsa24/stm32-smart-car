@@ -654,6 +654,7 @@ static void build_sign_line_screen(uint8_t mode_number,
     case 7U: index = append_string(line, index, "EXIT TURN"); break;
     case 8U: index = append_string(line, index, "EXIT LINE"); break;
     case 9U: index = append_string(line, index, "LINE LOST"); break;
+    case 10U: index = append_string(line, index, "SEARCH"); break;
     default: index = append_string(line, index, "IDLE"); break;
   }
   if (route_direction != 0)

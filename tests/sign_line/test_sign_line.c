@@ -180,6 +180,11 @@ static void test_slowdown(void)
   SignSlowdown_ObserveBlack(2000U);
   SignSlowdown_Reset();
   CHECK(SignSlowdown_Reasons(2001U) == 0U);
+  CHECK(SignSlowdown_TargetLimit(3U, -2700, 2700) == 0L);
+  CHECK(SignSlowdown_TargetLimit(3U, 2700, -2700) == 0L);
+  CHECK(SignSlowdown_TargetLimit(3U, 2400, 2400) == 1200L);
+  CHECK(SignSlowdown_TargetLimit(3U, 0, 2200) == 1200L);
+  CHECK(SignSlowdown_TargetLimit(0U, 2400, 2400) == 0L);
   puts("PASS: one-frame slowdown, no-target/stale rejection, independent holds, reset and wrap");
 }
 

@@ -1,7 +1,6 @@
 #ifndef SIGN_ROUTE_CONFIG_H
 #define SIGN_ROUTE_CONFIG_H
-/* Geometry/time bounds are navigation warnings while line evidence exists.
-   Only sustained all-white latches a recoverable line-loss stop. */
+/* Geometry/time bounds are navigation warnings; all-white keeps searching. */
 #define SIGN_PROBE_MAX_MM 80L
 #define SIGN_PROBE_TIMEOUT_MS 1800U
 #define SIGN_CAPTURE_MS 30U
@@ -15,6 +14,5 @@
 #define SIGN_ARC_TIMEOUT_MS 20000U
 #define SIGN_EXIT_CLEAR_MM 60L
 #define SIGN_EXIT_CLEAR_TIMEOUT_MS 2000U
-#define SIGN_LINE_LOST_TIMEOUT_MS 600U
 #define SIGN_ROUTE_PWM 2200
 #endif
