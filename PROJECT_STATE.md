@@ -11,25 +11,25 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 4937f3a
-latest_code_commit: f39513c
-flashed_source_commit: f39513c
-flash_record_commit: 4937f3a
-deployed_tag: deployed/2026-09-07-latest-outer-exit-f39513c
+repository_head_at_update: bd60373
+latest_code_commit: 7ce4944
+flashed_source_commit: 7ce4944
+flash_record_commit: bd60373
+deployed_tag: deployed/2026-09-07-mode5-slow-near-stm32-7ce4944
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82348
-flashed_bin_sha256: C7686DC0B41DF032BE1770470A5C9A957EB4A28189BC37435CAA0B69A96CDA60
-flashed_hex_sha256: C7CE06BCB6A215358432A00956B032D0DB4CB9CC85DAADA7563549839D991AA7
-ground_test_status: not_tested_after_f39513c_flash
-k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: f39513c
-candidate_bin_size_bytes: 82348
-candidate_bin_sha256: C7686DC0B41DF032BE1770470A5C9A957EB4A28189BC37435CAA0B69A96CDA60
-candidate_hex_sha256: C7CE06BCB6A215358432A00956B032D0DB4CB9CC85DAADA7563549839D991AA7
+formal_bin_size_bytes: 82744
+flashed_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
+flashed_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
+ground_test_status: not_tested_after_7ce4944_flash
+k210_status: last_observed_COM14_mode5_27a05aa_runtime_5d761e4_script_not_deployed_USB_port_absent
+candidate_source_commit: 7ce4944
+candidate_bin_size_bytes: 82744
+candidate_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
+candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
-k210_candidate_source_commit: e740644
-k210_candidate_status: mode5_main_and_SIGN34_v2_split_host_tested_not_deployed
+k210_candidate_source_commit: 7ce4944
+k210_candidate_status: slow_near_mode5_main_host_tested_not_deployed_no_USB_serial_port
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -37,6 +37,40 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Current flashed integrated source
+
+Source `7ce4944` integrates requested worker `5d761e4` and its required
+STOP-state UART diagnostic commit `27a05aa` on top of the previously deployed
+`f39513c` integrated source. Modes 1--4, their latest line-search corrections,
+the reduced KEY1 ultrasonic profile, the mode 3/4 ring route and the optimized
+SIGN34 source are retained.
+
+Mode 5 now uses lower PWM commands: 2000 straight, 1700 curve, 1800 sharp turn
+and 1800 lost-line search. Steering gain is 8 PWM/pixel with a 1000-PWM cap.
+Lost line keeps searching in the predicted direction, and a return to normal
+tracking requires two fresh valid frames. The matching K210 source restricts
+line candidates to the near field y=80--239, requires them to extend to y>=170,
+and gives lower image regions additional selection weight. UART freshness and
+visual-obstacle stopping remain fail-safe constraints.
+
+Mode 5, mode 3/4 sign/ring and the complete line-recovery/load/bypass host
+suites passed. The formal ARM build passed with text/data/bss
+82676/64/11384 and produced an 82744-byte BIN with SHA-256
+`3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E`.
+The image was written through the enumerated CH340K COM11 at 57600 baud.
+Selective erase covered 41 firmware pages, preserved the calibration page,
+read back all 82744 bytes with `VERIFY OK`, and completed
+`GO OK: 0x08000000`. No lifted-wheel or ground test was performed.
+
+The K210 USB serial device was absent in both enumerations during this task,
+so the new `K210/main.py` from `5d761e4` was not deployed or read back. The last
+separate worker record observed the earlier mode 5 v4 runtime from `27a05aa`
+on COM14 with a working board-to-board UART link, but did not read back its
+exact `/sd/main.py`. The newer near-field candidate behavior is therefore not
+yet active on the K210. Rollback tag
+`rollback/2026-09-07-before-mode5-slow-near-merge` points to `e52f8f9`, whose
+firmware tree is the previous `f39513c` deployment.
+
+## Previous flashed integrated source (`f39513c`)
 
 Commit `f39513c` retains the mode 5 integration from `e740644` and adds the
 five ordered line/avoid increments ending at requested worker `34223bd`.
@@ -273,7 +307,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`f39513c`)
+## Current STM32 mode map (`7ce4944`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -513,24 +547,24 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | integrated `f39513c`; ELF text/data/bss = 82280/64/11392 bytes; BIN is 82348 bytes |
-| host regression | passed | mode 3/4 ring/sign and K210 v2, mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | integrated `f39513c`; CH340K COM11 at 57600 baud; 41-page selective erase; calibration page preserved; final 82348-byte write/readback; `VERIFY OK`; `GO OK` |
-| K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
-| board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
+| computer build/link | passed | integrated `7ce4944`; ELF text/data/bss = 82676/64/11384 bytes; BIN is 82744 bytes |
+| host regression | passed | mode 3/4 ring/sign and K210 v2, updated mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
+| STM32 flash/readback/GO | passed | integrated `7ce4944`; CH340K COM11 at 57600 baud; 41-page selective erase; calibration page preserved; final 82744-byte write/readback; `VERIFY OK`; `GO OK` |
+| K210 deployment/runtime | previous version only | earlier worker record observed mode 5 v4 runtime on COM14; no K210 USB port was present here, so `5d761e4` `/sd/main.py` was not written or read back |
+| board-to-board UART | previously passed for old mode 5 script | STOP-state VLINK diagnostics previously saw fresh valid frames from the `27a05aa` runtime; the new near-field script was not deployed |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
 | ground driving | not performed | latest outer-direction behavior, reduced ultrasonic margins, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The merged `f39513c` image is now on the STM32, but the K210 still runs the
-previous SIGN34 program. Pressing mode 5 before deploying `K210/main.py` cannot
-provide v4 line frames and should reach the 150 ms fail-safe stop. The next
-step is a lifted-wheel KEY1/KEY2 search-direction and STOP check, plus careful
-ground validation of the shorter ultrasonic distances. Mode 5 additionally
-needs a separate authorized K210 deployment, stationary UART freshness/STOP
-check, lifted-wheel steering, and only then ground curve tracking. No physical
-behavior is established by the build, programmer readback or GO result.
+The integrated `7ce4944` image is now on the STM32. The K210 was not enumerated,
+so its matching `5d761e4` near-field script still needs deployment after the
+device is connected. Until then, mode 5 either receives the older v4 frames if
+the K210 is independently powered, or reaches its 150 ms UART fail-safe stop.
+After K210 readback verification, perform a stationary VLINK freshness check,
+then a lifted-wheel steering/STOP check, and only then ground curve tracking.
+No physical driving behavior is established by build, programmer readback or
+GO success.
 
 ## Update protocol
 
