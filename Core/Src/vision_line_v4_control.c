@@ -3,25 +3,25 @@
 #include <stddef.h>
 
 #define V4_FRAME_TIMEOUT_MS             150U
-#define V4_LOST_HOLD_MS                 400U
 #define V4_OBSTACLE_NEAR_BOTTOM         150U
 #define V4_OFFSET_DEADBAND                4
 #define V4_OFFSET_SLEW_PER_FRAME         80
-#define V4_STRAIGHT_PWM                2700
-#define V4_CURVE_PWM                   2200
-#define V4_STEER_PWM_PER_PIXEL           10
-#define V4_MAX_STEER_PWM               1500
-#define V4_SHARP_TURN_PWM              2400
-#define V4_LOST_HOLD_PWM               2200
+#define V4_STRAIGHT_PWM                2000
+#define V4_CURVE_PWM                   1700
+#define V4_STEER_PWM_PER_PIXEL            8
+#define V4_MAX_STEER_PWM               1000
+#define V4_SHARP_TURN_PWM              1800
+#define V4_LOST_SEARCH_PWM             1800
 #define V4_CURVE_BEND_DEGREES            20
 #define V4_SHARP_BEND_DEGREES            70
+#define V4_REACQUIRE_CONFIRM_FRAMES        2U
 
 static uint32_t last_sequence;
-static uint32_t lost_since_ms;
 static int16_t filtered_offset;
 static int8_t last_turn_direction;
-static uint8_t line_was_found;
 static uint8_t offset_initialized;
+static uint8_t searching;
+static uint8_t reacquire_frames;
 
 static int16_t clamp_forward_pwm(int32_t value)
 {
@@ -61,11 +61,11 @@ static void set_spin(VisionLineV4Command *command,
 void VisionLineV4Control_Init(void)
 {
   last_sequence = 0U;
-  lost_since_ms = 0U;
   filtered_offset = 0;
   last_turn_direction = 0;
-  line_was_found = 0U;
   offset_initialized = 0U;
+  searching = 0U;
+  reacquire_frames = 0U;
 }
 
 void VisionLineV4Control_Step(const VisionLineV4Reading *reading,
@@ -114,24 +114,33 @@ void VisionLineV4Control_Step(const VisionLineV4Reading *reading,
 
   if (reading->line_found == 0U)
   {
-    if (line_was_found != 0U)
+    searching = 1U;
+    reacquire_frames = 0U;
+    if (last_turn_direction == 0)
     {
-      lost_since_ms = now_ms;
-      line_was_found = 0U;
+      last_turn_direction = filtered_offset > 0 ? 1 : -1;
     }
-    if (last_turn_direction != 0 && lost_since_ms != 0U &&
-        (uint32_t)(now_ms - lost_since_ms) <= V4_LOST_HOLD_MS)
-    {
-      command->state = VISION_LINE_V4_LOST_HOLD;
-      set_spin(command, last_turn_direction, V4_LOST_HOLD_PWM);
-      return;
-    }
-    command->state = VISION_LINE_V4_LOST_STOP;
+    command->state = VISION_LINE_V4_LOST_SEARCH;
+    set_spin(command, last_turn_direction, V4_LOST_SEARCH_PWM);
     return;
   }
 
-  line_was_found = 1U;
-  lost_since_ms = 0U;
+  if (searching != 0U)
+  {
+    if (new_frame != 0U && reacquire_frames < V4_REACQUIRE_CONFIRM_FRAMES)
+    {
+      ++reacquire_frames;
+    }
+    if (reacquire_frames < V4_REACQUIRE_CONFIRM_FRAMES)
+    {
+      command->state = VISION_LINE_V4_LOST_SEARCH;
+      set_spin(command, last_turn_direction, V4_LOST_SEARCH_PWM);
+      return;
+    }
+    searching = 0U;
+    reacquire_frames = 0U;
+  }
+
   if (new_frame != 0U)
   {
     measured_offset = reading->offset;
@@ -188,8 +197,7 @@ void VisionLineV4Control_Step(const VisionLineV4Reading *reading,
     }
     if (direction == 0)
     {
-      command->state = VISION_LINE_V4_LOST_STOP;
-      return;
+      direction = -1;
     }
     last_turn_direction = direction;
     command->state = VISION_LINE_V4_SHARP_TURN;
@@ -204,6 +212,10 @@ void VisionLineV4Control_Step(const VisionLineV4Reading *reading,
   else if (filtered_offset > V4_OFFSET_DEADBAND)
   {
     last_turn_direction = 1;
+  }
+  else if (bend >= V4_CURVE_BEND_DEGREES)
+  {
+    last_turn_direction = reading->angle < 90 ? -1 : 1;
   }
   command->turn_direction = last_turn_direction;
   command->state = bend >= V4_CURVE_BEND_DEGREES ?

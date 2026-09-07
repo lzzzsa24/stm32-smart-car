@@ -88,7 +88,7 @@ static void test_control(void)
   reading = make_reading(1U, 100U, 1U, 0, 90, 160);
   VisionLineV4Control_Step(&reading, 100U, &command);
   CHECK(command.state == VISION_LINE_V4_FOLLOW);
-  CHECK(command.left_pwm == 2700 && command.right_pwm == 2700);
+  CHECK(command.left_pwm == 2000 && command.right_pwm == 2000);
 
   reading = make_reading(2U, 150U, 1U, -40, 90, 120);
   VisionLineV4Control_Step(&reading, 150U, &command);
@@ -104,20 +104,27 @@ static void test_control(void)
   reading = make_reading(4U, 250U, 1U, 0, 5, 100);
   VisionLineV4Control_Step(&reading, 250U, &command);
   CHECK(command.state == VISION_LINE_V4_SHARP_TURN);
-  CHECK(command.left_pwm == -2400 && command.right_pwm == 2400);
+  CHECK(command.left_pwm == -1800 && command.right_pwm == 1800);
 
   reading = make_reading(5U, 300U, 0U, -1, 5, -1);
   VisionLineV4Control_Step(&reading, 300U, &command);
-  CHECK(command.state == VISION_LINE_V4_LOST_HOLD);
+  CHECK(command.state == VISION_LINE_V4_LOST_SEARCH);
   CHECK(command.left_pwm < 0 && command.right_pwm > 0);
 
   reading = make_reading(6U, 701U, 0U, -1, -1, -1);
   VisionLineV4Control_Step(&reading, 701U, &command);
-  CHECK(command.state == VISION_LINE_V4_LOST_STOP);
-  CHECK(command.left_pwm == 0 && command.right_pwm == 0);
+  CHECK(command.state == VISION_LINE_V4_LOST_SEARCH);
+  CHECK(command.left_pwm < 0 && command.right_pwm > 0);
 
   VisionLineV4Control_Step(&reading, 852U, &command);
   CHECK(command.state == VISION_LINE_V4_LINK_STOP);
+
+  reading = make_reading(7U, 900U, 1U, -20, 90, 140);
+  VisionLineV4Control_Step(&reading, 900U, &command);
+  CHECK(command.state == VISION_LINE_V4_LOST_SEARCH);
+  reading = make_reading(8U, 950U, 1U, -20, 90, 140);
+  VisionLineV4Control_Step(&reading, 950U, &command);
+  CHECK(command.state == VISION_LINE_V4_FOLLOW);
 
   VisionLineV4Control_Init();
   reading = make_reading(1U, 1000U, 1U, 20, 90, 180);
