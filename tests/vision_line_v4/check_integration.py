@@ -24,6 +24,9 @@ assert "line_v4_result == VISION_LINE_V4_PARSE_BAD_FRAME" in vision_uart
 assert "sensor.set_pixformat(sensor.RGB565)" in k210
 assert "show_overlay = False" in k210
 assert "SEND_INTERVAL_MS = 50" in k210
+assert "TRACK_ROI_TOP = 80" in k210
+assert "MIN_LINE_BOTTOM_Y = 170" in k210
+assert "filter_line_candidates" in k210
 assert 'uart.write("$%d,%d,%d,%d,%d,%d,%d,%d#"' in k210
 assert "KPU" not in k210
 assert "road_sign" not in k210

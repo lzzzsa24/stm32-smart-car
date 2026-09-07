@@ -35,6 +35,9 @@ MARGIN = 10
 
 BAND_HALF_W = 80
 ALPHA = 0.6
+TRACK_ROI_TOP = 80
+TRACK_ROI_HEIGHT = 160
+MIN_LINE_BOTTOM_Y = 170
 
 SIZE_REF = 2000
 SIZE_WEIGHT = 0.5
@@ -80,14 +83,15 @@ last_angle = 90
 lost_since = None
 
 
-def pick_best(cands):
+def pick_best(cands, reference_x):
     """离中线近、面积大且靠下的候选优先。"""
     best = None
     best_score = None
     for blob in cands:
-        distance = abs(blob.cx() - CENTER_X) / 160.0
+        distance = abs(blob.cx() - reference_x) / float(BAND_HALF_W)
         size = min(blob.pixels(), SIZE_REF) / float(SIZE_REF)
-        bottom_score = (blob.y() + blob.h()) / 240.0
+        bottom_score = ((blob.y() + blob.h() - TRACK_ROI_TOP) /
+                        float(TRACK_ROI_HEIGHT))
         score = (size - SIZE_WEIGHT * distance +
                  BOTTOM_WEIGHT * bottom_score)
         if best is None or score > best_score:
@@ -98,6 +102,12 @@ def pick_best(cands):
 
 def filter_wide(blobs, min_width):
     return [blob for blob in blobs if blob.w() >= min_width]
+
+
+def filter_line_candidates(blobs):
+    return [blob for blob in blobs
+            if blob.w() >= MIN_W and blob.h() >= MIN_H and
+            blob.y() + blob.h() >= MIN_LINE_BOTTOM_Y]
 
 
 while True:
@@ -122,27 +132,29 @@ while True:
     x1 = anchor_x + BAND_HALF_W
     if x1 > 320:
         x1 = 320
-    roi = (x0, 0, x1 - x0, 240)
+    roi = (x0, TRACK_ROI_TOP, x1 - x0, TRACK_ROI_HEIGHT)
 
     blobs = img.find_blobs([BLACK_THRESHOLD], roi=roi,
                            pixels_threshold=PIXELS_THRESHOLD,
                            area_threshold=AREA_THRESHOLD,
                            merge=MERGE, margin=MARGIN)
-    candidates = filter_wide(blobs, MIN_W)
+    candidates = filter_line_candidates(blobs)
 
     if not candidates:
         blobs = img.find_blobs([BLACK_THRESHOLD],
+                               roi=(0, TRACK_ROI_TOP,
+                                    320, TRACK_ROI_HEIGHT),
                                pixels_threshold=PIXELS_THRESHOLD,
                                area_threshold=AREA_THRESHOLD,
                                merge=MERGE, margin=MARGIN)
-        candidates = filter_wide(blobs, MIN_W)
+        candidates = filter_line_candidates(blobs)
         if candidates:
-            selected = pick_best(candidates)
+            selected = pick_best(candidates, anchor_x)
             anchor_x = selected.cx()
         else:
             selected = None
     else:
-        selected = pick_best(candidates)
+        selected = pick_best(candidates, anchor_x)
         anchor_x = int(ALPHA * selected.cx() +
                        (1.0 - ALPHA) * anchor_x)
 
@@ -208,7 +220,8 @@ while True:
         window_x1 = anchor_x + BAND_HALF_W
         if window_x1 > 320:
             window_x1 = 320
-        img.draw_rectangle((window_x0, 0, window_x1 - window_x0, 240),
+        img.draw_rectangle((window_x0, TRACK_ROI_TOP,
+                            window_x1 - window_x0, TRACK_ROI_HEIGHT),
                            color=(0, 255, 255), thickness=1)
 
         if selected is not None:
