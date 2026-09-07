@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: main
-repository_head_at_update: 0b92acf
+repository_head_at_update: 4572a07
 latest_code_commit: 7ce4944
 flashed_source_commit: 7ce4944
 flash_record_commit: 0b92acf
-deployed_tag: deployed/2026-09-07-mode5-slow-near-dual-7ce4944
+deployed_tag: deployed/2026-09-07-sign34-07f2b73-on-7ce4944
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 82744
 flashed_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
 flashed_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
 ground_test_status: not_tested_after_7ce4944_flash
-k210_status: COM14_mode5_7ce4944_main_readback_and_startup_telemetry_verified_board_link_not_reverified
+k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
 candidate_source_commit: 7ce4944
 candidate_bin_size_bytes: 82744
 candidate_bin_sha256: 3317777CA6E6EDEBCEEFB03CC9E4E54F15C95379A48BA5CC2643C09F1BD8497E
 candidate_hex_sha256: 715D5FC0F84A6703D6AF45E1E074C2E8FFB3606A406066D93F4EF5D0E88E0DC9
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
-k210_candidate_source_commit: 7ce4944
-k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8_2fps
-remote_sync_status: origin_main_canonical_and_synced
+k210_candidate_source_commit: 07f2b73
+k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
+remote_sync_status: origin_main_a2c33c0_local_deployment_records_not_pushed
 remote_sync_branch: main
-remote_sync_merge_commit: af0bf4d
+remote_sync_merge_commit: a2c33c0
 stm32_runtime_status: COM11_7ce4944_readback_verified_and_GO_confirmed
-k210_requested_deployment: SIGN34_07f2b73_pending_no_USB_serial_port
+k210_requested_deployment: SIGN34_07f2b73_complete
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -111,6 +111,22 @@ v4 frames on the same board-to-board wiring. Rollback tag
 `rollback/2026-09-07-before-mode5-slow-near-merge` points to `e52f8f9`, whose
 firmware tree is the previous `f39513c` deployment.
 
+For the later explicit `07f2b73` request, Git confirmed that commit is already
+an ancestor of canonical main and that its original `K210/main.py` blob exactly
+matches current `K210/sign_mode34.py`. On COM14, the active 8545-byte mode 5
+script was backed up, then the 7256-byte SIGN34 script was written and read
+back byte-for-byte with SHA-256
+`2BCFCC5E08671EE0F0E3BD0712A1DD217A3450BFDBD3C3DDA7EFE8807D38A3D8`.
+The existing 571432-byte model at
+`/sd/KPU/road_sign_det/road_sign_det.kmodel` matched SHA-256
+`B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`
+and was not rewritten. Soft reboot reported model load success, `SIGN34 ready`,
+threshold 0.20 and camera vflip/hmirror 0/0. Backup and deployment manifest are
+under
+`F:/myproject/jidian/validation/sign34-07f2b73-20260907/backup-20260907-152226`.
+This makes modes 3/4 recognition available; mode 5 visual-line operation is no
+longer active on K210 until its separate `K210/main.py` is redeployed.
+
 ## Previous flashed integrated source (`f39513c`)
 
 Commit `f39513c` retains the mode 5 integration from `e740644` and adds the
@@ -180,9 +196,8 @@ Threshold 0.2, model, camera orientation, arrows-only routing and frame format
 are unchanged. Full sign-line suite and simulated actual Python main-loop
 tests passed. During the mode 5 merge this implementation moved from
 `K210/main.py` to `K210/sign_mode34.py`; its behavior was not replaced by the
-older worker copy. No hardware port was opened and the merged K210 files were
-not deployed. They remain independent of the currently flashed `f39513c`
-STM32 image.
+older worker copy. It is now the active, readback-verified `/sd/main.py` on
+K210 COM14, paired with the current integrated STM32 image.
 Details: `K210/V2_OPTIMIZATION.md`.
 
 ## Previous flashed ring-exit build
@@ -577,8 +592,8 @@ KEY1/KEY2 as follows:
 - M2 is mapped to PA15/PB3; do not restore the obsolete fallback.
 - Wheel order is M1 left-front, M2 left-rear, M3 right-front, M4 right-rear.
 - Motor direction compensation remains centralized in `Core/Src/motorPWM.c`.
-- K210 is connected as COM14 and currently runs the mode 5 slow-near visual
-  line script from `7ce4944`; the prior SIGN34 script remains preserved in Git.
+- K210 is connected as COM14 and currently runs the exact SIGN34 script from
+  `07f2b73`; the mode 5 slow-near script remains preserved and backed up.
   UART1 IO8/TX to STM32 USART2 PD6/RX and common ground are unchanged.
 - OLED is the external J12 display and includes battery/status information.
 - Encoder distance/angle is a wheel-motion estimate; ground yaw requires
@@ -591,21 +606,20 @@ KEY1/KEY2 as follows:
 | computer build/link | passed | integrated `7ce4944`; ELF text/data/bss = 82676/64/11384 bytes; BIN is 82744 bytes |
 | host regression | passed | mode 3/4 ring/sign and K210 v2, updated mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
 | STM32 flash/readback/GO | passed | integrated `7ce4944`; latest COM11 deployment selectively erased 41 pages, preserved calibration, wrote/read back 82744 bytes with `VERIFY OK`, then completed `GO OK` |
-| K210 deployment/runtime | passed, stationary only | COM14; 8545-byte `/sd/main.py` SHA-256 `380CE27C...E5711` read back exactly; GC2145 initialized and mode 5 telemetry ran at about 8.2 FPS |
-| board-to-board UART | current script not reverified | STOP-state VLINK attempt returned no diagnostic line; an earlier `27a05aa` runtime did pass fresh-frame diagnostics on the same wiring |
+| K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
+| board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
 | ground driving | not performed | latest outer-direction behavior, reduced ultrasonic margins, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
 The integrated `7ce4944` STM32 image is verified and running after GO. Requested
-commit `07f2b73` is already an ancestor of main and its exact K210 script is
-preserved as `K210/sign_mode34.py`; the original and current Git blob hashes
-match. The K210 USB serial port was absent, so SIGN34 has not yet replaced the
-currently stored mode 5 `/sd/main.py`. Reconnect K210, deploy/read back SIGN34,
-verify model/startup, and then perform a stationary board-to-board UART check.
-No wheel or ground behavior is established by build, programmer readback,
-K210 telemetry or GO success.
+commit `07f2b73` was already integrated, and its exact SIGN34 script is now the
+active, readback-verified K210 `/sd/main.py`; the model hash and startup also
+passed. Next perform a stationary board-to-board `$D` receive check, followed
+by lifted-wheel mode 3/4 route-direction checks before ground testing. Mode 5
+requires redeploying its separate script. No wheel or ground behavior is
+established by build, programmer readback, K210 startup or GO success.
 
 ## Update protocol
 
