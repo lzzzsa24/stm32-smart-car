@@ -67,10 +67,11 @@
    controller itself limits straight travel to EXP7_LINE_SPEED. */
 #define EXP7_ULTRASONIC_CRUISE_SPEED   3599
 #define EXP7_ULTRASONIC_SLOW_SPEED     2200
-#define EXP7_ULTRASONIC_STOP_CM          20U
-#define EXP7_ULTRASONIC_CLEAR_CM         35U
-#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 32U
-#define EXP7_ULTRASONIC_LOOKAHEAD_MS    140U
+/* Half-distance profile; 35 / 2 cm rounds up on the integer-cm interface. */
+#define EXP7_ULTRASONIC_STOP_CM          10U
+#define EXP7_ULTRASONIC_CLEAR_CM         18U
+#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 16U
+#define EXP7_ULTRASONIC_LOOKAHEAD_MS     70U
 #define EXP7_ASSUMED_FAST_SPEED_CPS    5300U
 #define EXP7_EMERGENCY_BRAKE_SPEED_CPS 3500U
 #define EXP7_FAST_SPEED_HOLD_MS          220U
