@@ -32,6 +32,14 @@ void OledStatus_SetSquareData(uint8_t state,
                               int32_t motor2,
                               int32_t motor3,
                               int32_t motor4);
+void OledStatus_SetSignLineData(uint8_t mode_number,
+                                uint8_t line_mask,
+                                uint8_t line_action,
+                                int8_t vision_class,
+                                uint8_t vision_score,
+                                uint8_t vision_online,
+                                uint8_t route_state,
+                                int8_t route_direction);
 void OledStatus_Task(void);
 uint8_t OledStatus_IsReady(void);
 

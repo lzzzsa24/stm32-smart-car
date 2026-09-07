@@ -21,6 +21,7 @@
 #include "main.h"
 #include "stm32f1xx_it.h"
 #include "ultrasonic.h"
+#include "vision_uart.h"
 #include "wheel_encoder.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -229,6 +230,11 @@ void EXTI15_10_IRQHandler(void)
 {
   HAL_GPIO_EXTI_IRQHandler(IR_REMOTE_Pin);
   HAL_GPIO_EXTI_IRQHandler(ULTRASONIC_ECHO_Pin);
+}
+
+void USART2_IRQHandler(void)
+{
+  vision_uart_irq_handler();
 }
 
 /* USER CODE END 1 */

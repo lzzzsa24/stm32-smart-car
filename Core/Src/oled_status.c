@@ -447,8 +447,8 @@ static void build_screen(uint8_t app_mode,
   {
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
-    case 2U: draw_battery_header("FIG8"); break;
-    case 3U: draw_battery_header("SQUARE"); break;
+    case 2U: draw_battery_header("M3 ADV"); break;
+    case 3U: draw_battery_header("M4 SIMPLE"); break;
     case 4U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
   }
@@ -593,6 +593,71 @@ static void build_square_screen(uint8_t state,
   }
 }
 
+static uint8_t append_line_mask(char *line, uint8_t index, uint8_t mask)
+{
+  uint8_t bit;
+
+  for (bit = 0U; bit < 4U; ++bit)
+  {
+    line[index++] = (mask & (uint8_t)(8U >> bit)) != 0U ? '1' : '0';
+  }
+  return index;
+}
+
+static void build_sign_line_screen(uint8_t mode_number,
+                                   uint8_t line_mask,
+                                   uint8_t line_action,
+                                   int8_t vision_class,
+                                   uint8_t vision_score,
+                                   uint8_t vision_online,
+                                   uint8_t route_state,
+                                   int8_t route_direction)
+{
+  char line[22];
+  uint8_t index;
+
+  clear_framebuffer();
+  draw_battery_header(mode_number == 3U ? "M3 ADV" : "M4 SIMPLE");
+
+  index = append_string(line, 0U, "LINE:");
+  index = append_line_mask(line, index, line_mask);
+  index = append_string(line, index, " A:");
+  index = append_unsigned(line, index, line_action);
+  finish_text(line, index);
+  draw_text(1U, 0U, line);
+
+  index = append_string(line, 0U, "VIS:");
+  if (vision_online == 0U)
+  {
+    index = append_string(line, index, "OFFLINE");
+  }
+  else
+  {
+    index = append_char(line, index,
+        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : '-'));
+    index = append_char(line, index, ' ');
+    index = append_unsigned(line, index, vision_score);
+  }
+  finish_text(line, index);
+  draw_text(2U, 0U, line);
+
+  index = append_string(line, 0U, "ROUTE:");
+  switch (route_state)
+  {
+    case 1U: index = append_string(line, index, "ARM"); break;
+    case 2U: index = append_string(line, index, "TURN"); break;
+    case 3U: index = append_string(line, index, "LOCK"); break;
+    default: index = append_string(line, index, "IDLE"); break;
+  }
+  if (route_direction != 0)
+  {
+    index = append_char(line, index, ' ');
+    index = append_char(line, index, route_direction < 0 ? 'L' : 'R');
+  }
+  finish_text(line, index);
+  draw_text(3U, 0U, line);
+}
+
 void OledStatus_Init(void)
 {
   static const uint8_t init_commands[] =
@@ -717,6 +782,23 @@ void OledStatus_SetSquareData(uint8_t state,
   cached_mode = 0xFFU;
   build_square_screen(state, side, fault_mask,
                       motor1, motor2, motor3, motor4);
+  oled_dirty = 1U;
+  next_page = 0U;
+}
+
+void OledStatus_SetSignLineData(uint8_t mode_number,
+                                uint8_t line_mask,
+                                uint8_t line_action,
+                                int8_t vision_class,
+                                uint8_t vision_score,
+                                uint8_t vision_online,
+                                uint8_t route_state,
+                                int8_t route_direction)
+{
+  cached_mode = 0xFFU;
+  build_sign_line_screen(mode_number, line_mask, line_action,
+                         vision_class, vision_score, vision_online,
+                         route_state, route_direction);
   oled_dirty = 1U;
   next_page = 0U;
 }
