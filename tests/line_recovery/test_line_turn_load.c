@@ -515,8 +515,8 @@ static void test_real_white_search(void)
 }
 static void test_real_exit_direction_correction(void)
 {
-  unsigned side,ms,w;
-  for(side=0;side<2;++side)
+  unsigned side,ms,w,middle;
+  for(side=0;side<2;++side) for(middle=0;middle<2;++middle)
   {
     LineTrackingCommand out={0}; DriveBaseTelemetry t;
     line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
@@ -524,7 +524,7 @@ static void test_real_exit_direction_correction(void)
     {
       unsigned mask=ms<100?(side?8:2):0;
       LineTrackingReading r;
-      if(ms==300) mask=5;
+      if(ms==300 && middle) mask=5;
       if(ms==312) mask=side?2:8;
       for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
       ++tick; DriveBase_Task(tick);
@@ -548,7 +548,7 @@ static void test_real_exit_direction_correction(void)
     line_tracking_reset();
     assert(!BuzzerPhrase400_IsPlaying());
   }
-  puts("PASS: actual DriveBase ramps both corrected exit directions without brake/restart");
+  puts("PASS: actual DriveBase corrects both exit directions with/without middle, including expired window, without brake/restart");
 }
 static void test_real_corner_chatter(void)
 {

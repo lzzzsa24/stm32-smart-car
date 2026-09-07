@@ -233,22 +233,22 @@ static void test_direction_after_unconfirmed_middle(void)
     sample(edge,1,3000); hold(0,100);
     assert(!output.valid && telemetry.requested_cps[0]==expected);
     assert(brakes==before && BuzzerPhrase400_IsPlaying());
-    /* Outer-only noise after loss cannot repeatedly reverse the search. */
+    /* A newer outer exit must win even without an intervening middle hit. */
     sample(edge==8?2:8,1,3000); hold(0,100);
-    assert(telemetry.requested_cps[0]==expected && brakes==before);
+    assert(telemetry.requested_cps[0]==-expected && brakes==before);
   }
   /* Capture must transfer the corrected direction to the tracking wrapper. */
   sample(5,1,3000); sample(5,4,3000);
   assert(output.valid && !BuzzerPhrase400_IsPlaying());
   sample(0,250,3000); hold(0,100);
-  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
   /* A last edge immediately after initial white can correct the first spin. */
   reset(0,0); sample(0,1,3000); sample(8,1,3000); hold(0,100);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying());
   reset(0,0); hold(0,100); assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
   sample(5,1,3000); hold(0,250); sample(8,1,3000); hold(0,100);
-  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* Stale middle is not a new exit. */
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS); /* Fresh edge does not need a recent middle. */
   tick=UINT32_MAX-20; reset(0,0); hold(2,30);
   sample(5,1,3000); hold(0,10); sample(8,1,3000); hold(0,100);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
@@ -387,6 +387,44 @@ static void test_fast_exit_after_transverse(void)
   assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_age_ms>=250);
   { uint32_t preserved=LineFaultLog_SearchCount(); line_tracking_reset(); assert(LineFaultLog_SearchCount()==preserved); }
 }
+static void test_latest_outer_after_long_search(void)
+{
+  unsigned first,queued,i,failures=0;
+  LineSensorSample_Start();
+  for(first=0;first<2;++first) for(queued=0;queued<2;++queued)
+  {
+    reset(0,0); hold(first?8:2,30); hold(0,500);
+    /* The old one-shot exit window is now consumed and expired. No middle
+       is supplied: each newly observed outer edge must still be usable. */
+    for(i=0;i<12;++i)
+    {
+      unsigned right=(first+i+1)%2,edge=right?8:2;
+      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      if(queued)
+      { background_sample(edge,1); background_sample(0,20); sample(0,0,3000); }
+      else
+      { sample(edge,1,3000); sample(0,1,3000); }
+      if(telemetry.requested_cps[0]!=expected) ++failures;
+      assert(!output.valid && BuzzerPhrase400_IsPlaying() && !brakes);
+      hold(0,300);
+    }
+  }
+  printf("Fresh outer after consumed/expired window: wrong=%u/48\n",failures);
+  fflush(stdout); assert(failures==0);
+  reset(0,0); hold(2,30); hold(0,300);
+  sample(8,1,3000);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* contact alone */
+  sample(0,201,3000);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* stale edge */
+  sample(8,1,3000); sample(5,1,3000); sample(0,1,3000);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* newer middle */
+  sample(8,1,3000); sample(2,1,3000); sample(0,1,3000);
+  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* latest edge wins */
+  sample(8,1,3000); sample(0,1,3000);
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  line_tracking_reset();
+}
+
 static void test_alternating_corner_handoffs(void)
 {
   unsigned first,iteration,queued,mismatches=0;
@@ -453,6 +491,7 @@ static void test_external_brake_ownership(void)
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_latest_outer_after_long_search();
   test_alternating_corner_handoffs();
   test_external_brake_ownership();
   test_fast_exit_after_transverse();

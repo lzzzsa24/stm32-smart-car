@@ -12,7 +12,7 @@ typedef enum { REC_IDLE, REC_SEARCH,
 static RecoveryPhase phase;
 static int8_t side;
 static int8_t exit_side;
-static uint8_t exit_direction_armed, exit_edge_seen;
+static uint8_t exit_edge_seen;
 static uint32_t exit_last_ms;
 static uint8_t center_candidate, audio_owned, audio_requested;
 static uint32_t center_since, center_last_ms;
@@ -49,7 +49,6 @@ void LineRecovery_Reset(void)
   stop_reason = LINE_REC_STOP_NONE;
   center_candidate = 0U;
   side = exit_side = 0;
-  exit_direction_armed = 0U;
   exit_edge_seen = 0U;
 }
 void LineRecovery_Commit(void)
@@ -57,15 +56,14 @@ void LineRecovery_Commit(void)
   stop_audio();
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
-  exit_direction_armed = 0U;
+  exit_edge_seen = 0U;
 }
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
 {
   side = preferred_side > 0 ? 1 : -1;
   exit_side = side;
-  exit_direction_armed = 1U;
-  /* Keep the first exit window open for a real edge after initial white.
-     Previously the brake phase incidentally provided this opportunity. */
+  /* A fresh outer observation supplies the pending exit, even after a long
+     search. Do not treat the preferred/default side as a new sensor hit. */
   exit_edge_seen = 0U;
   exit_last_ms = now;
   center_candidate = 0U;
@@ -87,7 +85,6 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
 {
   side = preferred_side > 0 ? 1 : -1;
   exit_side = side;
-  exit_direction_armed = 1U;
   exit_edge_seen = 1U;
   exit_last_ms = now;
   center_candidate = 0U;
@@ -99,31 +96,27 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
 }
 void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
 {
-  uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
+  int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
+      (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
   if (phase != REC_SEARCH) return;
-  /* A short middle crossing may not complete capture, yet it starts a new
-     line exit. Remember its last unambiguous edge until all-white. After
-     consuming that evidence, outer-only chatter cannot reverse us again. */
-  if (exit_direction_armed && now - exit_last_ms > EXIT_HINT_MAX_AGE_MS)
-    exit_direction_armed = 0U;
-  if (visible)
+  /* Every fresh unambiguous outer edge is evidence, not just the first edge
+     after a middle hit. Switching still waits for its subsequent all-white
+     exit, so contact alone does not reverse the active turn. */
+  if (edge)
   {
-    exit_direction_armed = 1U;
-    exit_edge_seen = 0U;
+    exit_side = edge;
+    exit_edge_seen = 1U;
     exit_last_ms = now;
-    exit_side = side;
   }
-  else if (exit_direction_armed)
+  else if (r->x1_black || r->x2_black || r->x3_black || r->x4_black)
   {
-    int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
-        (r->x4_black && !r->x1_black && !r->x2_black ? 1 : 0);
-    if (edge) { exit_side = edge; exit_edge_seen = 1U; exit_last_ms = now; }
+    /* A newer middle or ambiguous/wide observation supersedes the edge. */
+    exit_edge_seen = 0U;
   }
-  if (phase == REC_SEARCH && exit_direction_armed && exit_edge_seen &&
-      !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
+  else if (exit_edge_seen)
   {
-    side = exit_side;
-    exit_direction_armed = 0U;
+    if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS) side = exit_side;
+    exit_edge_seen = 0U;
   }
 }
 LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,

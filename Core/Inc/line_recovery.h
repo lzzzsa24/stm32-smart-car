@@ -24,8 +24,8 @@ void LineRecovery_Reset(void);
 /* Rolling loss entry: Step issues spin targets without an entry brake.
    DriveBase retains wheel-reversal ramping and externally owned braking. */
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now);
-/* Begin an observed corner without a stop/roll/spin timer cycle. Last exit
-   edge can correct its side; another correction requires a new middle hit.
+/* Begin an observed corner without a stop/roll/spin timer cycle. Each fresh
+   unambiguous outer edge followed by white can correct its side.
    DriveBase ramps handle wheel reversal; audio starts only if all-white. */
 void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now);
 LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
