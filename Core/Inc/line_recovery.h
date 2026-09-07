@@ -21,6 +21,8 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *reading, uint32_t 
 void LineRecovery_Stop(LineRecoveryStopReason reason);
 
 void LineRecovery_Reset(void);
+/* Rolling loss entry: Step issues spin targets without an entry brake.
+   DriveBase retains wheel-reversal ramping and externally owned braking. */
 void LineRecovery_Begin(int8_t preferred_side, uint32_t now);
 /* Begin an observed corner without a stop/roll/spin timer cycle. Last exit
    edge can correct its side; another correction requires a new middle hit.

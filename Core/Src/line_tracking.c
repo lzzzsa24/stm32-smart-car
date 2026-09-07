@@ -165,16 +165,6 @@ void line_tracking_apply_command(const LineTrackingCommand *command, int16_t for
   else DriveBase_SetSideCps(left, right);
 }
 
-static void command_release_to_drive(LineTrackingCommand *command,
-                                        LineTrackingAction action)
-{
-  if (command == 0) return;
-  command->left_cps = 0L;
-  command->right_cps = 0L;
-  command->action = action;
-  command->valid = 0U;
-}
-
 static void recovery_stop(LineRecoveryStopReason reason)
 {
   LineRecovery_Stop(reason);
@@ -584,10 +574,14 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     record_search(now, search_source);
     LineRecovery_Begin(recovery_turn_direction, now);
     recovery_state = LINE_RECOVERY_ACTIVE;
-    /* Begin applied active braking; the caller must not overwrite it with
-       the generic zero-speed coast command during this handoff. */
-    command_release_to_drive(command, LINE_ACTION_STOP);
-    return LINE_ACTION_STOP;
+    /* Issue the new spin targets in this same iteration. Repeated narrow-line
+       captures/losses must not insert a brake or a generic zero-speed command. */
+    if (LineRecovery_Step(reading, command, now) == LINE_RECOVERY_FAILED)
+    {
+      recovery_stop(LineRecovery_GetStopReason());
+      command_stop(command);
+    }
+    return command->action;
   }
   if (recovery_state == LINE_RECOVERY_SETTLE)
   {

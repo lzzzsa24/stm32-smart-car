@@ -137,7 +137,7 @@ static void test_patterns_and_narrow_windows(void)
   for(mask=0;mask<16;++mask)
   {
     reset(0,0); sample(mask,1,3000);
-    if(mask==0) assert(!output.valid && telemetry.mode==DRIVE_BASE_BRAKING);
+    if(mask==0) assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED && !brakes);
     else assert(output.valid && output.left_cps>0 && output.right_cps>0);
     if(mask==2 || mask==3 || mask==8 || mask==12)
     { hold(mask,30); assert(!output.valid && telemetry.requested_cps[0]*telemetry.requested_cps[2]<0); }
@@ -147,7 +147,7 @@ static void test_patterns_and_narrow_windows(void)
     reset(0,0);
     if(mode==1) hold(2,100);
     if(mode==2) hold(8,100);
-    if(mode==3) sample(0,1,3000); /* Transverse evidence during loss braking. */
+    if(mode==3) sample(0,1,3000); /* Transverse evidence immediately after loss. */
     if(mode==4) { hold(0,100); sample(1,1,3000); sample(1,4,3000); }
     sample(wide[i],1,3000);
     assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
@@ -242,7 +242,7 @@ static void test_direction_after_unconfirmed_middle(void)
   assert(output.valid && !BuzzerPhrase400_IsPlaying());
   sample(0,250,3000); hold(0,100);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
-  /* A last edge sampled during initial braking also selects the initial spin. */
+  /* A last edge immediately after initial white can correct the first spin. */
   reset(0,0); sample(0,1,3000); sample(8,1,3000); hold(0,100);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying());
@@ -252,7 +252,7 @@ static void test_direction_after_unconfirmed_middle(void)
   tick=UINT32_MAX-20; reset(0,0); hold(2,30);
   sample(5,1,3000); hold(0,10); sample(8,1,3000); hold(0,100);
   assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
-  puts("PASS: active corner, 100 failed captures without reset, guarded correction, capture handoff, braking");
+  puts("PASS: active corner, 100 failed captures without reset, guarded correction, rolling capture handoff");
 }
 static void background_sample(unsigned mask, unsigned ms)
 {
@@ -387,9 +387,26 @@ static void test_fast_exit_after_transverse(void)
   assert(decision.source==LINE_SEARCH_DEFAULT && decision.edge_age_ms>=250);
   { uint32_t preserved=LineFaultLog_SearchCount(); line_tracking_reset(); assert(LineFaultLog_SearchCount()==preserved); }
 }
+static void test_external_brake_ownership(void)
+{
+  reset(0,0); hold(5,100);
+  tick+=70; /* expire the narrow white-gap allowance before external braking */
+  DriveBase_Stop(DRIVE_STOP_BRAKE);
+  sample(0,1,3000);
+  assert(telemetry.mode==DRIVE_BASE_BRAKING && brakes==1 && !output.valid);
+  hold(0,40);
+  assert(telemetry.mode==DRIVE_BASE_BRAKING && !spins);
+  hold(0,20);
+  assert_search(); assert(brakes==1);
+  line_tracking_reset();
+  assert(telemetry.mode==DRIVE_BASE_STOPPED && !BuzzerPhrase400_IsPlaying());
+  puts("PASS: rolling search respects external brake and reset ownership");
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_external_brake_ownership();
   test_fast_exit_after_transverse();
   test_queue_handoff_interrupt();
   test_sampling_during_blocked_main();
@@ -401,7 +418,7 @@ int main(void)
   for(smooth=0;smooth<=1;++smooth) for(forward=0;forward<=1;++forward)
   {
     reset((uint8_t)forward,(uint8_t)smooth); hold(5,300); sample(0,70,3000);
-    assert(!output.valid && telemetry.mode==DRIVE_BASE_BRAKING && BuzzerPhrase400_IsPlaying());
+    assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED && !brakes && BuzzerPhrase400_IsPlaying());
     hold(0,90000); assert_search(); assert(attacks>250); /* Beyond 8 s and 24 phrase repeats. */
     hold(2,10000); assert_search(); hold(8,10000); assert_search();
     hold(3,1000); assert_search(); /* Same-side pair remains an edge. */

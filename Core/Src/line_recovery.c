@@ -7,7 +7,7 @@
 #define SENSOR_MAX_SAMPLE_GAP_MS 30U
 #define EXIT_HINT_MAX_AGE_MS    200U
 
-typedef enum { REC_IDLE, REC_BRAKE_SEARCH, REC_SEARCH,
+typedef enum { REC_IDLE, REC_SEARCH,
                REC_CAPTURED, REC_FAULT } RecoveryPhase;
 static RecoveryPhase phase;
 static int8_t side;
@@ -64,12 +64,15 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
   side = preferred_side > 0 ? 1 : -1;
   exit_side = side;
   exit_direction_armed = 1U;
-  exit_edge_seen = 1U;
+  /* Keep the first exit window open for a real edge after initial white.
+     Previously the brake phase incidentally provided this opportunity. */
+  exit_edge_seen = 0U;
   exit_last_ms = now;
   center_candidate = 0U;
   stop_reason = LINE_REC_STOP_NONE;
-  DriveBase_Stop(DRIVE_STOP_BRAKE);
-  phase = REC_BRAKE_SEARCH;
+  /* Rolling handoff: preserve controller effort and let DriveBase ramp only
+     the wheels that need to reverse. No whole-car brake/settle cycle. */
+  phase = REC_SEARCH;
   center_last_ms = now;
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
   else
@@ -97,7 +100,7 @@ void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
 void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
 {
   uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
-  if (phase != REC_SEARCH && phase != REC_BRAKE_SEARCH) return;
+  if (phase != REC_SEARCH) return;
   /* A short middle crossing may not complete capture, yet it starts a new
      line exit. Remember its last unambiguous edge until all-white. After
      consuming that evidence, outer-only chatter cannot reverse us again. */
@@ -140,13 +143,9 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   if (audio_requested) search_audio(now);
   DriveBase_GetTelemetry(&telemetry);
 
-  if (phase == REC_BRAKE_SEARCH)
-  {
-    if (telemetry.mode == DRIVE_BASE_BRAKING) return LINE_RECOVERY_BUSY;
-    DriveBase_Stop(DRIVE_STOP_COAST);
-    phase = REC_SEARCH;
-    center_candidate = 0U;
-  }
+  /* An externally requested brake retains ownership; removing our own entry
+     brake must not cancel another controller's brake or capture through it. */
+  if (telemetry.mode == DRIVE_BASE_BRAKING) return LINE_RECOVERY_BUSY;
   if (phase == REC_SEARCH)
   {
     LineRecovery_ObserveDirection(r, now);

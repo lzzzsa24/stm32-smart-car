@@ -351,6 +351,46 @@ static void test_position_coast_handoff(int32_t direction)
   DriveBase_Stop(DRIVE_STOP_COAST);
 }
 
+static void test_rolling_loss_reentry(unsigned right)
+{
+  LineTrackingReading reading;
+  LineTrackingCommand output;
+  DriveBaseTelemetry t;
+  unsigned ms,w,mask,phase_ms,reentries=0;
+  int32_t previous_left=0;
+  line_tracking_reset(); reset();
+  line_tracking_set_no_line_forward(0);
+  line_tracking_set_smooth_mode(0);
+  /* Six short captures followed by loss, reproducing a narrow stripe at a
+     corner. Real DriveBase must keep the outside wheels powered throughout. */
+  for(ms=0;ms<1608;++ms)
+  {
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick);
+    phase_ms=(ms<300)?0:(ms-300)%218;
+    mask=ms<300?5:(phase_ms==0?(right?8:2):(phase_ms>=101 && phase_ms<109?5:0));
+    reading=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    line_tracking_compute(&reading,3000,&output);
+    line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&t);
+    assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+    assert(t.requested_cps[0]!=0 && t.requested_cps[2]!=0);
+    if(ms>20) assert(right?pins[0]>0 && pins[1]>0:pins[2]>0 && pins[3]>0);
+    if(t.requested_cps[0]*t.requested_cps[2]<0)
+    {
+      assert(t.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      if(previous_left>=0 && !right) ++reentries;
+      if(previous_left!=LINE_SEARCH_TARGET_CPS && right) ++reentries;
+    }
+    previous_left=t.requested_cps[0];
+  }
+  assert(reentries>=6);
+  line_tracking_reset();
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  assert(!BuzzerPhrase400_IsPlaying());
+  printf("PASS: KEY2 narrow-line reentry side=%u has no whole-car stop; operator reset stops all wheels\n",right);
+}
+
 static void test_real_search_capture(void)
 {
   DriveBaseTelemetry t;
@@ -396,7 +436,7 @@ static void test_real_search_capture(void)
   assert(!DriveBase_GetFaultMask());
   line_tracking_reset(); DriveBase_Stop(DRIVE_STOP_COAST);
   assert(!BuzzerPhrase400_IsPlaying() && !buzzer);
-  puts("PASS: real line loss -> persistent search -> middle hit -> brake -> silent capture -> normal");
+  puts("PASS: real line loss -> persistent search -> middle hit -> rolling silent capture -> normal");
 }
 static void test_real_white_search(void)
 {
@@ -849,6 +889,8 @@ int main(void)
 
   tick=UINT32_MAX-200;
   test_recognition_speed_cap();
+  test_rolling_loss_reentry(0);
+  test_rolling_loss_reentry(1);
   test_position_coast_handoff(1);
   test_position_coast_handoff(-1);
   test_real_search_capture();
