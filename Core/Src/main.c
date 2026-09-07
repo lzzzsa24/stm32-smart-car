@@ -10,6 +10,7 @@
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
  *   - 按下 KEY3：增强四线循迹 + K210 左/右标志选路。
  *   - 遥控数字 4：独立 SL2 简化四线循迹 + 同一套标志选路。
+ *   - 遥控数字 5：K210 v4 整线测量 + STM32 曲线循迹，不识别路标。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
  *
  * 第一次上电请让车轮离地。电脑端“编译通过”不等于车辆已经完成地面
@@ -49,6 +50,7 @@
 #include "ultrasonic_avoid.h"
 #include "ultrasonic_motion.h"
 #include "vision_uart.h"
+#include "vision_line_v4_control.h"
 #include "wheel_encoder.h"
 #include "wheel_speed_observer.h"
 #include "wheel_speed_control.h"
@@ -110,6 +112,7 @@ typedef enum
   APP_MODE_LINE_ONLY,
   APP_MODE_SIGN_LINE_ADVANCED,
   APP_MODE_SIGN_LINE_SIMPLE,
+  APP_MODE_VISION_LINE_V4,
   APP_MODE_STOPPED
 } AppMode;
 
@@ -121,6 +124,7 @@ static uint32_t last_motion_telemetry_ms;
 static uint32_t passive_measure_trigger_ms;
 static uint32_t last_oled_update_ms;
 static uint32_t last_sign_uart_ms;
+static uint32_t last_vision_line_v4_uart_ms;
 static uint32_t last_bypass_uart_ms;
 static uint32_t last_battery_uart_ms;
 static uint32_t last_drive_base_uart_ms;
@@ -137,6 +141,7 @@ static int8_t line_wait_side;
 static SimpleLineController simple_line_controller;
 static uint8_t sign_line_mask;
 static uint8_t sign_line_action;
+static VisionLineV4Command vision_line_v4_command;
 
 #define BYPASS_REARM_DELAY_MS          1000U
 #define BYPASS_REARM_CLEAR_SAMPLES       10U
@@ -180,6 +185,7 @@ static void apply_sign_line_pwm(int16_t left_pwm,
                                 uint8_t line_mask,
                                 uint8_t controller_state);
 static void sign_line_task(AppMode mode);
+static void vision_line_v4_task(void);
 
 static uint8_t tick_reached(uint32_t now, uint32_t deadline)
 {
@@ -432,6 +438,7 @@ static uint8_t app_take_serial_virtual_key(void)
     case '2': return IR_REMOTE_VIRTUAL_KEY2;
     case '3': return IR_REMOTE_VIRTUAL_KEY3;
     case '4': return IR_REMOTE_VIRTUAL_KEY4;
+    case '5': return IR_REMOTE_VIRTUAL_KEY5;
     case 'b':
       (void)BuzzerPhrase400_Start(1U);
       DiagnosticUart_WriteString("BUZZER PHRASE x1\r\n");
@@ -653,7 +660,22 @@ static void oled_application_task(AppMode mode)
                           battery.percent,
                           battery.valid,
                           battery.low);
-    if (mode == APP_MODE_SIGN_LINE_ADVANCED ||
+    if (mode == APP_MODE_VISION_LINE_V4)
+    {
+      VisionLineV4Reading reading = vision_uart_get_line_v4();
+
+      OledStatus_SetVisionLineV4Data(
+          reading.frame_valid != 0U &&
+          now - reading.received_ms <= 150U ? 1U : 0U,
+          reading.line_found,
+          vision_line_v4_command.filtered_offset,
+          reading.angle,
+          reading.bottom,
+          reading.obstacle_found,
+          reading.obstacle_bottom,
+          (uint8_t)vision_line_v4_command.state);
+    }
+    else if (mode == APP_MODE_SIGN_LINE_ADVANCED ||
         mode == APP_MODE_SIGN_LINE_SIMPLE)
     {
       SignRouteStatus route_status;
@@ -914,13 +936,76 @@ static void sign_line_task(AppMode mode)
   sign_line_telemetry_task(mode, &route_status);
 }
 
+static void vision_line_v4_task(void)
+{
+  VisionLineV4Reading reading = vision_uart_get_line_v4();
+  VisionUartStats stats;
+  uint32_t now = HAL_GetTick();
+  int32_t left_cps;
+  int32_t right_cps;
+
+  VisionLineV4Control_Step(&reading, now, &vision_line_v4_command);
+  left_cps = DriveBase_EquivalentCpsFromPwm(
+      vision_line_v4_command.left_pwm);
+  right_cps = DriveBase_EquivalentCpsFromPwm(
+      vision_line_v4_command.right_pwm);
+  DriveBase_SetLineFaultObservation(
+      1U, 0U, (uint8_t)vision_line_v4_command.state);
+  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  if (left_cps == 0L && right_cps == 0L)
+  {
+    DriveBase_Stop(DRIVE_STOP_COAST);
+  }
+  else
+  {
+    DriveBase_SetSideCps(left_cps, right_cps);
+  }
+
+  HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin,
+                    reading.line_found != 0U ?
+                    GPIO_PIN_SET : GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin,
+                    reading.frame_valid != 0U &&
+                    now - reading.received_ms <= 150U ?
+                    GPIO_PIN_SET : GPIO_PIN_RESET);
+
+  if (now - last_vision_line_v4_uart_ms < 200U)
+  {
+    return;
+  }
+  last_vision_line_v4_uart_ms = now;
+  vision_uart_get_stats(&stats);
+  DiagnosticUart_WriteString("VLINE5 ST=");
+  DiagnosticUart_WriteUnsigned((uint32_t)vision_line_v4_command.state);
+  DiagnosticUart_WriteString(" F=");
+  DiagnosticUart_WriteUnsigned(reading.frame_valid);
+  DiagnosticUart_WriteString(" L=");
+  DiagnosticUart_WriteUnsigned(reading.line_found);
+  DiagnosticUart_WriteString(" O=");
+  DiagnosticUart_WriteSigned(vision_line_v4_command.filtered_offset);
+  DiagnosticUart_WriteString(" A=");
+  DiagnosticUart_WriteSigned(reading.angle);
+  DiagnosticUart_WriteString(" BOT=");
+  DiagnosticUart_WriteSigned(reading.bottom);
+  DiagnosticUart_WriteString(" OBS=");
+  DiagnosticUart_WriteUnsigned(reading.obstacle_found);
+  DiagnosticUart_WriteString(" AY=");
+  DiagnosticUart_WriteUnsigned(reading.obstacle_bottom);
+  DiagnosticUart_WriteString(" SEQ=");
+  DiagnosticUart_WriteUnsigned(reading.sequence);
+  DiagnosticUart_WriteString(" BAD=");
+  DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
+                               stats.ring_overflows);
+  DiagnosticUart_WriteString("\r\n");
+}
+
 static AppMode read_requested_mode(AppMode current_mode)
 {
   uint8_t remote_key = IrRemote_TakeVirtualKey();
   uint8_t serial_key = app_take_serial_virtual_key();
 
   /* 遥控数字 0 为最高优先级停车；数字 1/2/3 与实体键等效，
-     数字 4 进入 SL2 简化四线 + 标志识别。 */
+     数字 4 进入 SL2 + 标志识别，数字 5 进入 K210 v4 视觉循线。 */
   if (remote_key == IR_REMOTE_VIRTUAL_STOP ||
       serial_key == IR_REMOTE_VIRTUAL_STOP)
   {
@@ -971,6 +1056,11 @@ static AppMode read_requested_mode(AppMode current_mode)
       serial_key == IR_REMOTE_VIRTUAL_KEY4)
   {
     return APP_MODE_SIGN_LINE_SIMPLE;
+  }
+  if (remote_key == IR_REMOTE_VIRTUAL_KEY5 ||
+      serial_key == IR_REMOTE_VIRTUAL_KEY5)
+  {
+    return APP_MODE_VISION_LINE_V4;
   }
 
   return current_mode;
@@ -1231,7 +1321,7 @@ int main(void)
   BuzzerPhrase400_Init();
   DiagnosticUart_Init();
   DiagnosticUart_WriteString("\r\nLINE FAULT LOG v1: f=DUMP WHEN STOPPED; RAM ONLY; KEEP POWER ON; DEG=FEEDFORWARD WHEEL MASK\r\n");
-  DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 0=STOP\r\n");
+  DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 5=K210-VLINE4 0=STOP\r\n");
   motor_pwm_init();
   WheelEncoder_Init();
   WheelSpeedObserver_Init();
@@ -1250,6 +1340,7 @@ int main(void)
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
+  VisionLineV4Control_Init();
   vision_uart_init();
   Ultrasonic_Init();
   IrRemote_Init();
@@ -1264,6 +1355,7 @@ int main(void)
                                EXP7_PASSIVE_MEASURE_INTERVAL_MS;
   last_oled_update_ms = HAL_GetTick() - 200U;
   last_sign_uart_ms = HAL_GetTick() - 500U;
+  last_vision_line_v4_uart_ms = HAL_GetTick() - 200U;
   last_bypass_uart_ms = HAL_GetTick() - 200U;
   last_battery_uart_ms = HAL_GetTick() - 2000U;
   last_drive_base_uart_ms = HAL_GetTick() - 1000U;
@@ -1292,7 +1384,7 @@ int main(void)
 
   OledStatus_Init();
 
-  /* 烧录和连线调试期间默认锁存停车；按1/2/3/4后才启动对应功能。 */
+  /* 烧录和连线调试期间默认锁存停车；按1/2/3/4/5后才启动对应功能。 */
   line_tracking_set_no_line_forward(0U);
   line_tracking_reset();
 
@@ -1327,6 +1419,8 @@ int main(void)
       SimpleLine_Stop(&simple_line_controller);
       SignRoute_Reset();
       vision_uart_reset_detections();
+      VisionLineV4Control_Init();
+      vision_uart_reset_line_v4();
 
       advanced_stop();
       DriveBase_ClearFault();
@@ -1388,9 +1482,21 @@ int main(void)
         last_sign_uart_ms = HAL_GetTick() - 500U;
         DiagnosticUart_WriteString("SIGN4 SL2 LINE START\r\n");
       }
+      else if (app_mode == APP_MODE_VISION_LINE_V4)
+      {
+        line_tracking_set_no_line_forward(0U);
+        line_tracking_set_smooth_mode(0U);
+        line_tracking_set_turn_gain_percent(100U);
+        UltrasonicMotion_Reset();
+        ultrasonic_forward_speed_limit = 0;
+        VisionLineV4Control_Init();
+        vision_uart_reset_line_v4();
+        last_vision_line_v4_uart_ms = HAL_GetTick() - 200U;
+        DiagnosticUart_WriteString("VLINE5 CURVE V4 START\r\n");
+      }
       else
       {
-        /* 数字 0 的锁存停车态：停止所有动作，等待 1/2/3/4 恢复。 */
+        /* 数字 0 的锁存停车态：停止所有动作，等待 1/2/3/4/5 恢复。 */
         line_tracking_set_no_line_forward(0U);
         line_tracking_set_smooth_mode(0U);
         line_tracking_set_turn_gain_percent(100U);
@@ -1400,7 +1506,8 @@ int main(void)
       }
 
       if (app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
-          app_mode == APP_MODE_SIGN_LINE_SIMPLE)
+          app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
+          app_mode == APP_MODE_VISION_LINE_V4)
       {
         HAL_GPIO_WritePin(LRGB_R_GPIO_Port,
                           LRGB_R_Pin | LRGB_G_Pin | LRGB_B_Pin,
@@ -1424,7 +1531,8 @@ int main(void)
         (app_mode == APP_MODE_INTEGRATED ||
          app_mode == APP_MODE_LINE_ONLY ||
          app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
-         app_mode == APP_MODE_SIGN_LINE_SIMPLE) &&
+         app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
+         app_mode == APP_MODE_VISION_LINE_V4) &&
         LineObstacleBypass_GetState() == LINE_BYPASS_IDLE)
     {
       uint8_t fault_code = encoder_fault_beep_code(
@@ -1476,6 +1584,15 @@ int main(void)
       app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
+      HAL_Delay(1U);
+      continue;
+    }
+
+    if (app_mode == APP_MODE_VISION_LINE_V4)
+    {
+      app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
+      advanced_set_forward_speed_limit(MOTOR_PWM_PERIOD);
+      vision_line_v4_task();
       HAL_Delay(1U);
       continue;
     }

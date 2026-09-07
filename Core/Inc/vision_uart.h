@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "vision_detection.h"
+#include "vision_line_v4.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,12 +42,16 @@ typedef struct
   uint32_t uart_errors;
   uint32_t ring_overflows;
   uint32_t queue_overflows;
+  uint32_t line_v4_frames;
 } VisionUartStats;
 
 uint8_t vision_uart_take_detection(VisionDetection *detection);
 void vision_uart_reset_detections(void);
 void vision_uart_get_stats(VisionUartStats *stats);
 void vision_uart_irq_handler(void);
+
+VisionLineV4Reading vision_uart_get_line_v4(void);
+void vision_uart_reset_line_v4(void);
 
 /* 非阻塞排队一帧运动估计：M,valid,distance_mm,speed_mm_s,travel_mm。 */
 void vision_uart_queue_motion_telemetry(uint8_t valid,
