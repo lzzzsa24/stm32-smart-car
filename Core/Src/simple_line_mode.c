@@ -99,7 +99,9 @@ void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask)
     return;
   }
 
-  value = controller->filtered_mask;
+  /* Do not replay a positive forward target after the raw sensors lose the
+     line. Two-sample filtering still applies to reacquisition/other patterns. */
+  value = controller->raw_mask == 0U ? 0U : controller->filtered_mask;
   if (value == (SIMPLE_LINE_LEFT_INNER | SIMPLE_LINE_RIGHT_INNER))
   {
     set_output(controller, SIMPLE_LINE_TRACK,

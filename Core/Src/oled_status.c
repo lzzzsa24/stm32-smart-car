@@ -649,11 +649,11 @@ static void build_sign_line_screen(uint8_t mode_number,
     case 2U: index = append_string(line, index, "TURN"); break;
     case 3U: index = append_string(line, index, "LOCK"); break;
     case 4U: index = append_string(line, index, "PROBE"); break;
-    case 5U: index = append_string(line, index, "WAIT SIGN"); break;
+    case 5U: index = append_string(line, index, "NO SIGN"); break;
     case 6U: index = append_string(line, index, "ARC"); break;
     case 7U: index = append_string(line, index, "EXIT TURN"); break;
     case 8U: index = append_string(line, index, "EXIT LINE"); break;
-    case 9U: index = append_string(line, index, "FAULT"); break;
+    case 9U: index = append_string(line, index, "LINE LOST"); break;
     default: index = append_string(line, index, "IDLE"); break;
   }
   if (route_direction != 0)
