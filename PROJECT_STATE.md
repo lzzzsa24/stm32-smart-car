@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 1f70810
-latest_code_commit: 39b9327
+repository_head_at_update: e740644
+latest_code_commit: e740644
 flashed_source_commit: f4099cf
 flash_record_commit: 1f70810
 deployed_tag: deployed/2026-09-07-lower-straight-speed-f4099cf
@@ -23,18 +23,44 @@ flashed_bin_sha256: 0354BCF4B7FFEDC9126DDED3A55D2A6669DB7CDDF6F9F5ADD2C8024F686F
 flashed_hex_sha256: C6CAFE4B6107FD917E5A0198CEFE78B9AFFF03EA48E154628D85DCCD756D672B
 ground_test_status: not_tested_after_f4099cf_flash
 k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: f4099cf
-candidate_bin_size_bytes: 73640
-candidate_bin_sha256: 0354BCF4B7FFEDC9126DDED3A55D2A6669DB7CDDF6F9F5ADD2C8024F686F6B9E
-candidate_hex_sha256: C6CAFE4B6107FD917E5A0198CEFE78B9AFFF03EA48E154628D85DCCD756D672B
+candidate_source_commit: e740644
+candidate_bin_size_bytes: 82500
+candidate_bin_sha256: 55548D9E03322E3E74864A7B4993D9395BFAFD32DBE8D86DDEB970C985010BDD
+candidate_hex_sha256: 57667A63BAB7DEE5ECC417D49608C5E9C1168658469120699D14F99B59E91090
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
-k210_candidate_source_commit: 07f2b73
-k210_candidate_status: v2_display_optimization_host_tested_not_deployed
+k210_candidate_source_commit: e740644
+k210_candidate_status: mode5_main_and_SIGN34_v2_split_host_tested_not_deployed
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
+
+## Integrated unflashed mode 5 candidate
+
+Commit `e740644` integrates requested worker source `10c8567` onto the live
+integration branch while preserving the later mode 3/4 ring-exit state machine,
+recognition slowdown and optimized SIGN34 script. Remote or diagnostic serial
+key `5` selects K210 curve visual-line mode. The STM32 accepts the v4
+`$status,off,angle,bottom,obs,obs_bottom,obs_left,obs_right#` frames through the
+existing interrupt-driven USART2 ring, uses offset and angle for bounded
+differential steering, and stops after 150 ms without a fresh valid frame.
+Visual obstacle detection stops mode 5; automatic visual bypass is not enabled.
+
+The K210 source is intentionally split: `K210/main.py` is the mode 5 no-KPU
+visual-line application, while `K210/sign_mode34.py` preserves the optimized
+road-sign program for modes 3/4. CanMV still has only one automatic
+`/sd/main.py`, so switching between those K210 applications requires deploying
+the desired file; this merge does not implement live runtime switching.
+
+Merged host suites passed for mode 3/4 sign routing and K210 v2 behavior, mode
+5 parser/control, and the complete existing line-recovery/load/bypass stack.
+Formal ARM build passed with text/data/bss 82432/64/11392 and BIN size 82500
+bytes; BIN SHA-256 is
+`55548D9E03322E3E74864A7B4993D9395BFAFD32DBE8D86DDEB970C985010BDD`.
+Neither the STM32 candidate nor either rearranged K210 source was deployed in
+this merge task. Rollback tag `rollback/2026-09-07-before-mode5-v4-merge`
+points to `f4ae2a8`.
 
 ## Current STM32 deployed test image
 
@@ -59,16 +85,18 @@ deployed K210 SIGN34 program may continue running, but this STM32 image does
 not consume it. Rollback tag `rollback/2026-09-07-before-f4099cf-test` points
 to the previous STM32 source `9a5d22d`.
 
-## Unflashed K210 optimization candidate
+## Preserved K210 sign optimization
 
-`07f2b73` updates only the K210 script and its tests/documentation, based on
+`07f2b73` updated the K210 sign script and its tests/documentation, based on
 the user's `F:/myproject/jidian/sign_detect v2.0(1).zip` reference. Default raw
 display, debounced BOOT overlay toggle, bounded LCD/debug refresh, UART before
 display, periodic/low-memory GC and clipped valid-frame centres are included.
 Threshold 0.2, model, camera orientation, arrows-only routing and frame format
 are unchanged. Full sign-line suite and simulated actual Python main-loop
-tests passed. No hardware port was opened and this candidate was not deployed.
-The K210 candidate remains independent of the currently flashed `f4099cf`
+tests passed. During the mode 5 merge this implementation moved from
+`K210/main.py` to `K210/sign_mode34.py`; its behavior was not replaced by the
+older worker copy. No hardware port was opened and the merged K210 files were
+not deployed. They remain independent of the currently flashed `f4099cf`
 STM32 image.
 Details: `K210/V2_OPTIMIZATION.md`.
 
@@ -235,7 +263,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Baseline deployed mode map (candidate 3/4 both use SL2 ring navigation)
+## Integrated source mode map (`e740644`, unflashed)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -244,6 +272,7 @@ historical baseline. Rollback tag:
 | KEY2 / `2` | black-line tracking only; obstacle sensors do not take the motors | line controller |
 | KEY3 / `3` | enhanced four-line tracking plus confirmed K210 left/right route selection | enhanced line controller or sign route selector |
 | KEY4 / `4` | independent SL2 simplified four-line tracking plus the same sign selection | simple line controller or sign route selector |
+| remote or serial `5` | K210 v4 whole-line curve following; no road-sign recognition | visual-line v4 controller; stale/invalid UART or visual obstacle commands stop |
 | remote direction-pad centre (`0x05`) | play the preset buzzer phrase once without changing mode | non-blocking phrase player; safety warnings retain priority |
 
 The infrared remote also supplies the virtual mode keys and a stop command.
@@ -474,8 +503,8 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | exact `f4099cf`; ELF text/data/bss = 73572/64/10424 bytes; BIN is 73640 bytes |
-| host regression | passed | reduced straight targets, alternating corner hints, rolling search, STOP/ownership and prior load/bypass suites pass |
+| computer build/link | passed | merged candidate `e740644`; ELF text/data/bss = 82432/64/11392 bytes; BIN is 82500 bytes |
+| host regression | passed | mode 3/4 ring/sign and K210 v2, mode 5 parser/control/binding, plus complete line-recovery/load/bypass suites pass |
 | STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; final 73640-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
@@ -484,12 +513,13 @@ KEY1/KEY2 as follows:
 
 ## Current open issue and next safe step
 
-The exact `f4099cf` test image is on the STM32. The next safe check is a ground
-KEY2 run comparing centred straight speed with the previous image, followed by
-consecutive left and right sharp corners without a mode reset. Straight speed
-should be lower while sharp-turn/search effort remains unchanged. K210 sign
-routing cannot be tested with this historical STM32 image. No physical driving
-outcome is established by the build or programmer readback.
+The exact `f4099cf` test image remains on the STM32; merged candidate `e740644`
+has not been flashed. The next integration step, only after explicit flash
+authorization, is to deploy the STM32 candidate while preserving the calibration
+page and separately choose either K210 mode 5 `main.py` or mode 3/4
+`sign_mode34.py`. Mode 5 then needs a stationary UART freshness/STOP check,
+followed by lifted-wheel steering and only then ground curve tracking. No
+physical behavior is established by the merged build or host tests.
 
 ## Update protocol
 
