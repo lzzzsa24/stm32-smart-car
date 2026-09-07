@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 07f2b73
+repository_head_at_update: 8f6048d
 latest_code_commit: 39b9327
-flashed_source_commit: 39b9327
-flash_record_commit: 109eb1f
-deployed_tag: deployed/2026-09-07-mode34-ring-exit-39b9327
+flashed_source_commit: b5c1145
+flash_record_commit: 8f6048d
+deployed_tag: deployed/2026-09-07-line-search-rolling-entry-b5c1145
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 78828
-flashed_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
-flashed_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
-ground_test_status: not_tested_after_ring_exit_flash
+formal_bin_size_bytes: 73604
+flashed_bin_sha256: 2DB65AB75F6DE5FB003BA958FAD66C5B03CC1DF885C5185B3B66BD7E0B716561
+flashed_hex_sha256: 1312CC446183B263A5FC0F4A5EDD8778C20DE64387E4F6CBF9BFA16C8B1EE79E
+ground_test_status: not_tested_after_b5c1145_flash
 k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: 39b9327
-candidate_bin_size_bytes: 78828
-candidate_bin_sha256: B79462980780974DC6FF5FF188ED93B053B6AE99A5F6F393BEC0E438521B8FF0
-candidate_hex_sha256: 274B83DB492AC156195457B30D93780FBD3DF487F99A38EE5B42BEC277F3A329
+candidate_source_commit: b5c1145
+candidate_bin_size_bytes: 73604
+candidate_bin_sha256: 2DB65AB75F6DE5FB003BA958FAD66C5B03CC1DF885C5185B3B66BD7E0B716561
+candidate_hex_sha256: 1312CC446183B263A5FC0F4A5EDD8778C20DE64387E4F6CBF9BFA16C8B1EE79E
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 07f2b73
 k210_candidate_status: v2_display_optimization_host_tested_not_deployed
@@ -35,6 +35,27 @@ k210_candidate_status: v2_display_optimization_host_tested_not_deployed
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
+
+## Current STM32 deployed test image
+
+At the user's explicit request, exact source `b5c1145` from independent branch
+`feature/line-search-axle-balance` was rebuilt and flashed without merging it
+into the integration branch. Its change enters lost-line counter-rotation
+without inserting a whole-car brake, while retaining external brake/STOP
+ownership. The full line-recovery/load/bypass host suite passed. Formal ARM
+build text/data/bss was 73536/64/10424 and BIN size was 73604 bytes.
+
+COM11 was enumerated as USB-SERIAL CH340K immediately before programming.
+At 57600 baud, selective erase covered 36 firmware pages, preserved the final
+calibration page, wrote and read back all 73604 bytes with `VERIFY OK`, then
+completed `GO OK: 0x08000000`. Power-on remains STOP. No lifted-wheel or ground
+test has been performed for this image.
+
+This exact historical branch predates the mode 3/4 sign-line integration:
+KEY3 is encoder figure-eight and KEY4 is encoder square. The separately
+deployed K210 SIGN34 program may continue running, but this STM32 image does
+not consume it. Rollback tag `rollback/2026-09-07-before-b5c1145-test` points
+to the previous STM32 source `39b9327`.
 
 ## Unflashed K210 optimization candidate
 
@@ -48,7 +69,7 @@ tests passed. No hardware port was opened and this candidate was not deployed.
 The STM32 source/hash fields below remain `39b9327`; its code was not modified.
 Details: `K210/V2_OPTIMIZATION.md`.
 
-## Current flashed ring-exit build
+## Previous flashed ring-exit build
 
 The user's newest observation is: mode 3 makes an in-place U-turn and is not
 usable; mode 4 follows the ring but continues around it at the opposite exit.
@@ -66,7 +87,7 @@ latch a navigation fault until STOP/mode reset. Existing slowdown is retained.
 
 Sign and full line-recovery host suites passed. Formal ARM build passed with
 text/data/bss 78760/64/11240 and BIN 78828 bytes. Source `39b9327` (the firmware
-tree selected by requested documentation commit `ff8cf2e`) was flashed on
+tree selected by requested documentation commit `ff8cf2e`) was previously flashed on
 2026-09-07 through STM32 ROM bootloader COM11 at 57600 baud. Selective erase
 covered 39 firmware pages and preserved the final calibration page; all 78828
 bytes read back with `VERIFY OK`, followed by `GO OK: 0x08000000`. It has not
@@ -87,7 +108,7 @@ use the same proportional limit; position/brake/fault ownership is preserved.
 
 The slowdown revision passed the sign-line host suite, full line-recovery/load/bypass
 suite, formal build (text/data/bss 76272/64/11160), and diff whitespace check.
-It is included in the current flashed `39b9327` source, but has not been run
+It was included in the previously flashed `39b9327` source, but has not been run
 lifted or ground-tested. Minimum PWM can
 prevent physical speed from reaching the requested low target; this is not a
 physical speed guarantee. Track-image findings, behavior and tuning limits:
@@ -450,23 +471,23 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | `39b9327`; ELF text/data/bss = 78760/64/11240 bytes; BIN is 78828 bytes; ring-entry, ARC, exit-turn and slowdown modules are linked |
-| host regression | passed | strict detection parser, slowdown, SL2 table, left/right semicircle exit, mode binding and complete prior line/bypass suites pass |
-| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 39-page selective erase; calibration page preserved; final 78828-byte write/readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | exact `b5c1145`; ELF text/data/bss = 73536/64/10424 bytes; BIN is 73604 bytes |
+| host regression | passed | rolling lost-line entry, external brake/reset ownership, real line recovery/load assistance and prior bypass suites pass |
+| STM32 flash/readback/GO | passed | CH340K COM11 at 57600 baud; 36-page selective erase; calibration page preserved; final 73604-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
-| wheels off ground | not performed | programmer success does not establish mode 3/4 motor direction, STOP response or selected-route behavior |
-| ground driving | not performed | line following, junction detection and left/right branch capture remain unverified |
+| wheels off ground | not performed | programmer success does not establish rolling search motion or STOP response |
+| ground driving | not performed | line reacquisition and continuity after removing the brake pause remain unverified |
 
 ## Current open issue and next safe step
 
-The `39b9327` ring-exit candidate is on the STM32, and the `ff8cf2e` tree's
-SIGN34 script is now on the K210. The next safe check is stationary UART confirmation followed by a
-lifted-wheel test with remote `0` ready: KEY3 and KEY4 must both use SL2 line
-control, and each sign-selection turn must match the displayed left/right route.
-Ground tests then need separate no-sign, left-sign and right-sign semicircle
-runs over the real junction. No physical driving outcome is established by the
-build, K210 runtime or programmer readback.
+The exact `b5c1145` test image is on the STM32. The next safe check is a
+lifted-wheel KEY2 loss/reacquisition test with remote `0` ready, confirming that
+counter-rotation begins without an all-wheel stop and that operator STOP still
+halts every wheel. Ground testing must then compare corner continuity and
+overshoot against the previous image. K210 sign routing cannot be tested with
+this historical STM32 image. No physical driving outcome is established by the
+build or programmer readback.
 
 ## Update protocol
 
