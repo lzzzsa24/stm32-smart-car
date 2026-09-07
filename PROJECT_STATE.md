@@ -10,7 +10,7 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-07
-integration_branch: fix/mode34-recognition-slowdown
+integration_branch: main
 repository_head_at_update: afd7a03
 latest_code_commit: 7ce4944
 flashed_source_commit: 7ce4944
@@ -35,6 +35,17 @@ k210_candidate_status: deployed_readback_verified_8545_bytes_startup_telemetry_8
 `repository_head_at_update` is the source/history anchor present when this
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
+
+## Canonical repository layout
+
+Since 2026-09-07, `main` is the only canonical integration and deployment
+branch, checked out at
+`F:/myproject/jidian/project/test-exp7-unified-motion-v1`. Future feature,
+fix and test worktrees start from current `main` and return commits here for one
+review/build/deployment pass. Existing worktrees and branches remain preserved
+as history; they are not alternate definitions of “latest”. The exact workflow
+and temporary historical-image exception are documented in
+`BRANCH_WORKFLOW.md`.
 
 ## Current flashed integrated source
 

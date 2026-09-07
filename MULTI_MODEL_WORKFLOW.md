@@ -4,6 +4,10 @@ This repository uses committed files, not chat memory, as the durable handoff
 channel. A fresh task opened at the repository reads `AGENTS.md`, then validates
 `PROJECT_STATE.md` against live Git before doing work.
 
+The only canonical integration branch is `main` in the default checkout at
+`F:/myproject/jidian/project/test-exp7-unified-motion-v1`. See
+`BRANCH_WORKFLOW.md` before creating or integrating another worktree.
+
 ## Roles
 
 | Role | Model / effort | Use it for | Do not use it for |
@@ -34,12 +38,12 @@ not automatically follow later commits from the coordinator.
 ## Starting a new task
 
 1. Commit or intentionally shelve the coordinator's current work.
-2. Start the new task from the integration branch at its current HEAD.
+2. Start the new task from `main` at its current HEAD.
 3. In the prompt, name the repository, role, start commit, allowed files,
    acceptance criteria, and forbidden actions.
 4. Require the completion packet below.
-5. The coordinator reviews and integrates the returned commit, reruns the formal
-   build, and updates `PROJECT_STATE.md`.
+5. The coordinator reviews and integrates the returned commit into `main`,
+   reruns the formal build, and updates `PROJECT_STATE.md`.
 
 For another computer or a cloud task, local commits are not enough: explicitly
 push the integration/worker branch when authorized. Local worktrees share Git
