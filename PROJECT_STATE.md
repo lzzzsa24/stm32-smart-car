@@ -11,22 +11,22 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-07
 integration_branch: fix/mode34-recognition-slowdown
-repository_head_at_update: 5fefc13
-latest_code_commit: e740644
-flashed_source_commit: e740644
-flash_record_commit: 5fefc13
-deployed_tag: deployed/2026-09-07-mode5-v4-merged-e740644
+repository_head_at_update: 4937f3a
+latest_code_commit: f39513c
+flashed_source_commit: f39513c
+flash_record_commit: 4937f3a
+deployed_tag: deployed/2026-09-07-latest-outer-exit-f39513c
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 82500
-flashed_bin_sha256: 55548D9E03322E3E74864A7B4993D9395BFAFD32DBE8D86DDEB970C985010BDD
-flashed_hex_sha256: 57667A63BAB7DEE5ECC417D49608C5E9C1168658469120699D14F99B59E91090
-ground_test_status: not_tested_after_e740644_flash
+formal_bin_size_bytes: 82348
+flashed_bin_sha256: C7686DC0B41DF032BE1770470A5C9A957EB4A28189BC37435CAA0B69A96CDA60
+flashed_hex_sha256: C7CE06BCB6A215358432A00956B032D0DB4CB9CC85DAADA7563549839D991AA7
+ground_test_status: not_tested_after_f39513c_flash
 k210_status: SIGN34_ff8cf2e_main_and_model_readback_verified_startup_passed_STM32_link_not_tested
-candidate_source_commit: e740644
-candidate_bin_size_bytes: 82500
-candidate_bin_sha256: 55548D9E03322E3E74864A7B4993D9395BFAFD32DBE8D86DDEB970C985010BDD
-candidate_hex_sha256: 57667A63BAB7DEE5ECC417D49608C5E9C1168658469120699D14F99B59E91090
+candidate_source_commit: f39513c
+candidate_bin_size_bytes: 82348
+candidate_bin_sha256: C7686DC0B41DF032BE1770470A5C9A957EB4A28189BC37435CAA0B69A96CDA60
+candidate_hex_sha256: C7CE06BCB6A215358432A00956B032D0DB4CB9CC85DAADA7563549839D991AA7
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: e740644
 k210_candidate_status: mode5_main_and_SIGN34_v2_split_host_tested_not_deployed
@@ -36,12 +36,18 @@ k210_candidate_status: mode5_main_and_SIGN34_v2_split_host_tested_not_deployed
 snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
-## Current flashed mode 5 integration
+## Current flashed integrated source
 
-Commit `e740644` integrates requested worker source `10c8567` onto the live
-integration branch while preserving the later mode 3/4 ring-exit state machine,
-recognition slowdown and optimized SIGN34 script. Remote or diagnostic serial
-key `5` selects K210 curve visual-line mode. The STM32 accepts the v4
+Commit `f39513c` retains the mode 5 integration from `e740644` and adds the
+five ordered line/avoid increments ending at requested worker `34223bd`.
+Lost-line rotation no longer inserts a whole-car brake, fresh direction hints
+survive capture handoffs, centred straight speed is reduced, and every fresh
+outer-edge-to-white event can update an active search direction. KEY1's
+ultrasonic profile is reduced to 10 cm stop, 18 cm clear, 16 cm dynamic
+emergency maximum, 70 ms lookahead and 5 cm critical raw echo. Mode 3/4
+ring-exit navigation, recognition slowdown and optimized SIGN34 are preserved.
+
+Remote or diagnostic serial key `5` selects K210 curve visual-line mode. The STM32 accepts the v4
 `$status,off,angle,bottom,obs,obs_bottom,obs_left,obs_right#` frames through the
 existing interrupt-driven USART2 ring, uses offset and angle for bounded
 differential steering, and stops after 150 ms without a fresh valid frame.
@@ -54,17 +60,17 @@ road-sign program for modes 3/4. CanMV still has only one automatic
 the desired file; this merge does not implement live runtime switching.
 
 Merged host suites passed for mode 3/4 sign routing and K210 v2 behavior, mode
-5 parser/control, and the complete existing line-recovery/load/bypass stack.
-Formal ARM build passed with text/data/bss 82432/64/11392 and BIN size 82500
-bytes; BIN SHA-256 is
-`55548D9E03322E3E74864A7B4993D9395BFAFD32DBE8D86DDEB970C985010BDD`.
+5 parser/control, latest-outer-direction replay, alternating corners, and the
+complete line-recovery/load/bypass stack. Formal ARM build passed with
+text/data/bss 82280/64/11392 and BIN size 82348 bytes; BIN SHA-256 is
+`C7686DC0B41DF032BE1770470A5C9A957EB4A28189BC37435CAA0B69A96CDA60`.
 The STM32 image was flashed on 2026-09-07 through CH340K COM11 at 57600 baud.
 Selective erase covered 41 firmware pages and preserved the calibration page;
-all 82500 bytes read back with `VERIFY OK`, followed by
+all 82348 bytes read back with `VERIFY OK`, followed by
 `GO OK: 0x08000000`. Neither rearranged K210 source was deployed in this flash
-task. Rollback tag `rollback/2026-09-07-before-e740644-flash` points to the
-previous board source `f4099cf`; source-integration rollback tag
-`rollback/2026-09-07-before-mode5-v4-merge` points to `f4ae2a8`.
+task. Rollback tag `rollback/2026-09-07-before-latest-line-search-flash` points
+to the previous board source `e740644`; source-integration rollback tag
+`rollback/2026-09-07-before-latest-line-search-merge` points to `2d86521`.
 
 ## Previous STM32 deployed test image
 
@@ -100,7 +106,7 @@ are unchanged. Full sign-line suite and simulated actual Python main-loop
 tests passed. During the mode 5 merge this implementation moved from
 `K210/main.py` to `K210/sign_mode34.py`; its behavior was not replaced by the
 older worker copy. No hardware port was opened and the merged K210 files were
-not deployed. They remain independent of the currently flashed `f4099cf`
+not deployed. They remain independent of the currently flashed `f39513c`
 STM32 image.
 Details: `K210/V2_OPTIMIZATION.md`.
 
@@ -267,7 +273,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`e740644`)
+## Current STM32 mode map (`f39513c`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -507,23 +513,24 @@ KEY1/KEY2 as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | merged candidate `e740644`; ELF text/data/bss = 82432/64/11392 bytes; BIN is 82500 bytes |
-| host regression | passed | mode 3/4 ring/sign and K210 v2, mode 5 parser/control/binding, plus complete line-recovery/load/bypass suites pass |
-| STM32 flash/readback/GO | passed | merged `e740644`; CH340K COM11 at 57600 baud; 41-page selective erase; calibration page preserved; final 82500-byte write/readback; `VERIFY OK`; `GO OK` |
+| computer build/link | passed | integrated `f39513c`; ELF text/data/bss = 82280/64/11392 bytes; BIN is 82348 bytes |
+| host regression | passed | mode 3/4 ring/sign and K210 v2, mode 5 parser/control, latest outer direction, alternating corners, plus complete line-recovery/load/bypass suites pass |
+| STM32 flash/readback/GO | passed | integrated `f39513c`; CH340K COM11 at 57600 baud; 41-page selective erase; calibration page preserved; final 82348-byte write/readback; `VERIFY OK`; `GO OK` |
 | K210 deployment/runtime | passed, stationary only | COM13; existing 571432-byte model hash matched and was not rewritten; 4911-byte `/sd/main.py` read back; model load and `SIGN34 ready` with threshold 0.20/path confirmed |
 | board-to-board UART | not performed | K210 inference output is visible on USB, but receipt by the new STM32 USART2 parser was not observed without starting a drive mode |
-| wheels off ground | not performed | programmer success does not establish mode 5 steering, UART-loss stop or operator STOP response |
-| ground driving | not performed | mode 3/4 routing, mode 5 curve tracking and obstacle-stop behavior remain unverified |
+| wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
+| ground driving | not performed | latest outer-direction behavior, reduced ultrasonic margins, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The merged `e740644` image is now on the STM32, but the K210 still runs the
+The merged `f39513c` image is now on the STM32, but the K210 still runs the
 previous SIGN34 program. Pressing mode 5 before deploying `K210/main.py` cannot
 provide v4 line frames and should reach the 150 ms fail-safe stop. The next
-step for mode 5 is a separate authorized K210 deployment, then a stationary
-UART freshness/STOP check, lifted-wheel steering, and only then ground curve
-tracking. No physical behavior is established by the build, programmer
-readback or GO result.
+step is a lifted-wheel KEY1/KEY2 search-direction and STOP check, plus careful
+ground validation of the shorter ultrasonic distances. Mode 5 additionally
+needs a separate authorized K210 deployment, stationary UART freshness/STOP
+check, lifted-wheel steering, and only then ground curve tracking. No physical
+behavior is established by the build, programmer readback or GO result.
 
 ## Update protocol
 
