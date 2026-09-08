@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 7736c99
-latest_code_commit: 3170221
-flashed_source_commit: c5a4c76
-flash_record_commit: 7736c99
-deployed_tag: deployed/2026-09-08-line-visible-arc-c5a4c76
-formal_bin_path: manual-build-candidate-c5a4c76/exp7_unified_motion.bin
-formal_hex_path: manual-build-candidate-c5a4c76/exp7_unified_motion.hex
-formal_bin_size_bytes: 84636
-flashed_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
-flashed_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
-ground_test_status: not_tested_after_temporary_c5a4c76_deployment
+repository_head_at_update: 001a452
+latest_code_commit: f543639
+flashed_source_commit: f34e7dd
+flash_record_commit: 7931b2e
+deployed_tag: deployed/2026-09-08-comprehensive-v3-f34e7dd
+formal_bin_path: manual-build-candidate-comprehensive-v3-f34e7dd/exp7_unified_motion.bin
+formal_hex_path: manual-build-candidate-comprehensive-v3-f34e7dd/exp7_unified_motion.hex
+formal_bin_size_bytes: 84488
+flashed_bin_sha256: D44DF291F6A49176E67D76BD16D6B1356B07D919603580005318D74BA47ED54A
+flashed_hex_sha256: 0D4F79D56ACB603B9D705F44A4C445C2D519244686135A683E81962ED4138414
+ground_test_status: not_tested_after_comprehensive_v3_f34e7dd_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: c5a4c76
-candidate_bin_size_bytes: 84636
-candidate_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
-candidate_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
-user_reported_flash: tool_verified_c5a4c76_STM32_flash_readback_and_GO_no_physical_test
+candidate_source_commit: f543639
+candidate_bin_size_bytes: 84276
+candidate_bin_sha256: 36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6
+candidate_hex_sha256: D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F
+user_reported_flash: tool_verified_f34e7dd_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_pr6_merged_v1.2.0_rc2_published_c5a4c76_deployment_record_via_protected_pr
+remote_sync_status: github_main_at_f17bffa_local_rc3_line_bypass_ready_for_protected_pr
 remote_sync_branch: main
-stm32_runtime_status: COM11_c5a4c76_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
+stm32_runtime_status: COM11_f34e7dd_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
-temporary_flash_selector_commit: c5a4c76_flashed_temporary_comparison
+temporary_flash_selector_commit: f34e7dd_comprehensive_v3_flashed
 github_release_tag: v1.2.0-rc.2
 github_release_source_commit: 3635308
 github_release_firmware_commit: 3170221
@@ -69,11 +69,61 @@ the mode-1-power STM32 BIN/HEX, SHA-256 list, both mutually exclusive K210
 uploaded asset digests match the staged local files. Its functional firmware
 source is `3170221`, which is also the programmer-verified STM32 image. K210
 assets are byte-identical to rc.1 and the device was not rewritten during that
-STM32 deployment. The board has since been replaced by temporary comparison
-source `c5a4c76`, which is not part of rc.2. No lifted-wheel or ground-test
-claim is made. Previous releases remain available as history.
+STM32 deployment. The board now runs local comprehensive test source
+`f34e7dd`, which is not part of rc.2 or protected `main`. No lifted-wheel or
+ground-test claim is made. Previous releases remain available as history.
 
-## Published main source and previous deployment (`3170221`)
+## Current local main source (`f543639`)
+
+Commit `f54363971bc3111acdda33fbed91882a71305bc7` retains the accepted
+continuous obstacle-bypass travel from `453cad2` and promotes the current
+tested line controller in two dependency-ordered commits. `6a4ed26` is the
+main replay of `64f489e`: brief sole-outer evidence uses a 0/2200-CPS forward
+pivot, adjacent pairs retain mirrored 1412/2400-CPS forward arcs, all-white
+loss searches in the remembered direction, and automatic loss/rejoin remains
+silent. `f543639` replays the final `f34e7dd` increment: 120 ms of uninterrupted
+sole-outer evidence escalates to mirrored -2200/+2200-CPS powered correction,
+which is cleared by any other raw mask, a sampling gap above 30 ms, reset,
+queue overwrite or explicit zero cap/STOP.
+
+The line source and tests are byte-equivalent to the line portion of the
+currently flashed `f34e7dd` composite. The independent ten-second sign-probe
+hold `4c345b8` was deliberately excluded and remains under test. Complete
+line-recovery/load/bypass tests passed at both configured search speeds;
+unchanged sign-line and vision-line-v4 tests also passed. The formal ARM build
+passed with text/data/bss `84208/64/11592`, producing an 84276-byte BIN with
+SHA-256
+`36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6`;
+the HEX SHA-256 is
+`D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F`.
+This exact main BIN has not been flashed or physically tested. Release notes:
+`RELEASE_V1.2.0_RC3.md`.
+
+## Previous local main source (`453cad2`)
+
+Commit `453cad2cffcfbb4b8494b36cbdca8fc48c620476` promotes only the latest
+obstacle-bypass update from worker `68c6444` onto canonical local `main`. Short
+forward/reverse bypass segments no longer enter the low-speed endpoint-pulse
+region of the shared position controller. They use the new four-wheel
+`line_bypass_travel` owner, retain same-direction continuous drive to the
+encoder distance target, and cap the segment at 1800 CPS. STOP/mode ownership,
+all-wheel stall checking, progress timeout and infrared-boundary interruption
+remain active. Existing continuous bypass turns and their 2500-CPS command are
+unchanged.
+
+Only the bypass module, its new travel module and focused tests changed. The
+experimental line commit `64f489e` and sign commit `4c345b8` remain solely on
+the comprehensive test branches. Complete line-recovery/load/bypass tests
+passed at both speed configurations; sign-line and vision-line-v4 also passed.
+The formal ARM build passed with text/data/bss `83824/64/11584`, producing an
+83892-byte BIN with SHA-256
+`5757D92BC4B2741AE23908A0D494B5DD36757281F36AA9CC60766F9E46FB5E63`;
+the HEX SHA-256 is
+`E5FE872642E0D49DD66271D2778FE624026DBA4EEF3E938F0B7D2762C648B8CE`.
+This local main integration was not flashed or pushed. Details:
+`PREPARED_MAIN_BYPASS_CONTINUOUS_453CAD2_20260908.md`.
+
+## Previous published main source and deployment (`3170221`)
 
 Commit `317022123395016354249c3c7bc9e9b26c02ff7e` integrates the requested
 mode-1 obstacle-bypass power profile into canonical `main`. It raises the
@@ -97,7 +147,69 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
-## Current flashed comparison candidate (`c5a4c76`)
+## Current flashed comprehensive test (`f34e7dd`)
+
+Exact source `f34e7dd3fa1f16f7d8abd0255c94a25d199cbb63` extends the previous
+comprehensive source in branch `test/comprehensive-v3-20260908`. Its parent
+`8c7070b` is byte-equivalent to `2c2ed97` across `Core`, `tests` and `K210`, so
+the only new functional increment is persistent sole-outer-sensor correction.
+A brief outer-only contact keeps the existing 0/2200-CPS forward pivot. If the
+same outer remains continuously valid for 120 ms, it escalates to mirrored
+-2200/+2200-CPS powered counter-rotation. A different raw pattern, sample gap
+above 30 ms, queue overwrite, reset or explicit zero cap/STOP cancels it.
+
+The complete line-recovery/load/bypass suite passed at both configured speeds,
+including the 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/timer
+cases and real four-wheel DriveBase signs. Sign-line with the ten-second hold
+and vision-line-v4 also passed. The formal build passed with text/data/bss
+`84420/64/11600`, producing an 84488-byte BIN with SHA-256
+`D44DF291F6A49176E67D76BD16D6B1356B07D919603580005318D74BA47ED54A`;
+the HEX SHA-256 is
+`0D4F79D56ACB603B9D705F44A4C445C2D519244686135A683E81962ED4138414`.
+
+The first COM11 attempt entered the ROM bootloader and preserved the final
+calibration page while erasing 42 application pages, but Windows denied COM11
+access before a complete write. After immediate CH340K re-enumeration, the
+retry erased the same bounded region, wrote and read back all 84488 bytes with
+`VERIFY OK`, and completed `GO OK: 0x08000000`. No routine post-GO serial
+check was performed at the user's request. K210 was not accessed, and no
+lifted-wheel or ground test was performed. Detailed evidence:
+`DEPLOYMENT_COMPREHENSIVE_V3_F34E7DD_20260908.md`.
+
+## Previous flashed comprehensive test (`2c2ed97`)
+
+Exact source `2c2ed973ef5e34705f301c16871aed043e9ad461` was assembled from
+current canonical `main` (`f17bffa`) in independent branch
+`test/comprehensive-v2-20260908`. It applies candidate `64f489e` once, followed
+by `4c345b8` and `68c6444`, producing replay commits `c82c8b3`, `0a6a0f3` and
+`2c2ed97`. It therefore combines slower and silent line-loss recovery,
+zero-target-side turn assist, a ten-second sign-probe hold and slow continuous
+obstacle-bypass travel. Because `64f489e` already contains its line-history
+prerequisites, `c5a4c76` and `074ef682` were not replayed separately. Starting
+from current main retains mode-1 power source `3170221`; the later continuous
+bypass layer intentionally caps its short travel commands at 1800 CPS.
+
+The complete line-recovery suite passed at both speed configurations,
+including 120 visible cases, silent recovery, explicit 0/2200 CPS outer
+pivots, moving-side assist with the stopped side at zero, strong exits,
+overlaps, continuous bypass travel, four-wheel load/fault checks and STOP
+ownership. Sign-line passed with the real ten-second hold, and vision-line-v4
+also passed. The formal ARM build passed with text/data/bss
+`84148/64/11592`, producing an 84216-byte BIN with SHA-256
+`D53897200AD5BD1C0913028446D2C4C2A2B667ABE32FBEAA9AC3B6849DF4815E`;
+the HEX SHA-256 is
+`DDADBDBDAD506AF344834504035875B213F2B70CDDB1597E1189533135BD2F74`.
+
+COM11 programmed and read back all 84216 bytes after selectively erasing 42
+application pages while preserving the final calibration page. The programmer
+reported `VERIFY OK` and `GO OK: 0x08000000`. A pre-flash STOP showed mode 0
+and zero four-wheel output. At the user's request, the routine post-GO serial
+STOP/zero-output check was omitted. K210 was not accessed. No lifted-wheel or
+ground test was performed. This source remains an unmerged local test branch
+and was not pushed during this operation. Detailed evidence:
+`DEPLOYMENT_COMPREHENSIVE_V2_2C2ED97_20260908.md`.
+
+## Previous flashed comparison candidate (`c5a4c76`)
 
 Exact source `c5a4c76ab84666f44d03510227bfbeac41083641` was rebuilt in the
 isolated `fix/line-visible-arc` worktree after publishing rc.2. Visible line
@@ -534,7 +646,22 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`3170221`)
+## Integrated continuous KEY1 bypass travel
+
+- Commit `453cad2`, cherry-picked from `68c6444`, replaces only the short
+  forward/reverse translations used by KEY1 obstacle bypass. It does not change
+  KEY2 line tracking or modes 3--5.
+- All four wheels remain in DriveBase speed mode at the same signed target
+  until encoder travel reaches 20 or 40 mm. The command is capped at 1800 CPS
+  so the old per-wheel position-pulse tail and reversal correction are never
+  entered.
+- A close infrared boundary interrupts forward travel immediately. Invalid
+  infrared input, a stalled wheel, missing progress, STOP or mode change still
+  ends ownership safely or raises the existing bypass fault.
+- Encoder distance establishes bounded wheel travel, not guaranteed chassis
+  displacement; physical clearance and traction remain ground-test items.
+
+## Current main mode map (`f543639`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -550,10 +677,10 @@ The infrared remote also supplies the virtual mode keys and a stop command.
 
 ## Integrated line-loss behavior
 
-The latest observation before this integration was that one repeatable approach
-angle produced only X1 or X3 and could lock recovery in the wrong direction.
-Current `36551f3` retains continuous recovery and adds an explicit ambiguity
-path for that physical pattern. KEY1/KEY2 behave as follows:
+The latest integrated controller retains the ambiguity handling for a
+repeatable approach angle that produces only X1 or X3, then layers the current
+visible-edge and persistent-error behavior through `f543639`. KEY1/KEY2 behave
+as follows:
 
 - On ordinary line loss it rolls directly into continuous rotation in the most
   recent reliable direction; without a hint it defaults left. Search uses equal
@@ -564,27 +691,29 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
   four-wheel encoder travel corresponding to 30 degrees. Each new sweep grows
   by 30 degrees up to 120 degrees; later sweeps alternate at that bound. Time
   and battery level alone cannot reverse the probe.
-- While searching it continuously repeats the existing 1.53-second preset
-  buzzer phrase. A middle X1/X3 line hit, excluding the both-outer wide-line
-  case, must confirm for 4 ms before the phrase is stopped.
+- Automatic search and rejoin remain silent. The infrared-remote or serial
+  one-shot preset phrase is independent. A middle X1/X3 line hit, excluding
+  the both-outer wide-line case, must confirm for 4 ms before capture.
 - Confirmed capture enters at least 500 ms of low-speed line following and
   requires stable middle-line evidence for 80 ms before normal speed resumes.
   Losing the line during capture restarts same-direction rotation and audio.
 - Outer-only and all-four-black input cannot directly complete capture. Manual
   STOP, mode change or zero base-speed still stop motion and cancel the phrase;
   power-on still enters STOP.
-- During normal tracking or low-speed capture, a single outer sensor, or that
-  outer sensor together with the adjacent middle sensor, locks the matching
-  turn direction and enters continuous counter-rotation. Outer/white chatter
-  then cannot restart braking or reverse the search direction.
+- During normal tracking or low-speed capture, a brief single outer sensor
+  commands a 0/2200-CPS forward pivot, while an adjacent same-side pair uses a
+  mirrored 1412/2400-CPS forward arc. If the same sole outer remains valid for
+  120 ms with sample gaps no greater than 30 ms, both sides counter-rotate at
+  2200 CPS. Any different raw mask immediately withdraws that escalation.
 - While that turn is locked, any outer sensor still seeing black keeps the
   counter-rotation active. Only when both outer sensors are white and at least
   one middle sensor remains black for 20 ms does braking and stationary capture
   begin. A failed 80 ms stationary confirmation resumes the same turn.
-- The old 120/280 ms sharp-corner phases and weak forward arc are removed.
-  Corner rotation uses the same 2493-CPS search target; ordinary shallow-curve
-  steering and normal straight speed are unchanged. Online corner entry does
-  not start the buzzer until the sensors become all-white.
+- The old timed sharp-corner phases and high-speed weak forward arc remain
+  removed. Visible persistent-edge correction uses 2200 CPS; actual all-white
+  loss uses the configured search target and remembered direction. Ordinary
+  shallow-curve steering and normal straight speed are unchanged, and online
+  corner entry does not start the buzzer.
 - Three/four simultaneous black sensors or non-adjacent multi-black patterns
   now have transverse-line priority in normal tracking, locked turning, initial
   loss braking and low-speed capture. They cancel turning/audio and command
@@ -779,41 +908,45 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | prepared unflashed candidate `c5a4c76`; ELF text/data/bss = 84568/64/11536 bytes; BIN is 84636 bytes; HEX hash is `F89A8BDF...18686F` |
-| host regression | passed | `c5a4c76` complete line-recovery suite passed at both speed configurations, including 120 visible-line cases, strong exits, forward arcs, confirmed-loss rotation, four-wheel DriveBase, bypass and STOP ownership |
-| STM32 flash/readback/GO | passed | temporary source `c5a4c76`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84636 bytes with `VERIFY OK`, and completed `GO OK` |
+| computer build/link | passed | current local main source `f543639`; ELF text/data/bss = 84208/64/11592 bytes; BIN is 84276 bytes; HEX hash is `D63E0222...0B3F` |
+| host regression | passed | `f543639` line suite passed at both speeds, including persistent outer 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/STOP and real DriveBase signs; continuous bypass plus unchanged sign-line and vision-line-v4 also passed |
+| STM32 flash/readback/GO | passed after retry | first COM11 attempt preserved the calibration page and erased 42 application pages, then Windows denied access before a complete write; the re-enumerated retry wrote/read back all 84488 bytes with `VERIFY OK` and completed `GO OK`; routine post-GO checking was omitted at user request |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
-| K210 deployment/runtime | unchanged from prior deployment | This temporary STM32 flash did not open, reset or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
+| K210 deployment/runtime | unchanged from prior deployment | This STM32 operation did not open, reset, inspect or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
 | board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
-| ground driving | not performed | lone-inner bidirectional probing, mode 3/4 routing and mode 5 curve tracking remain unverified |
+| ground driving | not performed | composite line recovery, continuous bypass, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The STM32 now runs temporary comparison firmware `c5a4c76`. K210 remains
-unchanged on its previously verified mode 3/4 SIGN34 program. Final STM32 STOP
-telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM
-output at zero. No lifted-wheel or ground result has been claimed for the
-visible-line forward-arc behavior.
+The STM32 now runs temporary comprehensive firmware `f34e7dd`. K210 remains
+unchanged on its previously verified mode 3/4 SIGN34 program. A pre-flash STOP
+command was sent and the board reported its `DEFAULT STOP` startup banner;
+there was intentionally no routine post-GO serial STOP/zero-output check. No
+lifted-wheel or ground result has been claimed for the composite behavior.
 
 GitHub `main` contains the rc.2 release source and earlier deployment history
-through merge `3635308`; rc.2 is published with verified assets. Independent
-candidate `c5a4c76` is now actually flashed, but remains unmerged and does not
-contain `3170221`'s mode-1 power change.
+through `f17bffa`; rc.2 is published with verified assets. Local `main` now
+contains accepted bypass plus current line source `f543639` and is prepared for
+the protected-branch PR and `v1.2.0-rc.3` publication requested in this task.
+Independent comprehensive source `f34e7dd` is still the flashed image; only its
+ten-second sign-probe experiment remains excluded from main.
 
-The next safe physical step is a user-controlled line-tracking test with remote
-STOP immediately available. To regain rc.2's mode-1 power profile, flash
-`3170221` again or deliberately integrate it with `c5a4c76`; do not assume the
-current temporary image contains both.
+The next safe physical step for the exact main image is an explicitly
+authorized flash followed by a user-controlled mode-2 line test with remote
+STOP immediately available. The current board's `f34e7dd` line code is
+equivalent, but its extra unmerged sign layer means its programmer result is
+not proof that the exact `f543639` BIN was flashed. Continuous bypass chassis
+movement, infrared boundary response and traction also still need ground tests.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
 `k210-mode5-visual-line-main.py` as `/sd/main.py`; both cannot be active under
 that filename at once. Test mode 3/4 exit withdrawal and mode 5 stale-UART stop
-separately. If this mode-1 power deployment is rejected, rollback tag
-`rollback/2026-09-08-before-main-mode1-power-flash` identifies the replaced
-temporary source `074ef682`. No ground behavior is established by host tests,
-build, programmer readback, startup text, UART counters or GO success.
+separately. If this comprehensive image is rejected, rollback tag
+`rollback/2026-09-08-before-comprehensive-v3-f34e7dd` identifies the replaced
+source `2c2ed97`. No ground behavior is established by host tests, build,
+programmer readback, startup text, UART counters or GO success.
 
 ## Update protocol
 

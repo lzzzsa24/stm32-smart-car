@@ -10,6 +10,7 @@
 #include "motorPWM.h"
 #include "main.h"
 #include "line_tracking.h"
+#include "line_recovery.h"
 #include "motion_advanced.h"
 #include "line_wait_guard.h"
 #include "line_search_model.h"
@@ -17,6 +18,8 @@
 #include "line_fault_log.h"
 #include "diagnostic_uart.h"
 #include "line_bypass_turn.h"
+#include "line_bypass_travel.h"
+#include "vehicle_geometry.h"
 #include "line_obstacle_bypass.h"
 #include "encoder_linear.h"
 #include "encoder_turn.h"
@@ -374,7 +377,10 @@ static void test_rolling_loss_reentry(unsigned right)
     line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
     DriveBase_GetTelemetry(&t);
     assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
-    assert(t.requested_cps[0]!=0 && t.requested_cps[2]!=0);
+    if(mask==2 || mask==8)
+      assert(right?t.requested_cps[0]==2200 && t.requested_cps[2]==0:
+                   t.requested_cps[0]==0 && t.requested_cps[2]==2200);
+    else assert(t.requested_cps[0]!=0 && t.requested_cps[2]!=0);
     if(ms>20) assert(right?pins[0]>0 && pins[1]>0:pins[2]>0 && pins[3]>0);
     if(t.requested_cps[0]*t.requested_cps[2]<0)
     {
@@ -406,7 +412,7 @@ static void test_real_ambiguous_inner_handoffs(unsigned first_right)
     ++tick; DriveBase_Task(tick);
     leg=ms<200?0:(ms-200)/200;
     right=(first_right+leg+1)%2;
-    mask=ms<200?(first_right?8:2):((ms-200)%200<5?(right?4:1):0);
+    mask=ms<100?(first_right?8:2):(ms<200?0:((ms-200)%200<5?(right?4:1):0));
     reading=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
     line_tracking_compute(&reading,3000,&output);
     line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
@@ -419,7 +425,7 @@ static void test_real_ambiguous_inner_handoffs(unsigned first_right)
       assert(t.requested_cps[0]==(first_right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
       assert(t.requested_cps[1]==t.requested_cps[0]);
       assert(t.requested_cps[2]==-t.requested_cps[0] && t.requested_cps[3]==t.requested_cps[2]);
-      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineRecovery_IsSearching());
       assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
       assert(decision.source==LINE_SEARCH_REJOIN &&
              decision.chosen_side==(first_right?1:-1));
@@ -468,7 +474,7 @@ static void test_real_broad_corner_directions(unsigned overlapping)
         assert(pins[0]*expected>0 && pins[1]*expected>0);
         assert(pins[2]*expected<0 && pins[3]*expected<0);
       }
-      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineRecovery_IsSearching());
       assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
       assert(decision.source==LINE_SEARCH_CROSS_HINT && decision.chosen_side==(right?1:-1));
       assert(decision.hint_mask==(overlapping?broad:first));
@@ -548,7 +554,7 @@ static void test_real_white_search(void)
     }
     if(ms>100) assert(!output.valid && t.requested_cps[0]<0 && t.requested_cps[2]>0);
   }
-  assert(BuzzerPhrase400_IsPlaying());
+  assert(LineRecovery_IsSearching());
   reading.x1_black=reading.x3_black=1;
   for(ms=0;ms<700;++ms)
   {
@@ -588,7 +594,7 @@ static void test_real_exit_direction_correction(void)
       assert(!t.fault_mask && t.mode!=DRIVE_BASE_POSITION);
       if(ms>=313)
       {
-        assert(t.mode==DRIVE_BASE_SPEED && BuzzerPhrase400_IsPlaying());
+        assert(t.mode==DRIVE_BASE_SPEED && LineRecovery_IsSearching());
         assert((side?-t.requested_cps[0]:t.requested_cps[0])>0);
         assert(t.requested_cps[0]==t.requested_cps[1]);
         assert(t.requested_cps[2]==t.requested_cps[3]);
@@ -603,6 +609,43 @@ static void test_real_exit_direction_correction(void)
   }
   puts("PASS: actual DriveBase corrects both exit directions with/without middle, including expired window, without brake/restart");
 }
+static void test_real_strong_exit_handoff(void)
+{
+  unsigned right, overlap, ms, w;
+  for(right=0;right<2;++right) for(overlap=0;overlap<2;++overlap)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    for(ms=0;ms<700;++ms)
+    {
+      unsigned mask=ms<100?(right?2:8):0;
+      LineTrackingReading r;
+      if(ms==200) mask=overlap?(right?1:4):(right?8:2);
+      if(ms==201) mask=overlap?(right?9:6):(right?4:1);
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+      ++tick; DriveBase_Task(tick);
+      r=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
+      DriveBase_GetTelemetry(&t);
+      assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+      if(overlap && ms>=201 && ms<301)
+        assert(out.valid && t.requested_cps[0]>0 && t.requested_cps[0]==t.requested_cps[2]);
+      if(ms>=350)
+      {
+        int32_t target=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+        assert(t.requested_cps[0]==target && t.requested_cps[1]==target);
+        assert(t.requested_cps[2]==-target && t.requested_cps[3]==-target);
+        if(ms>=550) for(w=0;w<4;++w)
+          assert((int32_t)pins[w]*(w<2?target:-target)>0);
+      }
+    }
+    line_tracking_reset();
+    for(w=0;w<4;++w) assert(pins[w]==0);
+  }
+  puts("PASS: real DriveBase strong exit through inner contact and ordered nonadjacent overlap, both directions, four-wheel PWM and STOP");
+}
+
 static void test_real_corner_chatter(void)
 {
   unsigned side,ms,w;
@@ -632,16 +675,115 @@ static void test_real_corner_chatter(void)
       if(ms>=600 && ms<2100)
       {
         assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
-        assert((side?pins[0]:-pins[0])>0 && (side?-pins[2]:pins[2])>0);
-        assert(pins[1]*pins[0]>0 && pins[3]*pins[2]>0);
+        if(mask) assert(t.requested_cps[0]>0 && t.requested_cps[2]>0);
+        else if(t.requested_cps[0]*t.requested_cps[2]<0)
+          assert(t.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+        assert(t.requested_cps[0]==t.requested_cps[1] && t.requested_cps[2]==t.requested_cps[3]);
       }
     }
     assert(out.valid && out.left_cps>0 && out.right_cps>0 && !BuzzerPhrase400_IsPlaying());
     line_tracking_reset(); DriveBase_Stop(DRIVE_STOP_COAST);
     assert(!pins[0] && !pins[1] && !pins[2] && !pins[3]);
   }
-  puts("PASS: actual DriveBase keeps four-wheel counter-rotation through corner edge/white chatter");
+  puts("PASS: actual DriveBase switches between forward visible steering and counter-rotation on confirmed loss");
 }
+static void test_slow_outer_profiles(void)
+{
+  unsigned right,gain,smooth,active,stage,ms,w,cases=0;
+  int32_t old_inner=DriveBase_EquivalentCpsFromPwm(2200);
+  int32_t old_outer=DriveBase_EquivalentCpsFromPwm(3000);
+  printf("REPRO: old visible outer pair %ld/%ld CPS; new pivot 0/2200 CPS\n",
+      (long)old_inner,(long)old_outer);
+  assert(old_inner+old_outer>2200);
+  for(right=0;right<2;++right) for(gain=100;gain<=200;gain+=100)
+  for(smooth=0;smooth<2;++smooth) for(active=0;active<2;++active)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    line_tracking_set_smooth_mode((uint8_t)smooth);
+    line_tracking_set_turn_gain_percent((uint16_t)gain);
+    if(active)
+    {
+      LineTrackingReading white={0};
+      tick+=100; line_tracking_compute(&white,3000,&out);
+      assert(LineRecovery_IsSearching());
+    }
+    for(stage=0;stage<4;++stage) for(ms=0;ms<250;++ms)
+    {
+      unsigned mask=stage==0?(right?8:2):(stage==1?(right?12:3):(stage==2?5:15));
+      LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?1:(pins[w]<0?-1:0);
+      ++tick; DriveBase_Task(tick);
+      line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,MOTOR_PWM_PERIOD); DriveBase_GetTelemetry(&t);
+      assert(out.valid && !t.fault_mask && !BuzzerPhrase400_IsPlaying() && !buzzer);
+      if(stage==0)
+      {
+        assert((right?out.right_cps:out.left_cps)==(ms<120?0:-2200));
+        assert((right?out.left_cps:out.right_cps)==2200);
+        if(ms>220) for(w=0;w<4;++w)
+          assert((w<2)==(right!=0)?pins[w]>0:pins[w]<0);
+      }
+      else
+      {
+        /* One outer only must be slower than an adjacent pair, centered
+           line or a transverse mark, under both KEY1/KEY2 gains. */
+        assert(out.left_cps+out.right_cps>2200);
+        if(stage==1)
+        {
+          assert((right?out.right_cps:out.left_cps)==1412);
+          assert((right?out.left_cps:out.right_cps)==2400);
+        }
+        if(stage==3) assert(out.left_cps==1412 && out.right_cps==1412);
+      }
+    }
+    ++cases;
+  }
+  line_tracking_reset(); reset(); line_tracking_set_turn_gain_percent(100);
+  compare_load(0,2200,2); compare_load(0,2200,3);
+  compare_load(2200,0,0); compare_load(2200,0,1);
+  line_tracking_reset(); reset();
+  printf("PASS: %u real gain/state profiles: brief outer pivot escalates to powered counter-rotation; pairs/center/wide distinct and assist retained\n",cases);
+}
+
+static void test_real_visible_arc_and_loss(unsigned right)
+{
+  unsigned ms,w;
+  LineTrackingCommand out={0}; DriveBaseTelemetry t;
+  line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+  line_tracking_set_smooth_mode(1);
+  for(ms=0;ms<1500;++ms)
+  {
+    unsigned mask=ms<200 || ms>=1150?5:(ms>=450 && ms<800?(right?8:2):0);
+    LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick);
+    line_tracking_compute(&r,3000,&out); line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&t); assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+    if(mask) assert(out.valid);
+    if(mask==5) assert(t.requested_cps[0]>0 && t.requested_cps[2]>0);
+    if(ms>=450 && ms<800)
+    {
+      assert(right?t.requested_cps[0]>t.requested_cps[2]:t.requested_cps[0]<t.requested_cps[2]);
+      assert((right?t.requested_cps[2]:t.requested_cps[0])==(ms<570?0:-2200));
+      assert((right?t.requested_cps[0]:t.requested_cps[2])==2200);
+      if(ms>=650) for(w=0;w<4;++w)
+        assert((w<2)==(right!=0) ? pins[w]>0 : pins[w]<0);
+    }
+    if(ms>=850 && ms<1150)
+    {
+      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      assert(t.requested_cps[0]==expected && t.requested_cps[1]==expected);
+      assert(t.requested_cps[2]==-expected && t.requested_cps[3]==-expected);
+      if(ms>=1050) for(w=0;w<4;++w) assert(pins[w]*(w<2?expected:-expected)>0);
+    }
+    if(ms>=1350) for(w=0;w<4;++w) assert(pins[w]>0);
+  }
+  assert(!BuzzerPhrase400_IsPlaying());
+  line_tracking_reset(); for(w=0;w<4;++w) assert(pins[w]==0);
+  printf("PASS: real four-wheel forward arc side=%u, loss counter-rotation, rejoin and STOP\n",right);
+}
+
 static void test_no_motion_keeps_turn_effort(void)
 {
   unsigned wheel, step;
@@ -735,7 +877,7 @@ static void test_observe_faults(void)
       if(out.valid) DriveBase_SetSideCps(out.left_cps,out.right_cps);
     }
     assert(LineFaultLog_Count() && !DriveBase_GetFaultMask() && pins[0]<0 && pins[2]>0);
-    assert(BuzzerPhrase400_IsPlaying());
+    assert(LineRecovery_IsSearching());
     reading.x1_black=reading.x3_black=1;
     for(i=0;i<60;++i)
     {
@@ -840,6 +982,115 @@ static void test_bypass_turn_limits(void)
   puts("PASS: legacy low-speed tail reproduced; bypass ownership, stall, progress timeout and cancellation");
 }
 
+static int32_t travel_target(unsigned mm)
+{
+  return (int32_t)(((int64_t)mm*1040*10000 + 31416*VEHICLE_WHEEL_DIAMETER_MM/2) /
+      (31416*VEHICLE_WHEEL_DIAMETER_MM));
+}
+
+static void test_bypass_travel(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned mm, w, i, reverse, wrap;
+  for(reverse=0;reverse<2;++reverse) for(wrap=0;wrap<2;++wrap)
+  for(mm=20;mm<=40;mm+=20)
+  {
+    int32_t sign=reverse ? -1 : 1, target=travel_target(mm);
+    int32_t origin=wrap ? (reverse ? INT32_MIN+30 : INT32_MAX-30) : 0;
+    LineBypassTravel_Stop(); reset();
+    if(wrap) tick=UINT32_MAX-40;
+    for(w=0;w<4;++w) counts[w]=origin;
+    assert(LineBypassTravel_Start(sign*(int32_t)mm,2600));
+    /* Same 70-count tail as the legacy reproduction: no lower speed or
+       position-pulse/reverse correction is allowed here. */
+    for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)origin+(uint32_t)(sign*(target-70)));
+    tick+=20; LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+    assert(drive.mode==DRIVE_BASE_SPEED);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==sign*1800);
+    /* Spend time under load in the former pulse tail; all four wheels keep
+       same-direction continuous output while encoder feedback advances. */
+    for(i=0;i<12;++i)
+    {
+      for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)counts[w]+(uint32_t)sign);
+      tick+=20; LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+      assert(drive.mode==DRIVE_BASE_SPEED);
+      for(w=0;w<4;++w)
+      {
+        assert(drive.requested_cps[w]==sign*1800);
+        if(i>=8) assert(pins[w]*sign>0);
+      }
+    }
+    for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)origin+(uint32_t)(sign*(target+3)));
+    tick+=20; LineBypassTravel_Task();
+    for(i=0;i<20 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+    { tick+=20; LineBypassTravel_Task(); }
+    assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_DONE);
+    assert(LineBypassTravel_GetProgressMm()>=mm);
+    for(w=0;w<4;++w) assert(pins[w]==0);
+    LineBypassTravel_Stop();
+  }
+  puts("PASS: 20/40-mm forward/reverse travel caps cruise at continuous 1800 CPS through old pulse tail; four-wheel PWM, wrap and whole-car completion");
+}
+
+static void test_bypass_travel_ownership(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned i,w;
+  int32_t zero[4]={0};
+  LineBypassTravel_Stop(); reset();
+  assert(!LineBypassTravel_Start(0,2600));
+  assert(!LineBypassTravel_Start(INT32_MIN,2600));
+  assert(!LineBypassTravel_Start(20,0));
+  assert(!LineBypassTravel_Start(20,3601));
+  EncoderLinear_Init(); assert(EncoderLinear_Start(40,2600));
+  assert(!LineBypassTravel_Start(20,2600)); EncoderLinear_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  assert(!LineBypassTravel_Start(20,2600));
+  DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTravel_Task();
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  counts[1]=counts[2]=counts[3]=400; /* moving three cannot hide a stalled wheel */
+  LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+  assert(drive.mode==DRIVE_BASE_SPEED);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  for(i=0;i<140 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+  { LineBypassTravel_Task(); sample(zero); }
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  assert(LineBypassTravel_GetFaultMask()&0x0f);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  for(i=0;i<140 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+  {
+    for(w=0;w<4;++w) ++counts[w];
+    tick+=20; LineBypassTravel_Task();
+  }
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  assert(LineBypassTravel_GetFaultMask()==0x10);
+  LineBypassTravel_Stop();
+  puts("PASS: bypass travel rejects invalid/position requests, respects STOP, checks all wheels, preserves stall and bounded progress faults");
+}
+
+static void test_legacy_bypass_short_tail(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned mm, w;
+  for(mm=20;mm<=40;mm+=20)
+  {
+    reset(); EncoderLinear_Init();
+    assert(EncoderLinear_Start((int32_t)mm,2600));
+    DriveBase_GetTelemetry(&drive);
+    for(w=0;w<4;++w) counts[w]=drive.position_remaining_counts[w]-70;
+    tick+=20; EncoderLinear_Task(); DriveBase_GetTelemetry(&drive);
+    printf("REPRO: legacy %u-mm bypass tail: remaining=%ld target=%ld CPS mode=%u\n",
+        mm,(long)drive.position_remaining_counts[0],(long)drive.requested_cps[0],(unsigned)drive.mode);
+    assert(drive.mode==DRIVE_BASE_POSITION && absolute(drive.requested_cps[0])<1412);
+    EncoderLinear_Stop();
+  }
+}
+
 static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
 {
   LineObstacleBypassConfig config;
@@ -848,6 +1099,12 @@ static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
   DriveBaseTelemetry drive;
   unsigned i;
   reset(); EncoderLinear_Init(); LineObstacleBypass_GetDefaultConfig(&config);
+  if(early_ir)
+  {
+    /* Current deployed 3170221 profile; the other branch covers defaults. */
+    config.reverse_cps=1900; config.forward_cps=2600;
+    config.clear_probe_cps=2200; config.return_cps=2300; config.turn_cps=2500;
+  }
   config.stop_time_ms=0; config.direction_guard_ms=0;
   LineObstacleBypass_Init(&config);
   input.infrared_valid=1;
@@ -873,10 +1130,47 @@ static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
     LineObstacleBypass_Task(&input); tick+=20;
   }
   assert(LineObstacleBypass_GetState()==LINE_BYPASS_DRIVING);
+  DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_SPEED);
+  for(i=0;i<4;++i) assert(drive.requested_cps[i]>0);
   assert(!LineObstacleBypass_GetFaultMask());
   LineObstacleBypass_GetTelemetry(&bypass);
   if(early_ir) assert(bypass.net_turn_mdeg==0);
   else assert(bypass.net_turn_mdeg * -direction>=45000);
+  if(early_ir)
+  {
+    unsigned segments=0, w;
+    LineObstacleBypassState previous=LINE_BYPASS_IDLE;
+    /* Keep the side in band across repeated short translations. None may
+       return to endpoint position pulses or turn on its own. */
+    for(i=0;i<400;++i)
+    {
+      LineObstacleBypassState current=LineObstacleBypass_GetState();
+      if(current==LINE_BYPASS_DRIVING && previous!=current) ++segments;
+      previous=current;
+      DriveBase_GetTelemetry(&drive);
+      assert(drive.mode!=DRIVE_BASE_POSITION);
+      if(drive.mode==DRIVE_BASE_SPEED)
+      {
+        for(w=0;w<4;++w) { assert(drive.requested_cps[w]>0); counts[w]+=10; }
+      }
+      tick+=20; LineObstacleBypass_Task(&input);
+      assert(LineObstacleBypass_GetState()!=LINE_BYPASS_FAULT);
+      assert(LineObstacleBypass_GetState()!=LINE_BYPASS_TURNING);
+    }
+    assert(segments>=3);
+    /* A real close IR boundary must still interrupt forward travel and
+       transfer to outward turning; invalid IR still faults. */
+    input.left_ir_adc=input.right_ir_adc=1000;
+    for(i=0;i<30 && LineObstacleBypass_GetState()!=LINE_BYPASS_TURNING;++i)
+    { tick+=20; LineObstacleBypass_Task(&input); }
+    assert(LineObstacleBypass_GetState()==LINE_BYPASS_TURNING);
+    DriveBase_GetTelemetry(&drive);
+    assert(drive.requested_cps[0]*drive.requested_cps[2]<0);
+    input.infrared_valid=0; LineObstacleBypass_Task(&input);
+    assert(LineObstacleBypass_GetState()==LINE_BYPASS_FAULT);
+    printf("PASS: KEY1 direction=%d completes %u forward segments without position tails; close/invalid IR retains priority\n",
+        (int)direction,segments);
+  }
   LineObstacleBypass_Stop();
   DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_STOPPED);
   for(i=0;i<4;++i) assert(pins[i]==0);
@@ -989,12 +1283,19 @@ int main(void)
   test_real_search_capture();
   test_real_white_search();
   test_real_corner_chatter();
+  test_real_strong_exit_handoff();
+  test_real_visible_arc_and_loss(0);
+  test_real_visible_arc_and_loss(1);
+  test_slow_outer_profiles();
   test_integrated_line_cap();
   test_bounded_automatic_waits();
   test_real_exit_direction_correction();
   test_no_motion_keeps_turn_effort();
   test_observe_faults();
   test_bypass_turn_limits();
+  test_legacy_bypass_short_tail();
+  test_bypass_travel();
+  test_bypass_travel_ownership();
   test_bypass_continuous_turn(1,15000);
   test_bypass_continuous_turn(-1,45000);
   tick=UINT32_MAX-200;

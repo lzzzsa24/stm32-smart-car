@@ -55,8 +55,10 @@ void line_tracking_reset(void);
    ownership. Nonzero commands respect drive faults, braking and position
    ownership; a zero forward cap remains an explicit stop request. */
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
-/* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才搜索鸣响。
-   三/四路黑或不相邻多点黑优先低速穿越，覆盖旧转向。可靠外侧急弯持续转向，
+/* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才静音搜索。
+   仅外侧识黑时内侧停、外侧低速前进；相邻双探头正向差速；横线多点优先低速穿越。
+   同一最外侧单独持续识黑 120 ms 后以两侧反向强修正；其他原始状态立即解除。
+   短缺口确认后丢线使用两侧等大反向目标搜索，保持静音。
    三路相邻识黑只更新方向提示，不立即原地转向；双外侧/非相邻组合不产生新提示。
    近期侧向提示可跨越短多黑区域保留至原采样后 400 ms；中心/反侧证据可使其失效。
    窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */
@@ -64,8 +66,8 @@ void line_tracking_set_no_line_forward(uint8_t enable);
 /* enable=1: use filtered PD differential steering as the line-position outer
    loop. Wheel-speed feedback remains in DriveBase. */
 void line_tracking_set_smooth_mode(uint8_t enable);
-/* 100 keeps the normal KEY2 steering gain; 200 doubles KEY1's requested
-   steering component before the safe PWM saturation. */
+/* 100 keeps the normal KEY2 middle steering gain; 200 doubles KEY1's middle
+   steering before PWM saturation. Explicit outer/adjacent CPS are not boosted. */
 void line_tracking_set_turn_gain_percent(uint16_t percent);
 /* Pass snapshots to compute in acquisition order. ISR history newer than a
    snapshot stays queued for the next snapshot instead of being overwritten. */
