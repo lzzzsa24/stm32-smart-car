@@ -23,8 +23,10 @@
 
 #include <stdint.h>
 
+#include "audio_resume_store.h"
 #include "battery_monitor.h"
 #include "buzzer_phrase_40077493715.h"
+#include "dfplayer_mini.h"
 #include "diagnostic_uart.h"
 #include "drive_base.h"
 #include "encoder_linear.h"
@@ -102,6 +104,7 @@
 #define EXP7_GARAGE_TIME_MS            2000U
 #define EXP7_HORN_TIMEOUT_MS           1700U
 #define EXP7_STOP_HOLD_MS              1000U
+#define EXP7_AUDIO_VOLUME_STEP             2
 
 typedef enum
 {
@@ -152,6 +155,7 @@ static uint8_t sign_line_action;
 static uint8_t sign_slow_reasons;
 static int32_t sign_speed_limit_cps;
 static VisionLineV4Command vision_line_v4_command;
+static uint8_t audio_store_error_reported;
 
 #define BYPASS_REARM_DELAY_MS          1000U
 #define BYPASS_REARM_CLEAR_SAMPLES       10U
@@ -167,6 +171,11 @@ static void app_turn_right(int16_t inner_speed, int16_t outer_speed);
 static void configure_ultrasonic_avoid(void);
 static AppMode read_requested_mode(AppMode current_mode);
 static uint8_t app_take_serial_virtual_key(void);
+static void app_audio_toggle(void);
+static void app_audio_next(void);
+static void app_audio_previous(void);
+static void app_audio_adjust_volume(int8_t delta);
+static void app_audio_persist_task(uint8_t allow_page_erase);
 static uint8_t tick_reached(uint32_t now, uint32_t deadline);
 static uint8_t encoder_fault_beep_code(uint8_t fault_mask);
 static uint32_t app_approach_speed_cps(void);
@@ -409,9 +418,10 @@ static uint8_t encoder_fault_beep_code(uint8_t fault_mask)
 }
 
 /*
- * PG12 arbitration:
+ * Audio safety arbitration:
  *   safety_override=1 is used by stop/fault/ultrasonic/bypass warnings and
- *   immediately cancels the lower-priority phrase before driving the pin;
+ *   immediately cancels the lower-priority DFPlayer request and PG12 phrase
+ *   before driving the buzzer pin;
  *   safety_override=0 merely releases an inactive warning and never truncates
  *   a phrase which is already playing.
  */
@@ -420,6 +430,7 @@ static void app_buzzer_safety_write(GPIO_PinState output,
 {
   if (safety_override != 0U)
   {
+    DfPlayerMini_Stop();
     if (BuzzerPhrase400_IsPlaying() != 0U)
     {
       BuzzerPhrase400_Stop();
@@ -443,6 +454,7 @@ static uint8_t app_take_serial_virtual_key(void)
       LineFaultLog_RequestDump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case '0':
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       return IR_REMOTE_VIRTUAL_STOP;
     case '1': return IR_REMOTE_VIRTUAL_KEY1;
@@ -455,8 +467,21 @@ static uint8_t app_take_serial_virtual_key(void)
       vision_line_v4_diagnostic_dump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'b':
-      (void)BuzzerPhrase400_Start(1U);
-      DiagnosticUart_WriteString("BUZZER PHRASE x1\r\n");
+      app_audio_toggle();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'n':
+    case 'N':
+      app_audio_next();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'p':
+    case 'P':
+      app_audio_previous();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case '+':
+      app_audio_adjust_volume(EXP7_AUDIO_VOLUME_STEP);
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case '-':
+      app_audio_adjust_volume(-EXP7_AUDIO_VOLUME_STEP);
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'B':
       (void)BuzzerPhrase400_Start(6U);
@@ -464,10 +489,76 @@ static uint8_t app_take_serial_virtual_key(void)
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'x':
     case 'X':
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
-      DiagnosticUart_WriteString("BUZZER PHRASE STOP\r\n");
+      DiagnosticUart_WriteString("AUDIO STOP\r\n");
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     default:  return IR_REMOTE_VIRTUAL_KEY_NONE;
+  }
+}
+
+static void app_audio_toggle(void)
+{
+  if (DfPlayerMini_TogglePlayPause() != 0U)
+  {
+    DfPlayerMiniPlaybackState state = DfPlayerMini_GetPlaybackState();
+    DiagnosticUart_WriteString(state == DFPLAYER_MINI_PAUSED ?
+                               "DFPLAYER PAUSE TRACK=" :
+                               "DFPLAYER PLAY/RESUME TRACK=");
+    DiagnosticUart_WriteUnsigned(DfPlayerMini_GetCurrentTrack());
+    DiagnosticUart_WriteString(" LOOP=CURRENT\r\n");
+  }
+}
+
+static void app_audio_next(void)
+{
+  if (DfPlayerMini_Next() != 0U)
+  {
+    DiagnosticUart_WriteString("DFPLAYER NEXT; LOOP=CURRENT\r\n");
+  }
+}
+
+static void app_audio_previous(void)
+{
+  if (DfPlayerMini_Previous() != 0U)
+  {
+    DiagnosticUart_WriteString("DFPLAYER PREVIOUS; LOOP=CURRENT\r\n");
+  }
+}
+
+static void app_audio_adjust_volume(int8_t delta)
+{
+  if (DfPlayerMini_AdjustVolume(delta) != 0U)
+  {
+    DiagnosticUart_WriteString("DFPLAYER VOLUME=");
+    DiagnosticUart_WriteUnsigned(DfPlayerMini_GetVolume());
+    DiagnosticUart_WriteString("/30\r\n");
+  }
+}
+
+static void app_audio_persist_task(uint8_t allow_page_erase)
+{
+  uint16_t track_number;
+  AudioResumeStoreResult result;
+
+  if (DfPlayerMini_TakeTrackChanged(&track_number) != 0U)
+  {
+    (void)AudioResumeStore_RequestTrack(track_number);
+  }
+
+  result = AudioResumeStore_Task(allow_page_erase);
+  if (result == AUDIO_RESUME_STORE_SAVED)
+  {
+    audio_store_error_reported = 0U;
+    DiagnosticUart_WriteString("DFPLAYER REMEMBER TRACK=");
+    DiagnosticUart_WriteUnsigned(AudioResumeStore_GetTrack());
+    DiagnosticUart_WriteString("\r\n");
+  }
+  else if (result == AUDIO_RESUME_STORE_ERROR &&
+           audio_store_error_reported == 0U)
+  {
+    audio_store_error_reported = 1U;
+    DiagnosticUart_WriteString("DFPLAYER TRACK MEMORY ERROR\r\n");
   }
 }
 
@@ -1092,20 +1183,33 @@ static AppMode read_requested_mode(AppMode current_mode)
   if (remote_key == IR_REMOTE_VIRTUAL_STOP ||
       serial_key == IR_REMOTE_VIRTUAL_STOP)
   {
+    DfPlayerMini_Stop();
     BuzzerPhrase400_Stop();
     return APP_MODE_STOPPED;
   }
 
-  /* The centre button in the remote's direction pad is the Yahboom 0x05
-     buzzer key.  Treat it as a one-shot side action: it neither starts nor
-     changes a drive mode, and NEC repeat frames are already suppressed by
-     ir_remote.c.  Existing safety arbitration may still cancel the phrase. */
-  if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_ONCE)
+  /* Direction-pad audio controls never change the drive mode.  Centre toggles
+     play/pause, left/right select the previous/next physical file regardless
+     of its name, and up/down change volume.  NEC repeats stay suppressed. */
+  if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_TOGGLE)
   {
-    if (BuzzerPhrase400_Start(1U) != 0U)
-    {
-      DiagnosticUart_WriteString("IR CENTER: BUZZER PHRASE x1\r\n");
-    }
+    app_audio_toggle();
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_NEXT)
+  {
+    app_audio_next();
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_PREVIOUS)
+  {
+    app_audio_previous();
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_VOLUME_UP)
+  {
+    app_audio_adjust_volume(EXP7_AUDIO_VOLUME_STEP);
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_VOLUME_DOWN)
+  {
+    app_audio_adjust_volume(-EXP7_AUDIO_VOLUME_STEP);
   }
 
   if (HAL_GPIO_ReadPin(key1_GPIO_Port, key1_Pin) == GPIO_PIN_RESET ||
@@ -1199,6 +1303,7 @@ static void start_vision_command(VisionCommand command, uint32_t now)
       break;
 
     case VISION_CMD_STOP:
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       vision_action = VISION_ACTION_STOP;
       vision_action_deadline = now + EXP7_STOP_HOLD_MS;
@@ -1403,6 +1508,14 @@ int main(void)
   MX_GPIO_Init();
   BuzzerPhrase400_Init();
   DiagnosticUart_Init();
+  AudioResumeStore_Init();
+  DfPlayerMini_Init();
+  (void)DfPlayerMini_SetResumeTrack(AudioResumeStore_GetTrack());
+  (void)DfPlayerMini_SetLoopCurrent(1U);
+  audio_store_error_reported = 0U;
+  DiagnosticUart_WriteString("DFPLAYER UART4 PC10/PC11: CENTER=PLAY/PAUSE LEFT=PREVIOUS RIGHT=NEXT UP/DOWN=VOL+/-2 LOOP=CURRENT REMEMBER=");
+  DiagnosticUart_WriteUnsigned(AudioResumeStore_GetTrack());
+  DiagnosticUart_WriteString("\r\n");
   DiagnosticUart_WriteString("\r\nLINE FAULT LOG v1: f=DUMP WHEN STOPPED; RAM ONLY; KEEP POWER ON; DEG=FEEDFORWARD WHEEL MASK\r\n");
   DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 5=K210-VLINE4 0=STOP\r\n");
   motor_pwm_init();
@@ -1489,6 +1602,10 @@ int main(void)
     uint16_t emergency_distance_cm = EXP7_ULTRASONIC_STOP_CM;
     AppMode requested_mode = read_requested_mode(app_mode);
 
+    DfPlayerMini_Task(HAL_GetTick());
+    app_audio_persist_task((app_mode == APP_MODE_STOPPED &&
+                            requested_mode == APP_MODE_STOPPED) ? 1U : 0U);
+
     /* The phrase deadlines are absolute, so this 1 ms main-loop service does
        not accumulate timing drift. */
     BuzzerPhrase400_Task(HAL_GetTick());
@@ -1524,6 +1641,7 @@ int main(void)
       cancel_vision_action();
       line_speed = EXP7_LINE_SPEED;
       line_tracking_reset();
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);

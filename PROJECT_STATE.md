@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 4a343dd
+repository_head_at_update: 0344d43
 latest_code_commit: f543639
-flashed_source_commit: f34e7dd
-flash_record_commit: 7931b2e
-deployed_tag: deployed/2026-09-08-comprehensive-v3-f34e7dd
-formal_bin_path: manual-build-candidate-comprehensive-v3-f34e7dd/exp7_unified_motion.bin
-formal_hex_path: manual-build-candidate-comprehensive-v3-f34e7dd/exp7_unified_motion.hex
-formal_bin_size_bytes: 84488
-flashed_bin_sha256: D44DF291F6A49176E67D76BD16D6B1356B07D919603580005318D74BA47ED54A
-flashed_hex_sha256: 0D4F79D56ACB603B9D705F44A4C445C2D519244686135A683E81962ED4138414
-ground_test_status: not_tested_after_comprehensive_v3_f34e7dd_deployment
-k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: f543639
-candidate_bin_size_bytes: 84276
-candidate_bin_sha256: 36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6
-candidate_hex_sha256: D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F
-user_reported_flash: tool_verified_f34e7dd_STM32_flash_readback_and_GO_no_physical_test
-k210_candidate_source_commit: 36551f3
-k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_pr8_merged_v1.2.0_rc3_published_state_sync_via_protected_pr
+flashed_source_commit: 4589a25
+flash_record_commit: 0344d43
+deployed_tag: deployed/2026-09-08-comprehensive-v5-dfplayer-4589a25
+formal_bin_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.bin
+formal_hex_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.hex
+formal_bin_size_bytes: 86636
+flashed_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
+flashed_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
+ground_test_status: not_tested_after_comprehensive_v5_4589a25_deployment
+k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
+candidate_source_commit: 4589a25
+candidate_bin_size_bytes: 86636
+candidate_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
+candidate_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
+user_reported_flash: tool_verified_4589a25_STM32_flash_readback_and_GO_listening_test_pending
+k210_candidate_source_commit: 0a02d3d
+k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
+remote_sync_status: github_main_rc3_synced_local_v5_deployment_records_not_pushed
 remote_sync_branch: main
-stm32_runtime_status: COM11_f34e7dd_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
-k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
-temporary_flash_selector_commit: f34e7dd_comprehensive_v3_flashed
+stm32_runtime_status: COM11_4589a25_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
+k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
+temporary_flash_selector_commit: 4589a25_comprehensive_v5_dfplayer_flashed
 github_release_tag: v1.2.0-rc.3
 github_release_source_commit: 4a343dd
 github_release_firmware_commit: f543639
@@ -69,9 +69,11 @@ mutually exclusive K210 `/sd/main.py` choices, the mode 3/4 road-sign model and
 instructions. All nine uploaded asset sizes and GitHub digests match the staged
 local files. K210 assets are byte-identical to rc.2. The exact rc.3 main BIN
 has not been flashed: the board instead runs comprehensive test source
-`f34e7dd`, whose line and bypass trees match but which additionally contains
-the unmerged ten-second sign-probe experiment. No lifted-wheel or ground-test
-claim is made. Previous releases remain available as history.
+`4589a25`. It retains `0a02d3d`'s unmerged ten-second sign-probe experiment and
+shared KEY1/KEY2 tracking entry increment, and adds the test-only DFPlayer remote
+controls. K210 still runs the readback-verified SIGN34 mode-3/4 program and
+matching model. No listening, lifted-wheel or ground-test claim is made for the
+current STM32 image. Previous releases remain available as history.
 
 ## Current protected main source (`f543639`)
 
@@ -148,7 +150,39 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
-## Current flashed comprehensive test (`f34e7dd`)
+## Current flashed comprehensive test (`0a02d3d`)
+
+Exact source `0a02d3d0533fd93df468d91624acbbf245548714` adds requested worker
+`a14aaff` to the previous comprehensive test in branch
+`test/comprehensive-v4-20260908`. KEY1 and KEY2 now call one shared tracking
+entry and one-snapshot compute/apply cycle. Both start with smooth tracking,
+100-percent middle steering gain and search instead of blind forward travel
+before the first line. KEY1 still applies ultrasonic speed caps and obstacle
+ownership before the shared line cycle; KEY2 retains its full limit. The
+ten-second sign hold, persistent outer correction and continuous bypass remain.
+
+The complete line-recovery/load/bypass suite passed at both search speeds. A
+real-source replay matched 3600 KEY1/KEY2 samples and source checks retained
+bypass/ultrasonic priority. Sign-line including the ten-second hold and
+vision-line-v4 also passed. The formal build passed with text/data/bss
+`84404/64/11600`, producing an 84472-byte BIN with SHA-256
+`BE44622428EC5BB8A216F190773D16DE0FA153AC92E1EF4E051AB7AD346E0E92`;
+the HEX SHA-256 is
+`3D61C879E7920D8CF37BBF47547E2E6790E773FF1168CC9E0F0BB8D6BF52833E`.
+
+COM11 selectively erased 42 application pages while preserving the final
+calibration page, wrote and read back all 84472 bytes with `VERIFY OK`, and
+completed `GO OK: 0x08000000`. No routine post-GO serial check was performed.
+COM14's prior 3891-byte `/sd/main.py` was backed up and replaced with the
+correct 7256-byte SIGN34 script. Its readback SHA-256 is
+`2BCFCC5E08671EE0F0E3BD0712A1DD217A3450BFDBD3C3DDA7EFE8807D38A3D8`.
+The existing 571432-byte road-sign model already matched SHA-256
+`B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`
+and was not rewritten. Soft reboot reported `model load succeed` and
+`SIGN34 ready`. No board-link, lifted-wheel or ground-driving test was run.
+Detailed evidence: `DEPLOYMENT_COMPREHENSIVE_V4_0A02D3D_20260908.md`.
+
+## Previous flashed comprehensive test (`f34e7dd`)
 
 Exact source `f34e7dd3fa1f16f7d8abd0255c94a25d199cbb63` extends the previous
 comprehensive source in branch `test/comprehensive-v3-20260908`. Its parent
@@ -898,9 +932,11 @@ as follows:
 - Wheel order is M1 left-front, M2 left-rear, M3 right-front, M4 right-rear.
 - Motor direction compensation remains centralized in `Core/Src/motorPWM.c`.
 - K210 is connected as COM14 and currently runs the exact 7256-byte SIGN34
-  script present at `36551f3` (the same optimized blob introduced by
-  `07f2b73`); the mode 5 slow-near script remains preserved and backed up.
-  UART1 IO8/TX to STM32 USART2 PD6/RX and common ground are unchanged.
+  script present in `0a02d3d` (the same optimized blob introduced by
+  `07f2b73`). The prior 3891-byte active script and unchanged `/flash/main.py`
+  are backed up. The mode 5 slow-near script remains preserved separately.
+  UART1 IO8/TX to STM32 USART2 PD6/RX and common ground are unchanged; this
+  deployment did not rerun the board-link query.
 - OLED is the external J12 display and includes battery/status information.
 - Encoder distance/angle is a wheel-motion estimate; ground yaw requires
   calibration because slip and battery/load change the result.
@@ -909,35 +945,36 @@ as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | current local main source `f543639`; ELF text/data/bss = 84208/64/11592 bytes; BIN is 84276 bytes; HEX hash is `D63E0222...0B3F` |
-| host regression | passed | `f543639` line suite passed at both speeds, including persistent outer 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/STOP and real DriveBase signs; continuous bypass plus unchanged sign-line and vision-line-v4 also passed |
-| STM32 flash/readback/GO | passed after retry | first COM11 attempt preserved the calibration page and erased 42 application pages, then Windows denied access before a complete write; the re-enumerated retry wrote/read back all 84488 bytes with `VERIFY OK` and completed `GO OK`; routine post-GO checking was omitted at user request |
+| computer build/link | passed | flashed comprehensive source `0a02d3d`; ELF text/data/bss = 84404/64/11600 bytes; BIN is 84472 bytes; HEX hash is `3D61C879...833E` |
+| host regression | passed | `0a02d3d` line suite passed at both speeds, including 3600 shared KEY1/KEY2 samples, persistent outer correction, continuous bypass and ownership checks; ten-second sign-line and vision-line-v4 also passed |
+| STM32 flash/readback/GO | passed | COM11 selectively erased 42 application pages, preserved the final calibration page, wrote/read back all 84472 bytes with `VERIFY OK`, and completed `GO OK`; routine post-GO checking was omitted at user request |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.3` points to protected-main PR #8 merge `4a343dd`; firmware code `f543639` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded sizes and digests were verified |
-| K210 deployment/runtime | unchanged from prior deployment | This STM32 operation did not open, reset, inspect or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
-| board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
+| K210 deployment/runtime | passed | COM14 backed up the prior script, wrote/read back the 7256-byte SIGN34 `/sd/main.py`, verified the existing model hash and observed `model load succeed` plus `SIGN34 ready` after soft reboot |
+| board-to-board UART | unchanged from prior STOP-only result | no new link query was run; the earlier four VLINK samples increased parsed SIGN count 102 to 126, but this deployment's physical IO8/TX to PD6/RX path remains untested |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
 | ground driving | not performed | composite line recovery, continuous bypass, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The STM32 now runs temporary comprehensive firmware `f34e7dd`. K210 remains
-unchanged on its previously verified mode 3/4 SIGN34 program. A pre-flash STOP
-command was sent and the board reported its `DEFAULT STOP` startup banner;
-there was intentionally no routine post-GO serial STOP/zero-output check. No
-lifted-wheel or ground result has been claimed for the composite behavior.
+The STM32 now runs temporary comprehensive firmware `0a02d3d`. A pre-flash
+STOP command was sent, all bytes read back correctly and GO succeeded; there
+was intentionally no routine post-GO serial STOP/zero-output check. K210 COM14
+now runs the correct readback-verified SIGN34 mode-3/4 script and matching
+model after the previously active different script was backed up. No new
+board-link, lifted-wheel or ground result has been claimed.
 
 GitHub PR #8 merged accepted continuous bypass and current line source
 `f543639` into protected `main` as `4a343dd`. Pre-release `v1.2.0-rc.3` is
 published with nine size/hash-verified assets. Independent comprehensive source
-`f34e7dd` is still the flashed image; only its ten-second sign-probe experiment
-remains excluded from main and rc.3.
+`0a02d3d` is the flashed image; its ten-second sign-probe experiment and
+KEY1/KEY2 shared-entry increment remain excluded from main and rc.3.
 
-The next safe physical step for the exact main image is an explicitly
-authorized flash followed by a user-controlled mode-2 line test with remote
-STOP immediately available. The current board's `f34e7dd` line code is
-equivalent, but its extra unmerged sign layer means its programmer result is
-not proof that the exact `f543639` BIN was flashed. Continuous bypass chassis
-movement, infrared boundary response and traction also still need ground tests.
+The next physical step is a user-controlled mode-3 and mode-4 test with remote
+STOP immediately available. K210 startup is verified, but actual sign
+classification, UART delivery, selected route and wheel behavior are not.
+Mode 3 uses enhanced line control plus sign routing; mode 4 uses SL2 simplified
+line control plus the same sign routing. Test one mode at a time and return to
+STOP before changing modes.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
