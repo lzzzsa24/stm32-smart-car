@@ -25,6 +25,7 @@
 
 #include "battery_monitor.h"
 #include "buzzer_phrase_40077493715.h"
+#include "dfplayer_mini.h"
 #include "diagnostic_uart.h"
 #include "drive_base.h"
 #include "encoder_linear.h"
@@ -409,9 +410,10 @@ static uint8_t encoder_fault_beep_code(uint8_t fault_mask)
 }
 
 /*
- * PG12 arbitration:
+ * Audio safety arbitration:
  *   safety_override=1 is used by stop/fault/ultrasonic/bypass warnings and
- *   immediately cancels the lower-priority phrase before driving the pin;
+ *   immediately cancels the lower-priority DFPlayer request and PG12 phrase
+ *   before driving the buzzer pin;
  *   safety_override=0 merely releases an inactive warning and never truncates
  *   a phrase which is already playing.
  */
@@ -420,6 +422,7 @@ static void app_buzzer_safety_write(GPIO_PinState output,
 {
   if (safety_override != 0U)
   {
+    DfPlayerMini_Stop();
     if (BuzzerPhrase400_IsPlaying() != 0U)
     {
       BuzzerPhrase400_Stop();
@@ -443,6 +446,7 @@ static uint8_t app_take_serial_virtual_key(void)
       LineFaultLog_RequestDump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case '0':
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       return IR_REMOTE_VIRTUAL_STOP;
     case '1': return IR_REMOTE_VIRTUAL_KEY1;
@@ -455,8 +459,8 @@ static uint8_t app_take_serial_virtual_key(void)
       vision_line_v4_diagnostic_dump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'b':
-      (void)BuzzerPhrase400_Start(1U);
-      DiagnosticUart_WriteString("BUZZER PHRASE x1\r\n");
+      (void)DfPlayerMini_PlayMp3Track(1U);
+      DiagnosticUart_WriteString("DFPLAYER: /mp3/0001.mp3\r\n");
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'B':
       (void)BuzzerPhrase400_Start(6U);
@@ -464,8 +468,9 @@ static uint8_t app_take_serial_virtual_key(void)
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'x':
     case 'X':
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
-      DiagnosticUart_WriteString("BUZZER PHRASE STOP\r\n");
+      DiagnosticUart_WriteString("AUDIO STOP\r\n");
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     default:  return IR_REMOTE_VIRTUAL_KEY_NONE;
   }
@@ -1092,19 +1097,20 @@ static AppMode read_requested_mode(AppMode current_mode)
   if (remote_key == IR_REMOTE_VIRTUAL_STOP ||
       serial_key == IR_REMOTE_VIRTUAL_STOP)
   {
+    DfPlayerMini_Stop();
     BuzzerPhrase400_Stop();
     return APP_MODE_STOPPED;
   }
 
   /* The centre button in the remote's direction pad is the Yahboom 0x05
-     buzzer key.  Treat it as a one-shot side action: it neither starts nor
+     audio key.  Treat it as a one-shot side action: it neither starts nor
      changes a drive mode, and NEC repeat frames are already suppressed by
-     ir_remote.c.  Existing safety arbitration may still cancel the phrase. */
+     ir_remote.c.  Requests during DFPlayer boot are queued by the driver. */
   if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_ONCE)
   {
-    if (BuzzerPhrase400_Start(1U) != 0U)
+    if (DfPlayerMini_PlayMp3Track(1U) != 0U)
     {
-      DiagnosticUart_WriteString("IR CENTER: BUZZER PHRASE x1\r\n");
+      DiagnosticUart_WriteString("IR CENTER: DFPLAYER /mp3/0001.mp3\r\n");
     }
   }
 
@@ -1199,6 +1205,7 @@ static void start_vision_command(VisionCommand command, uint32_t now)
       break;
 
     case VISION_CMD_STOP:
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       vision_action = VISION_ACTION_STOP;
       vision_action_deadline = now + EXP7_STOP_HOLD_MS;
@@ -1403,6 +1410,8 @@ int main(void)
   MX_GPIO_Init();
   BuzzerPhrase400_Init();
   DiagnosticUart_Init();
+  DfPlayerMini_Init();
+  DiagnosticUart_WriteString("DFPLAYER UART4 PC10/PC11: 9600 8N1; TRACK=/mp3/0001.mp3; DEFAULT VOL CONFIGURED\r\n");
   DiagnosticUart_WriteString("\r\nLINE FAULT LOG v1: f=DUMP WHEN STOPPED; RAM ONLY; KEEP POWER ON; DEG=FEEDFORWARD WHEEL MASK\r\n");
   DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 5=K210-VLINE4 0=STOP\r\n");
   motor_pwm_init();
@@ -1489,6 +1498,8 @@ int main(void)
     uint16_t emergency_distance_cm = EXP7_ULTRASONIC_STOP_CM;
     AppMode requested_mode = read_requested_mode(app_mode);
 
+    DfPlayerMini_Task(HAL_GetTick());
+
     /* The phrase deadlines are absolute, so this 1 ms main-loop service does
        not accumulate timing drift. */
     BuzzerPhrase400_Task(HAL_GetTick());
@@ -1524,6 +1535,7 @@ int main(void)
       cancel_vision_action();
       line_speed = EXP7_LINE_SPEED;
       line_tracking_reset();
+      DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_RESET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_RESET);

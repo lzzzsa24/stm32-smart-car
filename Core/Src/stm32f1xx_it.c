@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f1xx_it.h"
+#include "dfplayer_mini.h"
 #include "ultrasonic.h"
 #include "vision_uart.h"
 #include "wheel_encoder.h"
@@ -235,6 +236,11 @@ void EXTI15_10_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   vision_uart_irq_handler();
+}
+
+void UART4_IRQHandler(void)
+{
+  DfPlayerMini_UART4_IRQHandler();
 }
 
 /* USER CODE END 1 */
