@@ -3,6 +3,9 @@
 /* Geometry/time bounds are navigation warnings; all-white keeps searching. */
 #define SIGN_PROBE_MAX_MM 80L
 #define SIGN_PROBE_TIMEOUT_MS 1800U
+#ifndef SIGN_PROBE_HOLD_MS
+#define SIGN_PROBE_HOLD_MS 10000U
+#endif
 #define SIGN_CAPTURE_MS 30U
 #define SIGN_PROBE_CENTER_CLEAR_MS 120U
 #define SIGN_SAMPLE_MAX_GAP_MS 50U

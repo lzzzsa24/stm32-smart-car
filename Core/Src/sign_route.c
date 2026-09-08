@@ -29,6 +29,8 @@ typedef struct
   uint32_t last_frame_ms;
   uint32_t last_sequence;
   uint32_t armed_ms;
+  uint32_t probe_hold_since_ms;
+  uint8_t probe_hold_started;
   uint32_t junction_since_ms;
   uint32_t capture_since_ms;
   uint32_t finished_ms;
@@ -248,6 +250,7 @@ void SignRoute_UpdateEncoders(int32_t m1, int32_t m2, int32_t m3, int32_t m4)
 
 static void enter_phase(SignRouteState state, uint32_t now)
 {
+  if (state == SIGN_ROUTE_PROBE) route.probe_hold_started = 0U;
   route.state = state;
   route.phase_ms = now;
   route.origin_left = route.left_counts;
@@ -372,6 +375,33 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_PROBE)
   {
+#if SIGN_PROBE_HOLD_MS > 0
+    if (route.direction != 0)
+    {
+      if (!route.probe_hold_started)
+      {
+        route.probe_hold_started = 1U;
+        route.probe_hold_since_ms = now;
+      }
+      if (now - route.probe_hold_since_ms < SIGN_PROBE_HOLD_MS)
+      {
+        /* The requested outside sensor wins even on a wide/all-black mark.
+           No black on that side: leave live tracking in control, never blind drive. */
+        if (line_mask & (route.direction < 0 ? 8U : 1U))
+        {
+          command->active = 1U;
+          command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
+          command->right_pwm = route.direction < 0 ? SIGN_ROUTE_PWM : 0;
+        }
+        return;
+      }
+      /* A single non-renewable window. Restart selection geometry/time here,
+         so the elapsed hold cannot immediately trigger an old phase timeout. */
+      enter_phase(SIGN_ROUTE_SELECTING, now);
+      route.departed = 1U;
+      return;
+    }
+#endif
     /* Observe while the ordinary line controller keeps motor ownership. */
     if (route.travel_mm > SIGN_PROBE_MAX_MM ||
         now - route.phase_ms > SIGN_PROBE_TIMEOUT_MS)

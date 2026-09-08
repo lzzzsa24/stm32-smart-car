@@ -793,7 +793,8 @@ static void oled_application_task(AppMode mode)
           route_status.last_class,
           route_status.last_score,
           route_status.vision_online,
-          route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
+          (route_status.searching && route_status.state != SIGN_ROUTE_PROBE) ?
+              (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
           route_status.direction);
     }
     else
@@ -1011,10 +1012,13 @@ static void sign_line_task(AppMode mode)
 
   sign_line_mask = line_reading_mask(&line);
   /* Keep sampling the real line even while a route preference is active. */
-  SimpleLine_Step(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
+  SignRoute_GetStatus(now, &route_status);
+  if (route_status.state == SIGN_ROUTE_PROBE && route_status.direction != 0)
+    SimpleLine_SetDirection(&simple_line_controller, route_status.direction);
+  SimpleLine_Step(&simple_line_controller, sign_line_mask);
 
   if (route_command.just_started != 0U || route_command.just_finished != 0U)
   {
