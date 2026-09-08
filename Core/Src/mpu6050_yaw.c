@@ -11,6 +11,8 @@ static uint32_t stage_ms, last_poll_ms, calibration_ms;
 static uint8_t init_stage;
 static int64_t bias_sum, yaw_udeg;
 static int16_t cal_min[3], cal_max[3];
+static uint8_t bias_valid, restore_bias, ready_sample;
+static uint32_t service_ms, fault_ms;
 
 static int32_t magnitude(int32_t value) { return value < 0 ? -value : value; }
 static int16_t signed_be(const uint8_t *p)
@@ -22,6 +24,8 @@ static void fault(uint8_t reason)
 {
   reading.state = MPU_YAW_FAULT;
   reading.fault = reason;
+  reading.last_fault = reason;
+  fault_ms = service_ms;
   reading.rate_mdeg_s = 0;
 }
 static void clear_calibration(void)
@@ -32,6 +36,8 @@ static void clear_calibration(void)
 void MpuYaw_Init(uint32_t now_ms)
 {
   memset(&reading, 0, sizeof(reading));
+  bias_valid = restore_bias = ready_sample = 0U;
+  service_ms = now_ms;
   yaw_udeg = bias_sum = 0;
   stage_ms = last_poll_ms = calibration_ms = now_ms;
   init_stage = 0;
@@ -67,6 +73,7 @@ static void sample(const uint8_t *p, uint8_t stationary)
     {
       reading.bias_milliraw = (int32_t)(bias_sum * 1000 / CAL_SAMPLES);
       reading.state = MPU_YAW_READY;
+      bias_valid = ready_sample = 1U;
     }
     return;
   }
@@ -75,6 +82,7 @@ static void sample(const uint8_t *p, uint8_t stationary)
   { fault(MPU_FAULT_RANGE); return; }
   {
     int32_t corrected = (gyro[2] * 1000 - reading.bias_milliraw) * MPU6050_YAW_SIGN;
+    ready_sample = 1U;
     reading.rate_mdeg_s = (int32_t)((int64_t)corrected * 2 / 131);
     /* Integrate each sensor-timed FIFO sample, never a delayed main-loop dt. */
     yaw_udeg += (int64_t)corrected * 20 / 131;
@@ -86,7 +94,31 @@ void MpuYaw_Task(uint32_t now_ms, uint8_t stationary)
 {
   uint8_t bytes[FRAME_BYTES * MAX_FRAMES], count_bytes[2], status;
   uint16_t count, frames, i;
-  if (reading.state == MPU_YAW_FAULT) return;
+  service_ms = now_ms;
+  if (reading.state == MPU_YAW_FAULT)
+  {
+    /* Retry the peripheral cooperatively, at most once per second. Retain a
+       completed bias, but announce the lost yaw interval to every consumer. */
+    if (now_ms - fault_ms >= 1000U)
+    {
+      MpuYawReading previous = reading;
+      uint8_t saved_bias_valid = bias_valid;
+      int64_t previous_udeg = yaw_udeg;
+      MpuYaw_Init(now_ms);
+      bias_valid = restore_bias = saved_bias_valid;
+      reading.bias_milliraw = previous.bias_milliraw;
+      reading.calibration_samples = saved_bias_valid ? CAL_SAMPLES : 0U;
+      reading.yaw_mdeg = previous.yaw_mdeg; yaw_udeg = previous_udeg;
+      reading.generation = previous.generation + 1U;
+      reading.restart_count = previous.restart_count + 1U;
+      reading.last_fault = previous.fault;
+      reading.samples = previous.samples;
+      reading.peak_fifo_bytes = previous.peak_fifo_bytes;
+      reading.max_service_gap_ms = previous.max_service_gap_ms;
+      reading.backlog_events = previous.backlog_events;
+    }
+    return;
+  }
   if (reading.state == MPU_YAW_STARTING)
   {
     if (now_ms - stage_ms < 100U) return;
@@ -114,7 +146,8 @@ void MpuYaw_Task(uint32_t now_ms, uint8_t stationary)
         if (!MpuBus_Read(registers[reg_index], &status, 1U) || status != expected[reg_index])
         { fault(MPU_FAULT_BUS); return; }
     }
-    reading.state = stationary ? MPU_YAW_CALIBRATING : MPU_YAW_WAIT_STATIONARY;
+    reading.state = restore_bias ? MPU_YAW_READY :
+        (stationary ? MPU_YAW_CALIBRATING : MPU_YAW_WAIT_STATIONARY);
     reading.last_sample_ms = last_poll_ms = calibration_ms = now_ms;
     return;
   }
@@ -163,6 +196,6 @@ void MpuYaw_Refresh(uint32_t now_ms)
 void MpuYaw_GetReading(MpuYawReading *out) { if (out) *out = reading; }
 uint8_t MpuYaw_IsReady(uint32_t now_ms)
 {
-  return reading.state == MPU_YAW_READY && !reading.pending_frames &&
+  return reading.state == MPU_YAW_READY && ready_sample && !reading.pending_frames &&
       now_ms - reading.last_sample_ms <= 30U;
 }

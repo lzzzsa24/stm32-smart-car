@@ -12,7 +12,7 @@ typedef enum
   VISION_LINE_V4_CURVE,
   VISION_LINE_V4_SHARP_TURN,
   VISION_LINE_V4_LOST_SEARCH,
-  VISION_LINE_V4_OBSTACLE_STOP,
+  VISION_LINE_V4_OBSTACLE_STOP, /* Compatibility ID: now counter-rotation avoidance. */
   VISION_LINE_V4_LINK_STOP
 } VisionLineV4ControlState;
 

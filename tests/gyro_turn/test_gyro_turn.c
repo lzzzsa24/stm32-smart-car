@@ -6,6 +6,9 @@
 #include "line_bypass_turn.h"
 #include "drive_base.h"
 #include "angle_mode_example.h"
+#include "wheel_encoder.h"
+void WheelEncoder_Start(void) {}
+void WheelEncoder_GetCounts(WheelEncoderCounts *c) { memset(c, 0, sizeof *c); }
 
 static uint32_t now;
 static uint8_t fifo[1024], regs[256], bad_bus, overflow;
@@ -15,7 +18,7 @@ static int32_t largest_cps, smallest_cps;
 uint32_t HAL_GetTick(void) { return now; }
 uint8_t MpuBus_Init(void) { return !bad_bus; }
 uint8_t MpuBus_Write(uint8_t reg, uint8_t value)
-{ regs[reg] = value; return !bad_bus; }
+{ regs[reg] = value; if (!bad_bus && reg == 0x6a && value == 4) fifo_size = 0; return !bad_bus; }
 uint8_t MpuBus_Read(uint8_t reg, uint8_t *data, uint16_t length)
 {
   if (bad_bus) return 0;
@@ -262,11 +265,31 @@ static void test_delayed_service_and_recovery(void)
   assert(MpuYaw_IsReady(now) && !read_imu().fault);
   puts("PASS: delayed consumer refresh, budgeted FIFO catch-up, transient abort/rearm and stationary calibration wait");
 }
+static void test_background_restart(void)
+{
+  ready(); assert(GyroTurn_Start(90000, 2500));
+  bad_bus = 1; now += 10; MpuYaw_Task(now, 0);
+  assert(read_imu().fault == MPU_FAULT_BUS);
+  now += 999; MpuYaw_Task(now, 0); assert(read_imu().restart_count == 0);
+  now += 1; MpuYaw_Task(now, 0);
+  assert(read_imu().restart_count == 1 && read_imu().state == MPU_YAW_FAULT);
+  bad_bus = 0; now += 1000; MpuYaw_Task(now, 0);
+  assert(read_imu().restart_count == 2 && read_imu().generation == 2);
+  now += 100; MpuYaw_Task(now, 0); now += 100; MpuYaw_Task(now, 0);
+  assert(!MpuYaw_IsReady(now)); /* Configuration is not a fresh measurement. */
+  feed(1, 100, 0);
+  assert(MpuYaw_IsReady(now) && read_imu().bias_milliraw == 100000);
+  assert(read_imu().last_fault == MPU_FAULT_BUS);
+  GyroTurn_Task(); /* A pre-restart angle target must not span lost samples. */
+  assert(GyroTurn_GetFault() == GYRO_TURN_DATA_GAP && drive.mode == DRIVE_BASE_STOPPED);
+  puts("PASS: bounded background bus retry, retained bias, fresh-sample gate and yaw epoch cancellation");
+}
 int main(void)
 {
   test_yaw(); test_calibration_and_faults(); test_turn(1); test_turn(-1); test_turn_faults();
   test_reusable_example();
   test_delayed_service_and_recovery();
+  test_background_restart();
   puts("PASS: FIFO yaw, calibration, faults, mirrored bypass turns, STOP and settled-angle checks");
   return 0;
 }

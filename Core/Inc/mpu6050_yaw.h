@@ -32,6 +32,8 @@ typedef struct {
   uint32_t samples;
   uint16_t pending_frames, peak_fifo_bytes;
   uint32_t max_service_gap_ms, backlog_events;
+  uint32_t generation, restart_count;
+  uint8_t last_fault;
 } MpuYawReading;
 
 /* Sensor service shared by ALL modes; main-loop only, not ISR/reentrant.
@@ -39,6 +41,8 @@ typedef struct {
    Resets the shared yaw origin and bias: invalidate old snapshots/targets. */
 void MpuYaw_Init(uint32_t now_ms);
 /* Service every main-loop iteration, including STOP and unrelated modes.
+   Faulted transport retries once per second; completed bias may be retained.
+   generation changes invalidate all pre-restart relative angle targets.
    stationary must include STOP ownership and measured wheel standstill.
    FIFO is sensor-timed. Don't place this only in an active turn branch.
    Phase waits are cooperative; bus transactions are bounded, not async. */

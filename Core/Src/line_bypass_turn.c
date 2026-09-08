@@ -2,18 +2,7 @@
 #include "mpu6050_yaw.h"
 #if MPU6050_BYPASS_ENABLED
 #include "gyro_turn.h"
-uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
-{ return GyroTurn_Start(angle_mdeg, cps); }
-void LineBypassTurn_Task(void) { GyroTurn_Task(); }
-uint8_t LineBypassTurn_RequestStop(void) { return GyroTurn_RequestStop(); }
-void LineBypassTurn_Stop(void) { GyroTurn_Stop(); }
-LineBypassTurnState LineBypassTurn_GetState(void)
-{ return (LineBypassTurnState)GyroTurn_GetState(); }
-uint8_t LineBypassTurn_GetFaultMask(void)
-{ return GyroTurn_GetFault() ? 0x10U : 0U; }
-int32_t LineBypassTurn_GetAchievedAngleMdeg(void)
-{ return GyroTurn_GetAchievedAngleMdeg(); }
-#else
+#endif
 #include "drive_base.h"
 #include "line_search_model.h"
 #include "main.h"
@@ -68,7 +57,7 @@ static void fail(uint8_t drive_fault)
   state = LINE_BYPASS_TURN_FAULT;
 }
 
-uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
+static uint8_t encoder_Start(int32_t angle_mdeg, int32_t cps)
 {
   DriveBaseTelemetry drive;
   int64_t angle = angle_mdeg;
@@ -100,7 +89,7 @@ uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
   return 1U;
 }
 
-uint8_t LineBypassTurn_RequestStop(void)
+static uint8_t encoder_RequestStop(void)
 {
   if (state != LINE_BYPASS_TURN_RUNNING) return 0U;
   if (!settling)
@@ -112,7 +101,7 @@ uint8_t LineBypassTurn_RequestStop(void)
   return 1U;
 }
 
-void LineBypassTurn_Task(void)
+static void encoder_Task(void)
 {
   DriveBaseTelemetry drive;
   int32_t minimum;
@@ -141,21 +130,100 @@ void LineBypassTurn_Task(void)
      No per-wheel endpoint pulses, reversals or low-speed tail corrections. */
   if (sum >= (int64_t)target_counts * 4 && minimum >= target_counts / 2)
   {
-    (void)LineBypassTurn_RequestStop();
+    (void)encoder_RequestStop();
     return;
   }
   if (now - started_ms >= timeout_ms) { fail(0U); return; }
   command_turn();
 }
 
-void LineBypassTurn_Stop(void)
+static void encoder_Stop(void)
 {
   if (state == LINE_BYPASS_TURN_RUNNING) DriveBase_Stop(DRIVE_STOP_COAST);
   state = LINE_BYPASS_TURN_IDLE;
   settling = fault_mask = 0U;
 }
 
-LineBypassTurnState LineBypassTurn_GetState(void) { return state; }
-uint8_t LineBypassTurn_GetFaultMask(void) { return fault_mask; }
-int32_t LineBypassTurn_GetAchievedAngleMdeg(void) { return achieved_mdeg; }
+static LineBypassTurnState encoder_GetState(void) { return state; }
+static uint8_t encoder_GetFaultMask(void) { return fault_mask; }
+static int32_t encoder_GetAchievedAngleMdeg(void) { return achieved_mdeg; }
+
+#if MPU6050_BYPASS_ENABLED
+static uint8_t using_gyro, gyro_cooldown;
+static uint32_t gyro_failed_ms;
 #endif
+uint8_t LineBypassTurn_UsingGyro(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  return using_gyro;
+#else
+  return 0U;
+#endif
+}
+uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
+{
+  if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_RUNNING ||
+      !angle_mdeg || angle_mdeg < -360000 || angle_mdeg > 360000 ||
+      cps < 1412 || cps > 3600) return 0U;
+#if MPU6050_BYPASS_ENABLED
+  if (gyro_cooldown && HAL_GetTick() - gyro_failed_ms >= 10000U) gyro_cooldown = 0U;
+  MpuYaw_Refresh(HAL_GetTick());
+  using_gyro = !gyro_cooldown && !GyroTurn_GetFault() && MpuYaw_IsReady(HAL_GetTick());
+  if (using_gyro) return GyroTurn_Start(angle_mdeg, cps);
+#endif
+  /* Select once per action. Encoder travel is an estimate, never IMU yaw. */
+  return encoder_Start(angle_mdeg, cps);
+}
+void LineBypassTurn_Task(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) { GyroTurn_Task(); return; }
+#endif
+  encoder_Task();
+}
+uint8_t LineBypassTurn_RequestStop(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) return GyroTurn_RequestStop();
+#endif
+  return encoder_RequestStop();
+}
+void LineBypassTurn_Stop(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  GyroTurn_Stop();
+#endif
+  encoder_Stop();
+}
+LineBypassTurnState LineBypassTurn_GetState(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) return (LineBypassTurnState)GyroTurn_GetState();
+#endif
+  return encoder_GetState();
+}
+uint8_t LineBypassTurn_GetFaultMask(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) return GyroTurn_GetFault() ? 0x10U : 0U;
+#endif
+  return encoder_GetFaultMask();
+}
+int32_t LineBypassTurn_GetAchievedAngleMdeg(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) return GyroTurn_GetAchievedAngleMdeg();
+#endif
+  return encoder_GetAchievedAngleMdeg();
+}
+void LineBypassTurn_Recover(void)
+{
+  /* App calls only after cancelling the old action and releasing DriveBase.
+     Preserve the failed reason in the RAM log before acknowledging it. */
+  LineBypassTurn_Stop();
+#if MPU6050_BYPASS_ENABLED
+  if (GyroTurn_GetFault()) { gyro_cooldown = 1U; gyro_failed_ms = HAL_GetTick(); }
+  (void)GyroTurn_ClearFault();
+  using_gyro = 0U;
+#endif
+}

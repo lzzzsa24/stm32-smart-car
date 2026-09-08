@@ -10,6 +10,8 @@
 #include "drive_base.h"
 #include "line_obstacle_bypass.h"
 #include "line_bypass_travel.h"
+#include "line_bypass_turn.h"
+#include "line_wait_guard.h"
 #include "wheel_encoder.h"
 #include "battery_monitor.h"
 #include "motorPWM.h"
@@ -39,7 +41,8 @@ PWM_STUB(2,1)
 PWM_STUB(3,2)
 PWM_STUB(4,3)
 uint8_t MpuBus_Init(void) { return 1; }
-uint8_t MpuBus_Write(uint8_t reg,uint8_t v) { registers[reg]=v; return 1; }
+uint8_t MpuBus_Write(uint8_t reg,uint8_t v)
+{ registers[reg]=v; if(reg==0x6a && v==4) fifo_size=0; return 1; }
 uint8_t MpuBus_Read(uint8_t reg,uint8_t *p,uint16_t n)
 {
   if(reg==0x3a) { *p=0; return 1; }
@@ -173,12 +176,52 @@ static void test_faults(void)
   for(i=0;i<30;++i) { plant(1); GyroTurn_Task(); }
   assert(GyroTurn_GetState()==GYRO_TURN_IDLE && drive().mode==DRIVE_BASE_STOPPED);
 }
+static void test_automatic_recovery(void)
+{
+  unsigned i;
+  LineWaitGuard guard={0};
+  reset(); yaw_gain=20;
+  assert(LineBypassTurn_Start(90000,2500) && LineBypassTurn_UsingGyro());
+  for(i=0;i<500 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+  { plant(1); LineBypassTurn_Task(); }
+  assert(GyroTurn_GetFault()==GYRO_TURN_ACCURACY);
+  /* Same ordered cancellation/acknowledgement boundary as the app. */
+  assert(LineWaitGuard_Update(&guard,1,1,tick)==LINE_WAIT_NONE);
+  for(i=0;i<80;++i) plant(1);
+  assert(LineWaitGuard_Update(&guard,1,1,tick)==LINE_WAIT_BEGIN_RECOVERY);
+  LineObstacleBypass_Stop(); DriveBase_Stop(DRIVE_STOP_COAST);
+  DriveBase_ClearFault(); LineBypassTurn_Recover();
+  assert(!GyroTurn_GetFault());
+  LineWaitGuard_Drive(-1); plant(1); assert(drive().mode==DRIVE_BASE_SPEED);
+  /* A manual STOP cancels the guard; no timer or later task restarts it. */
+  LineWaitGuard_Reset(&guard); DriveBase_Stop(DRIVE_STOP_COAST);
+  for(i=0;i<200;++i)
+  { plant(1); assert(LineWaitGuard_Update(&guard,0,1,tick)==LINE_WAIT_NONE); LineBypassTurn_Task(); }
+  assert(drive().mode==DRIVE_BASE_STOPPED);
+  assert(LineBypassTurn_Start(-45000,2500) && !LineBypassTurn_UsingGyro());
+  for(i=0;i<500 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+  { plant(1); LineBypassTurn_Task(); }
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_DONE);
+  LineBypassTurn_Stop();
+  for(i=0;i<1100;++i) plant(1);
+  assert(LineBypassTurn_Start(45000,2500) && LineBypassTurn_UsingGyro());
+  LineBypassTurn_Stop();
+  /* No calibrated IMU at all must still permit an encoder-estimated action. */
+  MpuYaw_Init(tick);
+  assert(LineBypassTurn_Start(45000,2500) && !LineBypassTurn_UsingGyro());
+  for(i=0;i<500 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+  { plant(1); LineBypassTurn_Task(); }
+  assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_DONE);
+  LineBypassTurn_Stop();
+  puts("PASS: angle failure -> bounded recovery -> encoder fallback -> fresh gyro restoration; STOP cancels recovery");
+}
 int main(void)
 {
   setvbuf(stdout,0,_IONBF,0);
   test_turn(1,20); test_turn(-1,20); test_turn(1,12); test_turn(-1,12);
   test_bypass(1,0); test_bypass(-1,0); test_bypass(1,1); test_bypass(-1,1);
   test_faults();
+  test_automatic_recovery();
   puts("PASS: real DriveBase/FIFO/gyro/bypass chain, mirror turns, yaw gain, brake/travel ownership, IR interruption, stall and STOP");
   return 0;
 }

@@ -11,6 +11,7 @@
 #include "ultrasonic.h"
 #include "ultrasonic_avoid.h"
 #include "ultrasonic_motion.h"
+#include <stddef.h>
 
 #define AVOID_MEASURE_INTERVAL_MS    60U
 #define AVOID_MEASURE_STALE_MS       250U
@@ -366,6 +367,19 @@ void UltrasonicAvoid_Task(void)
   }
 
   measurement_result = Ultrasonic_GetResult(&measured_distance_cm);
+  /* Explicitly enabled integrated-mode degradation also covers malformed
+     echoes and a driver that never finishes, not just TIMEOUT packets.
+     A fresh valid close echo below is always processed before degradation. */
+  if (no_echo_fallback_enabled && measurement_result != ULTRASONIC_RESULT_OK &&
+      now_ms - last_valid_measurement_ms >= 700U)
+  {
+    UltrasonicMotion_NoteInvalid(now_ms);
+    no_echo_fallback_active = 1U;
+    avoid_state = ULTRASONIC_AVOID_FORWARD;
+    clear_filter();
+    if (drive_callback != NULL) drive_callback(slow_speed, slow_speed);
+    return;
+  }
   if (measurement_result == ULTRASONIC_RESULT_OK)
   {
     accept_distance(measured_distance_cm, now_ms);

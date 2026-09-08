@@ -23,6 +23,9 @@ $files = [ordered]@{
   # Tests exercise the existing bypass facade too; it is optional for consumers.
   'Core/Inc/line_bypass_turn.h' = 'Core/Inc/line_bypass_turn.h'
   'Core/Src/line_bypass_turn.c' = 'Core/Src/line_bypass_turn.c'
+  'Core/Inc/wheel_encoder.h' = 'Core/Inc/wheel_encoder.h'
+  'Core/Inc/line_search_model.h' = 'Core/Inc/line_search_model.h'
+  'Core/Inc/vehicle_geometry.h' = 'Core/Inc/vehicle_geometry.h'
 }
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source commit' }

@@ -9,6 +9,7 @@ static int32_t target, sign, max_cps, achieved, progress_mark;
 static int64_t start_yaw;
 static uint32_t start_ms, timeout_ms, progress_ms, stop_ms, quiet_ms;
 static uint8_t quiet;
+static uint32_t start_generation;
 
 static int32_t absolute(int32_t n) { return n < 0 ? -n : n; }
 static uint8_t sensor_reason(void)
@@ -46,6 +47,7 @@ uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
   if (!MpuYaw_IsReady(now)) { fail(sensor_reason()); return 0; }
   MpuYaw_GetReading(&imu);
   start_yaw = imu.yaw_mdeg;
+  start_generation = imu.generation;
   sign = angle_mdeg > 0 ? 1 : -1;
   target = absolute(angle_mdeg);
   max_cps = maximum_cps;
@@ -84,6 +86,7 @@ void GyroTurn_Task(void)
   MpuYaw_Refresh(now); now = HAL_GetTick();
   if (!MpuYaw_IsReady(now)) { fail(sensor_reason()); return; }
   MpuYaw_GetReading(&imu);
+  if (imu.generation != start_generation) { fail(GYRO_TURN_DATA_GAP); return; }
   delta = imu.yaw_mdeg - start_yaw;
   if (delta < -720000 || delta > 720000) { fail(GYRO_TURN_SENSOR); return; }
   achieved = (int32_t)delta;

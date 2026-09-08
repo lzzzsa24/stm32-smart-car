@@ -18,8 +18,11 @@ runtime = main[main.index("while (1)"):]
 assert runtime.index("MpuYaw_Task(HAL_GetTick(), stationary);") < runtime.index(
     "if (requested_mode != app_mode)"
 )
-assert "requested_mode == APP_MODE_INTEGRATED" in runtime
-assert "!MpuYaw_IsReady(HAL_GetTick()) || GyroTurn_GetFault()" in runtime
+assert "requested_mode = APP_MODE_STOPPED;" not in runtime
+assert "imu.generation != imu_generation" in runtime and "SignRoute_Reset();" in runtime
+assert "uint8_t enabled = mode != APP_MODE_STOPPED;" in main
+assert "LineBypassTurn_Recover();" in main
+assert main.index("if (service_bounded_line_wait(app_mode))") < main.index("if (DriveBase_GetFaultMask() != 0U &&")
 
 sign_task = main[
     main.index("static void sign_line_task(AppMode mode)\n{"):
@@ -33,6 +36,7 @@ assert gyro.count("MpuYaw_Refresh(now); now = HAL_GetTick();") == 2
 assert "#define MPU6050_BYPASS_ENABLED 1" in mpu_header
 assert "#define SIGN_ROUTE_REQUIRE_IMU 1" in route_config
 assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
-assert "void LineBypassTurn_Task(void) { GyroTurn_Task(); }" in bypass
+assert "if (using_gyro) { GyroTurn_Task(); return; }" in bypass
+assert "return encoder_Start(angle_mdeg, cps);" in bypass
 
-print("PASS: one MPU service with fresh consumer reads; stationary-only transient clear, STOP recalibration and fault guard remain bound")
+print("PASS: shared IMU epochs, all-mode bounded recovery before fault gates, no sensor-forced operator STOP, action-boundary encoder fallback")

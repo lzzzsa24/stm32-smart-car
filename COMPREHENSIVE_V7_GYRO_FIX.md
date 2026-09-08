@@ -1,5 +1,8 @@
 # 综合测试 V7：陀螺仪调度与恢复修复
 
+本文为历史版本。V8 按用户的新要求引入自动恢复与降级，替代文中的
+“异常后须重新选择模式”等旧规则，见 `COMPREHENSIVE_V8_AUTO_RECOVERY.md`。
+
 ## 来源与边界
 
 - 分支：`test/comprehensive-v7-gyro-fix-20260908`。
