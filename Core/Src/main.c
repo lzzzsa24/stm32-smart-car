@@ -29,6 +29,7 @@
 #include "dfplayer_mini.h"
 #include "diagnostic_uart.h"
 #include "drive_base.h"
+#include "mpu6050_yaw.h"
 #include "encoder_linear.h"
 #include "encoder_straight.h"
 #include "encoder_turn.h"
@@ -972,6 +973,8 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->travel_mm);
   DiagnosticUart_WriteString(" YAW=");
   DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
+  DiagnosticUart_WriteString(" IMU=");
+  DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
   DiagnosticUart_WriteString(" SLOW=");
   DiagnosticUart_WriteUnsigned(sign_slow_reasons);
   DiagnosticUart_WriteString(" CAP=");
@@ -1016,6 +1019,7 @@ static void sign_line_slowdown_task(AppMode mode)
 static void sign_line_task(AppMode mode)
 {
   SignRouteCommand route_command;
+  MpuYawReading yaw;
   SignRouteStatus route_status;
   WheelEncoderCounts counts;
   LineTrackingReading line = line_tracking_read();
@@ -1025,6 +1029,8 @@ static void sign_line_task(AppMode mode)
   /* Keep sampling the real line even while a route preference is active. */
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
+  MpuYaw_GetReading(&yaw);
+  SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
   SignRoute_Step(sign_line_mask, now, &route_command);
   SignRoute_GetStatus(now, &route_status);
   if (route_status.state == SIGN_ROUTE_PROBE && route_status.direction != 0)
@@ -1546,6 +1552,7 @@ int main(void)
   ir_avoid_init();
   BatteryMonitor_Init();
   DriveBase_Init();
+  MpuYaw_Init(HAL_GetTick());
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
@@ -1790,6 +1797,17 @@ int main(void)
     }
 
     sign_line_slowdown_task(app_mode);
+    {
+      DriveBaseTelemetry drive;
+      uint8_t stationary, wheel;
+      DriveBase_GetTelemetry(&drive);
+      stationary = app_mode == APP_MODE_STOPPED && drive.mode == DRIVE_BASE_STOPPED;
+      for (wheel = 0U; wheel < 4U; ++wheel)
+        if (drive.output_pwm[wheel] != 0 || drive.requested_cps[wheel] != 0 ||
+            drive.measured_cps[wheel] > 30 || drive.measured_cps[wheel] < -30)
+          stationary = 0U;
+      MpuYaw_Task(HAL_GetTick(), stationary);
+    }
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
