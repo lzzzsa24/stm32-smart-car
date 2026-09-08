@@ -11,26 +11,26 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 00079d5
-latest_code_commit: 36551f3
+repository_head_at_update: 3170221
+latest_code_commit: 3170221
 flashed_source_commit: 074ef682
 flash_record_commit: 00079d5
 deployed_tag: deployed/2026-09-08-line-strong-evidence-074ef682
-formal_bin_path: manual-build-temporary-074ef682/exp7_unified_motion.bin
-formal_hex_path: manual-build-temporary-074ef682/exp7_unified_motion.hex
+formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
+formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 84628
 flashed_bin_sha256: 5C33568DC43365B5DFEB319C4D66A7873B1547EA2BFEE1B455EA189690287BE2
 flashed_hex_sha256: BE02E8937D66FB7665AD37974353E7348585969955019D108CD0A105113E8BBF
 ground_test_status: not_tested_after_temporary_074ef682_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: 36551f3
-candidate_bin_size_bytes: 84412
-candidate_bin_sha256: 5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB
-candidate_hex_sha256: 2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F
+candidate_source_commit: 3170221
+candidate_bin_size_bytes: 84452
+candidate_bin_sha256: 14B484C5091A3549B24360236F941A61CC12688D34900427D73EFAC2D181E9C0
+candidate_hex_sha256: D30049A841C4F9C43F2925C118CDA70C675E45D0B2774D87C94D734549BF7AA8
 user_reported_flash: tool_verified_074ef682_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_release_current_local_temporary_deployment_records_not_pushed
+remote_sync_status: github_main_release_current_local_mode1_power_candidate_and_deployment_records_not_pushed
 remote_sync_branch: main
 stm32_runtime_status: COM11_074ef682_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
@@ -64,10 +64,31 @@ review count is zero. No ruleset was bypassed or disabled for this merge.
 Pre-release `v1.2.0-rc.1` points to `3eb6889` and publishes the STM32 BIN/HEX,
 checksums, both mutually exclusive K210 `/sd/main.py` choices, the mode 3/4
 road-sign model and instructions. It contains integrated firmware code
-`36551f3`. The STM32 currently runs the explicitly requested temporary
+`36551f3`. Local canonical `main` now adds the unflashed mode-1 power candidate
+`3170221`. The STM32 currently runs the explicitly requested temporary
 `074ef682` comparison image; the K210 still runs the unchanged mode 3/4 script
-from the release. Neither image has a lifted-wheel or ground-test claim. The
-previous `v1.1.0-main-20260907` release remains available as history.
+from the release. None of these later states has a lifted-wheel or ground-test
+claim. The previous `v1.1.0-main-20260907` release remains available as
+history.
+
+## Current unflashed main candidate (`3170221`)
+
+Commit `317022123395016354249c3c7bc9e9b26c02ff7e` integrates the requested
+mode-1 obstacle-bypass power profile into canonical `main`. It raises the
+ultrasonic slow and reverse commands from 2200 to 2600, and the legacy
+ultrasonic turn pair from 2300/2800 to 2800/3300. The active line-bypass
+configuration is now explicitly set to 1900 CPS reverse, 2600 CPS forward,
+2200 CPS clear probe, 2300 CPS return and 2500 CPS turn. Modes 2--5 and the
+motor polarity mapping are unchanged.
+
+The complete line-recovery/bypass suite passed at both configured search
+speeds, including four-wheel DriveBase, obstacle-bypass and STOP-ownership
+checks. The formal ARM build passed with text/data/bss `84384/64/11536`, BIN
+size 84452 bytes, BIN SHA-256
+`14B484C5091A3549B24360236F941A61CC12688D34900427D73EFAC2D181E9C0`
+and HEX SHA-256
+`D30049A841C4F9C43F2925C118CDA70C675E45D0B2774D87C94D734549BF7AA8`.
+This candidate has not been flashed or physically tested.
 
 ## Current flashed temporary test image (`074ef682`)
 
@@ -726,8 +747,8 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | temporary firmware `074ef682`; ELF text/data/bss = 84560/64/11544 bytes; BIN is 84628 bytes |
-| host regression | passed | `074ef682` complete line-recovery suite passed at both speed configurations, including strong exits, ordered overlaps, four-wheel DriveBase and STOP ownership |
+| computer build/link | passed | unflashed main candidate `3170221`; ELF text/data/bss = 84384/64/11536 bytes; BIN is 84452 bytes; HEX hash is `D30049A8...BF7AA8` |
+| host regression | passed | `3170221` complete line-recovery/bypass suite passed at both speed configurations, including four-wheel DriveBase, obstacle bypass and STOP ownership |
 | STM32 flash/readback/GO | passed | temporary source `074ef682`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84628 bytes with `VERIFY OK`, and completed `GO OK` |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.1` points to merged main `3eb6889`; firmware code `36551f3` is published as BIN/HEX with checksums and separate mode-3/4 and mode-5 K210 assets; the later programmer deployment is recorded separately |
 | K210 deployment/runtime | unchanged from prior deployment | This temporary STM32 flash did not open, reset or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
@@ -737,16 +758,17 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 ## Current open issue and next safe step
 
-The STM32 now runs temporary comparison firmware `074ef682`; canonical main
-still identifies integrated source `36551f3`. K210 was deliberately left
-unchanged on its previously verified mode 3/4 SIGN34 program. Final STM32 STOP
-telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM
-output at zero. No physical route or recognition result has been claimed for
-the temporary image.
+The STM32 still runs temporary comparison firmware `074ef682`. Canonical main
+now contains the requested mode-1 power profile at `3170221`, but that candidate
+has not been flashed. K210 remains unchanged on its previously verified mode
+3/4 SIGN34 program. Final STM32 STOP telemetry for the currently flashed image
+was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM output at
+zero. No physical result has been claimed for either new revision.
 
-The next safe step is a user-controlled ground comparison of the affected line
-recovery path with a clear operator STOP path. Programmer readback does not
-establish whether the new strong-exit behavior improves the physical corner.
+The next normal main deployment should build exact commit `3170221` and verify
+the candidate hashes above before flashing. That deployment would replace the
+temporary `074ef682` image; it must not be described as containing
+`074ef682`'s strong-exit change unless that separate commit is later integrated.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
