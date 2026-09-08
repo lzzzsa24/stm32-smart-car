@@ -66,7 +66,7 @@
 /* Clear-path limit leaves PWM headroom for differential steering; the line
    controller itself limits straight travel to EXP7_LINE_SPEED. */
 #define EXP7_ULTRASONIC_CRUISE_SPEED   3599
-#define EXP7_ULTRASONIC_SLOW_SPEED     2200
+#define EXP7_ULTRASONIC_SLOW_SPEED     2600
 /* Half-distance profile; 35 / 2 cm rounds up on the integer-cm interface. */
 #define EXP7_ULTRASONIC_STOP_CM          10U
 #define EXP7_ULTRASONIC_CLEAR_CM         18U
@@ -78,14 +78,19 @@
 #define EXP7_ENCODER_COUNTS_PER_REV    1040U
 #define EXP7_WHEEL_DIAMETER_MM           47U
 #define EXP7_PI_X10000                 31416U
-#define EXP7_ULTRASONIC_TURN_INNER     2300
-#define EXP7_ULTRASONIC_TURN_OUTER     2800
+#define EXP7_ULTRASONIC_TURN_INNER     2800
+#define EXP7_ULTRASONIC_TURN_OUTER     3300
 #define EXP7_ULTRASONIC_TURN_TIME_MS    500U
-#define EXP7_ULTRASONIC_REVERSE_SPEED  2200
+#define EXP7_ULTRASONIC_REVERSE_SPEED  2600
 #define EXP7_ULTRASONIC_STOP_TIME_MS    120U
 #define EXP7_ULTRASONIC_REVERSE_TIME_MS 300U
 #define EXP7_ULTRASONIC_GUARD_TIME_MS    60U
 #define EXP7_ULTRASONIC_NO_ECHO_COUNT     3U
+#define EXP7_BYPASS_REVERSE_CPS        1900U
+#define EXP7_BYPASS_FORWARD_CPS        2600U
+#define EXP7_BYPASS_CLEAR_PROBE_CPS    2200U
+#define EXP7_BYPASS_RETURN_CPS         2300U
+#define EXP7_BYPASS_TURN_CPS           2500U
 #define EXP7_PASSIVE_MEASURE_INTERVAL_MS  70U
 #define EXP7_VISION_ENABLED                 0U
 
@@ -1411,6 +1416,11 @@ int main(void)
   SquareEncoder_Init();
   LineObstacleBypass_GetDefaultConfig(&bypass_config);
   bypass_config.emergency_speed_cps = EXP7_EMERGENCY_BRAKE_SPEED_CPS;
+  bypass_config.reverse_cps = EXP7_BYPASS_REVERSE_CPS;
+  bypass_config.forward_cps = EXP7_BYPASS_FORWARD_CPS;
+  bypass_config.clear_probe_cps = EXP7_BYPASS_CLEAR_PROBE_CPS;
+  bypass_config.return_cps = EXP7_BYPASS_RETURN_CPS;
+  bypass_config.turn_cps = EXP7_BYPASS_TURN_CPS;
   LineObstacleBypass_Init(&bypass_config);
   ir_avoid_init();
   BatteryMonitor_Init();
