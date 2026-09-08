@@ -103,6 +103,7 @@
 #define EXP7_GARAGE_TIME_MS            2000U
 #define EXP7_HORN_TIMEOUT_MS           1700U
 #define EXP7_STOP_HOLD_MS              1000U
+#define EXP7_AUDIO_VOLUME_STEP             2
 
 typedef enum
 {
@@ -168,6 +169,9 @@ static void app_turn_right(int16_t inner_speed, int16_t outer_speed);
 static void configure_ultrasonic_avoid(void);
 static AppMode read_requested_mode(AppMode current_mode);
 static uint8_t app_take_serial_virtual_key(void);
+static void app_audio_play_first(void);
+static void app_audio_next(void);
+static void app_audio_adjust_volume(int8_t delta);
 static uint8_t tick_reached(uint32_t now, uint32_t deadline);
 static uint8_t encoder_fault_beep_code(uint8_t fault_mask);
 static uint32_t app_approach_speed_cps(void);
@@ -459,8 +463,17 @@ static uint8_t app_take_serial_virtual_key(void)
       vision_line_v4_diagnostic_dump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'b':
-      (void)DfPlayerMini_PlayMp3Track(1U);
-      DiagnosticUart_WriteString("DFPLAYER: /mp3/0001.mp3\r\n");
+      app_audio_play_first();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'n':
+    case 'N':
+      app_audio_next();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case '+':
+      app_audio_adjust_volume(EXP7_AUDIO_VOLUME_STEP);
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case '-':
+      app_audio_adjust_volume(-EXP7_AUDIO_VOLUME_STEP);
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'B':
       (void)BuzzerPhrase400_Start(6U);
@@ -473,6 +486,33 @@ static uint8_t app_take_serial_virtual_key(void)
       DiagnosticUart_WriteString("AUDIO STOP\r\n");
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     default:  return IR_REMOTE_VIRTUAL_KEY_NONE;
+  }
+}
+
+static void app_audio_play_first(void)
+{
+  if (DfPlayerMini_PlayMp3Track(1U) != 0U)
+  {
+    DiagnosticUart_WriteString(
+        "DFPLAYER PLAY: /mp3/0001.mp3; LOOP=CURRENT\r\n");
+  }
+}
+
+static void app_audio_next(void)
+{
+  if (DfPlayerMini_Next() != 0U)
+  {
+    DiagnosticUart_WriteString("DFPLAYER NEXT; LOOP=CURRENT\r\n");
+  }
+}
+
+static void app_audio_adjust_volume(int8_t delta)
+{
+  if (DfPlayerMini_AdjustVolume(delta) != 0U)
+  {
+    DiagnosticUart_WriteString("DFPLAYER VOLUME=");
+    DiagnosticUart_WriteUnsigned(DfPlayerMini_GetVolume());
+    DiagnosticUart_WriteString("/30\r\n");
   }
 }
 
@@ -1102,16 +1142,24 @@ static AppMode read_requested_mode(AppMode current_mode)
     return APP_MODE_STOPPED;
   }
 
-  /* The centre button in the remote's direction pad is the Yahboom 0x05
-     audio key.  Treat it as a one-shot side action: it neither starts nor
-     changes a drive mode, and NEC repeat frames are already suppressed by
-     ir_remote.c.  Requests during DFPlayer boot are queued by the driver. */
-  if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_ONCE)
+  /* Direction pad audio controls never change the drive mode.  The centre key
+     starts/restarts track 0001, right selects the player's next file, and
+     up/down change volume by two steps.  NEC repeat frames stay suppressed. */
+  if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_PLAY)
   {
-    if (DfPlayerMini_PlayMp3Track(1U) != 0U)
-    {
-      DiagnosticUart_WriteString("IR CENTER: DFPLAYER /mp3/0001.mp3\r\n");
-    }
+    app_audio_play_first();
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_NEXT)
+  {
+    app_audio_next();
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_VOLUME_UP)
+  {
+    app_audio_adjust_volume(EXP7_AUDIO_VOLUME_STEP);
+  }
+  else if (remote_key == IR_REMOTE_VIRTUAL_AUDIO_VOLUME_DOWN)
+  {
+    app_audio_adjust_volume(-EXP7_AUDIO_VOLUME_STEP);
   }
 
   if (HAL_GPIO_ReadPin(key1_GPIO_Port, key1_Pin) == GPIO_PIN_RESET ||
@@ -1411,7 +1459,8 @@ int main(void)
   BuzzerPhrase400_Init();
   DiagnosticUart_Init();
   DfPlayerMini_Init();
-  DiagnosticUart_WriteString("DFPLAYER UART4 PC10/PC11: 9600 8N1; TRACK=/mp3/0001.mp3; DEFAULT VOL CONFIGURED\r\n");
+  (void)DfPlayerMini_SetLoopCurrent(1U);
+  DiagnosticUart_WriteString("DFPLAYER UART4 PC10/PC11: 9600 8N1; CENTER=PLAY1 RIGHT=NEXT UP/DOWN=VOL+/-2 LOOP=CURRENT\r\n");
   DiagnosticUart_WriteString("\r\nLINE FAULT LOG v1: f=DUMP WHEN STOPPED; RAM ONLY; KEEP POWER ON; DEG=FEEDFORWARD WHEEL MASK\r\n");
   DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 5=K210-VLINE4 0=STOP\r\n");
   motor_pwm_init();

@@ -4,11 +4,14 @@
 
 - 主板：YB-DSF01-V1.1 / STM32F103ZETx。
 - 接口：J8 的 UART4，`PC10=TX`、`PC11=RX`，9600 8N1。
-- 音频：TF 卡 `/mp3/0001.mp3`。
-- 遥控：方向区中间键（NEC 命令 `0x05`）每次新按一下，播放/重新开始一次。
-- 串口：诊断串口输入小写 `b`播放；输入 `x`或`X`停止。
-- 上电：等待 3 秒让DFPlayer和TF卡启动，先把音量设为10/30；启动期间的
-  一次播放请求会保留，初始化后自动发送。
+- 音频：TF 卡 `/mp3/0001.mp3`起始，默认循环当前音频。
+- 遥控：方向区中间键播放/重新开始`0001.mp3`；右键播放下一音频；
+  上/下键每次把音量提高/降低2级；左键保留不用。
+- 遥控解码值：上`0x01`、中`0x05`、右`0x06`、下`0x09`。这与遥控器
+  图上按位反向印刷的`80/A0/60/90`一一对应。
+- 串口：`b`播放第一首，`n`下一首，`+`/`-`调音量，`x`或`X`停止。
+- 上电：保持静音并等待3秒让DFPlayer和TF卡启动，先把音量设为10/30并
+  启用当前音频循环；启动期间的播放/下一首请求会保留，初始化后发送。
 - 发送：UART4 TXE中断逐字节输出，不在控制主循环中忙等。
 - 安全：显式STOP、模式切换和现有安全蜂鸣覆盖会停止用户触发的外部音频；
   远程播放本身不会启动或改变行驶模式。
@@ -34,7 +37,8 @@ DFPlayer SPK2 -> 8-ohm speaker lead 2
 
 - FAT16/FAT32，不超过32 GB。
 - 断电插拔。
-- 目标文件严格命名为`/mp3/0001.mp3`。
+- 音频按`/mp3/0001.mp3`、`/mp3/0002.mp3`……连续命名；第一首由中键
+  显式选择，右键使用DFPlayer的下一文件命令。
 - K210正在使用的卡应先完整备份；推荐给DFPlayer单独使用一张卡。
 
 ## 工程文件
@@ -43,8 +47,10 @@ DFPlayer SPK2 -> 8-ohm speaker lead 2
 |---|---|
 | `Core/Inc/dfplayer_protocol.h` | 纯协议接口 |
 | `Core/Src/dfplayer_protocol.c` | 生成带校验和的10字节命令包 |
-| `Core/Inc/dfplayer_mini.h` | 可调启动延时、命令间隔、默认音量和公开API |
+| `Core/Inc/dfplayer_mini.h` | 可调启动延时、命令间隔、默认音量/循环和公开API |
 | `Core/Src/dfplayer_mini.c` | PC10/PC11、UART4和非阻塞命令调度 |
+| `Core/Inc/ir_remote_keymap.h` | 可主机测试的遥控命令映射接口 |
+| `Core/Src/ir_remote_keymap.c` | 数字、STOP和方向区音频键映射 |
 | `Core/Src/stm32f1xx_it.c` | 转发`UART4_IRQHandler()` |
 | `Core/Src/main.c` | 遥控、诊断串口和安全停止集成 |
 | `tests/dfplayer/` | 协议包和校验和主机测试 |
@@ -56,19 +62,23 @@ DFPlayer SPK2 -> 8-ohm speaker lead 2
 3. 在启动路径调用一次`DfPlayerMini_Init()`。
 4. 在主循环每次调用`DfPlayerMini_Task(HAL_GetTick())`。
 5. 在对应串口ISR里调用`DfPlayerMini_UART4_IRQHandler()`。
-6. 按键事件调用`DfPlayerMini_PlayMp3Track(1U)`；STOP/故障调用
-   `DfPlayerMini_Stop()`。
+6. 播放、下一首和音量事件分别调用`DfPlayerMini_PlayMp3Track(1U)`、
+   `DfPlayerMini_Next()`和`DfPlayerMini_AdjustVolume()`；STOP/故障调用
+   `DfPlayerMini_Stop()`。`DfPlayerMini_SetLoopCurrent(1U)`启用单曲循环。
 7. 如果TF卡或模块启动较慢，覆写`DFPLAYER_MINI_BOOT_DELAY_MS`；音量范围
    只能是0～30。
 
 ## 首次测试
 
 1. 断电检查VCC/GND、RX/TX交叉和`SPK1/SPK2`，车轮离地，遥控STOP在手。
-2. TF卡只保留已验证的`/mp3/0001.mp3`，上电后至少等待3秒。
-3. 先在STOP模式短按方向区中间键；应只播放音频，车轮不得动作。
-4. 再输入诊断串口`b`验证等价入口，输入`x`验证停止。
-5. 按数字0、切换模式或触发安全状态时，外部音频应停止且电机安全逻辑不变。
-6. 若无声，先确认模块供电、TF卡格式、文件路径、音量和SPK接线；电脑构建
+2. TF卡至少放入已验证的`/mp3/0001.mp3`和`0002.mp3`，上电后等待3秒。
+3. 先在STOP模式短按方向区中间键；应播放第一首并在结束后循环，车轮不得
+   因音频按键动作。
+4. 短按右键应切换下一首；逐次短按上/下键应每次变化2级音量。长按产生的
+   NEC repeat帧不重复上报，因此连续调节需要连续短按。
+5. 再输入诊断串口`b/n/+/-`验证等价入口，输入`x`验证停止。
+6. 按数字0、切换模式或触发安全状态时，外部音频应停止且电机安全逻辑不变。
+7. 若无声，先确认模块供电、TF卡格式、文件路径、音量和SPK接线；电脑构建
    通过不能证明真实模块、喇叭或车辆已经工作。
 
 ## 当前边界

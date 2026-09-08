@@ -4,9 +4,11 @@
 #include "main.h"
 
 #define DFPLAYER_UART_BAUD              9600UL
+#define DFPLAYER_COMMAND_NEXT             0x01U
 #define DFPLAYER_COMMAND_SET_VOLUME       0x06U
 #define DFPLAYER_COMMAND_PLAY_MP3_FOLDER  0x12U
 #define DFPLAYER_COMMAND_STOP             0x16U
+#define DFPLAYER_COMMAND_LOOP_CURRENT      0x19U
 
 static volatile uint8_t tx_packet[DFPLAYER_PROTOCOL_PACKET_SIZE];
 static volatile uint8_t tx_index;
@@ -18,6 +20,9 @@ static uint8_t volume_pending;
 static uint8_t requested_volume;
 static uint8_t play_pending;
 static uint16_t requested_track;
+static uint8_t next_pending_count;
+static uint8_t loop_pending;
+static uint8_t loop_current_enabled;
 static uint8_t stop_pending;
 static uint8_t playback_requested;
 static uint32_t ready_at_ms;
@@ -85,6 +90,9 @@ void DfPlayerMini_Init(void)
   volume_pending = 1U;
   play_pending = 0U;
   requested_track = 0U;
+  next_pending_count = 0U;
+  loop_current_enabled = DFPLAYER_MINI_DEFAULT_LOOP_CURRENT != 0U ? 1U : 0U;
+  loop_pending = 1U;
   stop_pending = 0U;
   playback_requested = 0U;
   ready_at_ms = HAL_GetTick() + DFPLAYER_MINI_BOOT_DELAY_MS;
@@ -138,8 +146,19 @@ void DfPlayerMini_Task(uint32_t now_ms)
   {
     uint16_t track = requested_track;
     play_pending = 0U;
-    playback_requested = 1U;
     start_command(DFPLAYER_COMMAND_PLAY_MP3_FOLDER, track, now_ms);
+  }
+  else if (next_pending_count != 0U)
+  {
+    --next_pending_count;
+    start_command(DFPLAYER_COMMAND_NEXT, 0U, now_ms);
+  }
+  else if (loop_pending != 0U)
+  {
+    loop_pending = 0U;
+    start_command(DFPLAYER_COMMAND_LOOP_CURRENT,
+                  loop_current_enabled != 0U ? 0U : 1U,
+                  now_ms);
   }
 }
 
@@ -152,6 +171,8 @@ uint8_t DfPlayerMini_PlayMp3Track(uint16_t track_number)
 
   requested_track = track_number;
   play_pending = 1U;
+  playback_requested = 1U;
+  loop_pending = 1U;
   stop_pending = 0U;
   return 1U;
 }
@@ -168,16 +189,60 @@ uint8_t DfPlayerMini_SetVolume(uint8_t volume)
   return 1U;
 }
 
+uint8_t DfPlayerMini_AdjustVolume(int8_t delta)
+{
+  int16_t adjusted = (int16_t)requested_volume + (int16_t)delta;
+
+  if (adjusted < 0)
+  {
+    adjusted = 0;
+  }
+  else if (adjusted > 30)
+  {
+    adjusted = 30;
+  }
+
+  return DfPlayerMini_SetVolume((uint8_t)adjusted);
+}
+
+uint8_t DfPlayerMini_GetVolume(void)
+{
+  return requested_volume;
+}
+
+uint8_t DfPlayerMini_Next(void)
+{
+  if (next_pending_count != 0xFFU)
+  {
+    ++next_pending_count;
+  }
+  playback_requested = 1U;
+  loop_pending = 1U;
+  stop_pending = 0U;
+  return 1U;
+}
+
+uint8_t DfPlayerMini_SetLoopCurrent(uint8_t enabled)
+{
+  loop_current_enabled = enabled != 0U ? 1U : 0U;
+  loop_pending = 1U;
+  return 1U;
+}
+
 void DfPlayerMini_Stop(void)
 {
-  uint8_t play_is_transmitting =
-      (tx_active != 0U && tx_command == DFPLAYER_COMMAND_PLAY_MP3_FOLDER) ?
-      1U : 0U;
+  uint8_t playback_command_is_transmitting =
+      (tx_active != 0U &&
+       (tx_command == DFPLAYER_COMMAND_PLAY_MP3_FOLDER ||
+        tx_command == DFPLAYER_COMMAND_NEXT ||
+        tx_command == DFPLAYER_COMMAND_LOOP_CURRENT)) ? 1U : 0U;
 
-  if (play_pending != 0U || playback_requested != 0U ||
-      play_is_transmitting != 0U)
+  if (play_pending != 0U || next_pending_count != 0U ||
+      playback_requested != 0U || playback_command_is_transmitting != 0U)
   {
     play_pending = 0U;
+    next_pending_count = 0U;
+    loop_pending = 0U;
     playback_requested = 0U;
     if (player_ready != 0U)
     {

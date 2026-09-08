@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 main = (ROOT / "Core/Src/main.c").read_text(encoding="utf-8")
 ir_source = (ROOT / "Core/Src/ir_remote.c").read_text(encoding="utf-8")
+ir_keymap = (ROOT / "Core/Src/ir_remote_keymap.c").read_text(encoding="utf-8")
 vision_uart = (ROOT / "Core/Src/vision_uart.c").read_text(encoding="utf-8")
 k210 = (ROOT / "K210/main.py").read_text(encoding="utf-8")
 sign = (ROOT / "K210/sign_mode34.py").read_text(encoding="utf-8")
@@ -15,8 +16,9 @@ assert "VisionLineV4Control_Step" in main
 assert '"VLINE5 CURVE V4 START\\r\\n"' in main
 assert "vision_line_v4_diagnostic_dump();" in main
 assert 'DiagnosticUart_WriteString("VLINK V4=");' in main
-assert "#define IR_COMMAND_NUMBER_5          0x15U" in ir_source
-assert "return IR_REMOTE_VIRTUAL_KEY5;" in ir_source
+assert "IrRemoteKeyMap_Map(command)" in ir_source
+assert "#define IR_COMMAND_NUMBER_5           0x15U" in ir_keymap
+assert "return IR_REMOTE_VIRTUAL_KEY5;" in ir_keymap
 assert "VisionDetectionParser_Consume" in vision_uart
 assert "VisionLineV4Parser_Consume" in vision_uart
 assert "line_v4_result == VISION_LINE_V4_PARSE_BAD_FRAME" in vision_uart

@@ -31,6 +31,10 @@ extern "C" {
 #define DFPLAYER_MINI_DEFAULT_VOLUME        10U
 #endif
 
+#ifndef DFPLAYER_MINI_DEFAULT_LOOP_CURRENT
+#define DFPLAYER_MINI_DEFAULT_LOOP_CURRENT   1U
+#endif
+
 void DfPlayerMini_Init(void);
 void DfPlayerMini_Task(uint32_t now_ms);
 
@@ -40,6 +44,16 @@ uint8_t DfPlayerMini_PlayMp3Track(uint16_t track_number);
 
 /* Volume range is 0..30.  The latest request replaces an older pending one. */
 uint8_t DfPlayerMini_SetVolume(uint8_t volume);
+
+/* Clamp a signed step to the 0..30 range and queue the resulting volume. */
+uint8_t DfPlayerMini_AdjustVolume(int8_t delta);
+uint8_t DfPlayerMini_GetVolume(void);
+
+/* Select and start the next file known by the DFPlayer/TF card. */
+uint8_t DfPlayerMini_Next(void);
+
+/* Enable/disable repetition of the currently selected file. */
+uint8_t DfPlayerMini_SetLoopCurrent(uint8_t enabled);
 
 /* Cancels a pending play and sends one STOP command if playback was requested. */
 void DfPlayerMini_Stop(void);
