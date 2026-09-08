@@ -1,6 +1,9 @@
 #ifndef MPU6050_YAW_H
 #define MPU6050_YAW_H
 #include <stdint.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Dedicated IMU socket: I2C2 PB10/PB11, AD0 PE0. Component side up,
    Z up: positive yaw is left (CCW viewed from above). */
@@ -29,9 +32,14 @@ typedef struct {
   uint32_t samples;
 } MpuYawReading;
 
-/* Call only at startup or explicit STOP-state recalibration. No motor IO. */
+/* Sensor service shared by ALL modes; main-loop only, not ISR/reentrant.
+   Call only at startup or explicit STOP-state recalibration. No motor IO.
+   Resets the shared yaw origin and bias: invalidate old snapshots/targets. */
 void MpuYaw_Init(uint32_t now_ms);
-/* stationary must include STOP ownership and measured wheel standstill. */
+/* Call once per main-loop iteration, including STOP and unrelated modes.
+   stationary must include STOP ownership and measured wheel standstill.
+   FIFO is sensor-timed. Don't place this only in an active turn branch.
+   Phase waits are cooperative; bus transactions are bounded, not async. */
 void MpuYaw_Task(uint32_t now_ms, uint8_t stationary);
 void MpuYaw_GetReading(MpuYawReading *out);
 uint8_t MpuYaw_IsReady(uint32_t now_ms);
@@ -40,4 +48,7 @@ uint8_t MpuYaw_IsReady(uint32_t now_ms);
 uint8_t MpuBus_Init(void);
 uint8_t MpuBus_Read(uint8_t reg, uint8_t *data, uint16_t length);
 uint8_t MpuBus_Write(uint8_t reg, uint8_t value);
+#ifdef __cplusplus
+}
+#endif
 #endif

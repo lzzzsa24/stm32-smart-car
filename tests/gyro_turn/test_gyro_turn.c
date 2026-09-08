@@ -5,6 +5,7 @@
 #include "gyro_turn.h"
 #include "line_bypass_turn.h"
 #include "drive_base.h"
+#include "angle_mode_example.h"
 
 static uint32_t now;
 static uint8_t fifo[108], regs[256], bad_bus, overflow;
@@ -175,9 +176,42 @@ static void test_turn_faults(void)
   ready(); assert(GyroTurn_Start(90000, 2500)); drive.fault_mask = 1; GyroTurn_Task();
   assert(GyroTurn_GetFault() == GYRO_TURN_DRIVE);
 }
+static void test_reusable_example(void)
+{
+  int direction;
+  unsigned i;
+  for (direction = -1; direction <= 1; direction += 2)
+  {
+    AngleModeExample_Exit(); ready();
+    assert(AngleModeExample_Start(direction * 90000, 2500));
+    assert(!AngleModeExample_Start(45000, 2500));
+    for (i = 0; i < 150; ++i)
+    {
+      feed(1, 100 + (drive.mode == DRIVE_BASE_SPEED ? direction * 6550 : 0), 0);
+      AngleModeExample_Task();
+    }
+    assert(AngleModeExample_GetState() == ANGLE_EXAMPLE_DONE);
+    assert(AngleModeExample_GetAngleMdeg() * direction >= 86000);
+    assert(drive.mode == DRIVE_BASE_STOPPED);
+  }
+  AngleModeExample_Exit(); ready();
+  assert(!AngleModeExample_Start(90000, 5000));
+  assert(AngleModeExample_GetState() == ANGLE_EXAMPLE_IDLE);
+  assert(AngleModeExample_Start(90000, 2500));
+  AngleModeExample_Exit(); AngleModeExample_Task();
+  assert(AngleModeExample_GetState() == ANGLE_EXAMPLE_IDLE && drive.mode == DRIVE_BASE_STOPPED);
+  assert(AngleModeExample_Start(90000, 2500));
+  now += 31; AngleModeExample_Task();
+  assert(AngleModeExample_GetState() == ANGLE_EXAMPLE_FAULT);
+  assert(!AngleModeExample_Start(90000, 2500));
+  assert(GyroTurn_GetFault() == GYRO_TURN_SENSOR);
+  AngleModeExample_Exit();
+  puts("PASS: reusable mode example, mirrored completion, rejected start, cancellation, fault latch and no automatic restart");
+}
 int main(void)
 {
   test_yaw(); test_calibration_and_faults(); test_turn(1); test_turn(-1); test_turn_faults();
+  test_reusable_example();
   puts("PASS: FIFO yaw, calibration, faults, mirrored bypass turns, STOP and settled-angle checks");
   return 0;
 }
