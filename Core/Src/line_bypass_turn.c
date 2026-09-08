@@ -1,4 +1,19 @@
 #include "line_bypass_turn.h"
+#include "mpu6050_yaw.h"
+#if MPU6050_BYPASS_ENABLED
+#include "gyro_turn.h"
+uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
+{ return GyroTurn_Start(angle_mdeg, cps); }
+void LineBypassTurn_Task(void) { GyroTurn_Task(); }
+uint8_t LineBypassTurn_RequestStop(void) { return GyroTurn_RequestStop(); }
+void LineBypassTurn_Stop(void) { GyroTurn_Stop(); }
+LineBypassTurnState LineBypassTurn_GetState(void)
+{ return (LineBypassTurnState)GyroTurn_GetState(); }
+uint8_t LineBypassTurn_GetFaultMask(void)
+{ return GyroTurn_GetFault() ? 0x10U : 0U; }
+int32_t LineBypassTurn_GetAchievedAngleMdeg(void)
+{ return GyroTurn_GetAchievedAngleMdeg(); }
+#else
 #include "drive_base.h"
 #include "line_search_model.h"
 #include "main.h"
@@ -143,3 +158,4 @@ void LineBypassTurn_Stop(void)
 LineBypassTurnState LineBypassTurn_GetState(void) { return state; }
 uint8_t LineBypassTurn_GetFaultMask(void) { return fault_mask; }
 int32_t LineBypassTurn_GetAchievedAngleMdeg(void) { return achieved_mdeg; }
+#endif

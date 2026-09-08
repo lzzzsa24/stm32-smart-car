@@ -39,6 +39,8 @@
 #include "line_tracking.h"
 #include "line_recovery.h"
 #include "line_wait_guard.h"
+#include "mpu6050_yaw.h"
+#include "gyro_turn.h"
 #include "sign_route.h"
 #include "sign_slowdown.h"
 #include "line_sensor_sample.h"
@@ -148,6 +150,7 @@ static uint32_t bypass_rearm_not_before_ms;
 static uint8_t bypass_ir_trigger_candidate;
 static uint32_t bypass_ir_trigger_since_ms;
 static LineWaitGuard line_wait_guard;
+static uint8_t imu_dump_requested, imu_calibrate_requested;
 static int8_t line_wait_side;
 static SimpleLineController simple_line_controller;
 static uint8_t sign_line_mask;
@@ -448,6 +451,14 @@ static uint8_t app_take_serial_virtual_key(void)
 
   switch (value)
   {
+    case 'g':
+    case 'G':
+      imu_dump_requested = 1U;
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'c':
+    case 'C':
+      imu_calibrate_requested = 1U;
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
     case 'f':
     case 'F':
       LineFaultLog_RequestDump();
@@ -1582,6 +1593,8 @@ int main(void)
   }
 
   OledStatus_Init();
+  MpuYaw_Init(HAL_GetTick());
+  DiagnosticUart_WriteString("IMU: KEEP STILL 2s; g=STATUS c=RECALIBRATE IN STOP; KEY1 REQUIRES READY\r\n");
 
   /* 烧录和连线调试期间默认锁存停车；按1/2/3/4/5后才启动对应功能。 */
   line_tracking_set_no_line_forward(0U);
@@ -1606,6 +1619,57 @@ int main(void)
     /* The phrase deadlines are absolute, so this 1 ms main-loop service does
        not accumulate timing drift. */
     BuzzerPhrase400_Task(HAL_GetTick());
+
+    {
+      DriveBaseTelemetry drive;
+      uint8_t stationary;
+      unsigned wheel;
+      DriveBase_GetTelemetry(&drive);
+      stationary = app_mode == APP_MODE_STOPPED && drive.mode == DRIVE_BASE_STOPPED;
+      for (wheel = 0; wheel < DRIVE_BASE_WHEEL_COUNT; ++wheel)
+        if (drive.requested_cps[wheel] || drive.measured_cps[wheel] > 40 ||
+            drive.measured_cps[wheel] < -40 || drive.output_pwm[wheel]) stationary = 0U;
+      if (imu_calibrate_requested)
+      {
+        imu_calibrate_requested = 0U;
+        if (stationary && requested_mode == APP_MODE_STOPPED && GyroTurn_ClearFault())
+        {
+          MpuYaw_Init(HAL_GetTick());
+          DiagnosticUart_WriteString("IMU CAL START: KEEP STILL\r\n");
+        }
+        else DiagnosticUart_WriteString("IMU CAL REJECTED: STOP FIRST\r\n");
+      }
+      MpuYaw_Task(HAL_GetTick(), stationary);
+#if MPU6050_BYPASS_ENABLED
+      /* Convert IMU/angle failures to operator STOP before the legacy wait
+         guard can clear a fault and initiate its timed recovery spin. */
+      if (requested_mode == APP_MODE_INTEGRATED &&
+          (!MpuYaw_IsReady(HAL_GetTick()) || GyroTurn_GetFault()))
+      {
+        requested_mode = APP_MODE_STOPPED;
+        if (app_mode == APP_MODE_INTEGRATED)
+          DiagnosticUart_WriteString("IMU TURN STOP: g=FAULT c=RECALIBRATE\r\n");
+      }
+#endif
+      if (imu_dump_requested && app_mode == APP_MODE_STOPPED &&
+          requested_mode == APP_MODE_STOPPED)
+      {
+        MpuYawReading imu;
+        MpuYaw_GetReading(&imu);
+        imu_dump_requested = 0U;
+        DiagnosticUart_WriteString("IMU S="); DiagnosticUart_WriteUnsigned(imu.state);
+        DiagnosticUart_WriteString(" F="); DiagnosticUart_WriteUnsigned(imu.fault);
+        DiagnosticUart_WriteString(" CAL="); DiagnosticUart_WriteUnsigned(imu.calibration_samples);
+        DiagnosticUart_WriteString(" BIAS_MRAW="); DiagnosticUart_WriteSigned(imu.bias_milliraw);
+        DiagnosticUart_WriteString(" YAW_MDEG=");
+        DiagnosticUart_WriteSigned((int32_t)(imu.yaw_mdeg % 360000));
+        DiagnosticUart_WriteString(" RATE_MDEG_S="); DiagnosticUart_WriteSigned(imu.rate_mdeg_s);
+        DiagnosticUart_WriteString(" AGE="); DiagnosticUart_WriteUnsigned(HAL_GetTick() - imu.last_sample_ms);
+        DiagnosticUart_WriteString(" TURN_F="); DiagnosticUart_WriteUnsigned(GyroTurn_GetFault());
+        DiagnosticUart_WriteString(" TURN_MDEG="); DiagnosticUart_WriteSigned(GyroTurn_GetAchievedAngleMdeg());
+        DiagnosticUart_WriteString("\r\n");
+      }
+    }
 
     if (requested_mode != app_mode)
     {
