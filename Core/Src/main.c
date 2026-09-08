@@ -29,7 +29,6 @@
 #include "dfplayer_mini.h"
 #include "diagnostic_uart.h"
 #include "drive_base.h"
-#include "mpu6050_yaw.h"
 #include "encoder_linear.h"
 #include "encoder_straight.h"
 #include "encoder_turn.h"
@@ -1552,7 +1551,6 @@ int main(void)
   ir_avoid_init();
   BatteryMonitor_Init();
   DriveBase_Init();
-  MpuYaw_Init(HAL_GetTick());
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
@@ -1634,8 +1632,8 @@ int main(void)
       DriveBase_GetTelemetry(&drive);
       stationary = app_mode == APP_MODE_STOPPED && drive.mode == DRIVE_BASE_STOPPED;
       for (wheel = 0; wheel < DRIVE_BASE_WHEEL_COUNT; ++wheel)
-        if (drive.requested_cps[wheel] || drive.measured_cps[wheel] > 40 ||
-            drive.measured_cps[wheel] < -40 || drive.output_pwm[wheel]) stationary = 0U;
+        if (drive.requested_cps[wheel] || drive.measured_cps[wheel] > 30 ||
+            drive.measured_cps[wheel] < -30 || drive.output_pwm[wheel]) stationary = 0U;
       if (imu_calibrate_requested)
       {
         imu_calibrate_requested = 0U;
@@ -1797,17 +1795,6 @@ int main(void)
     }
 
     sign_line_slowdown_task(app_mode);
-    {
-      DriveBaseTelemetry drive;
-      uint8_t stationary, wheel;
-      DriveBase_GetTelemetry(&drive);
-      stationary = app_mode == APP_MODE_STOPPED && drive.mode == DRIVE_BASE_STOPPED;
-      for (wheel = 0U; wheel < 4U; ++wheel)
-        if (drive.output_pwm[wheel] != 0 || drive.requested_cps[wheel] != 0 ||
-            drive.measured_cps[wheel] > 30 || drive.measured_cps[wheel] < -30)
-          stationary = 0U;
-      MpuYaw_Task(HAL_GetTick(), stationary);
-    }
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));

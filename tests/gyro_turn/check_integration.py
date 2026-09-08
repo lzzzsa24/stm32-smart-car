@@ -1,0 +1,34 @@
+"""Verify one shared MPU service feeds both mode 1 and modes 3/4."""
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+main = (ROOT / "Core/Src/main.c").read_text(encoding="utf-8")
+bypass = (ROOT / "Core/Src/line_bypass_turn.c").read_text(encoding="utf-8")
+mpu_header = (ROOT / "Core/Inc/mpu6050_yaw.h").read_text(encoding="utf-8")
+route_config = (ROOT / "Core/Inc/sign_route_config.h").read_text(encoding="utf-8")
+
+assert main.count('#include "mpu6050_yaw.h"') == 1
+assert main.count("MpuYaw_Init(HAL_GetTick());") == 2  # boot plus explicit c
+assert main.count("MpuYaw_Task(HAL_GetTick(), stationary);") == 1
+assert "GyroTurn_ClearFault()" in main
+assert "case 'g':" in main and "case 'c':" in main
+
+runtime = main[main.index("while (1)"):]
+assert runtime.index("MpuYaw_Task(HAL_GetTick(), stationary);") < runtime.index(
+    "if (requested_mode != app_mode)"
+)
+assert "requested_mode == APP_MODE_INTEGRATED" in runtime
+assert "!MpuYaw_IsReady(HAL_GetTick()) || GyroTurn_GetFault()" in runtime
+
+sign_task = main[
+    main.index("static void sign_line_task(AppMode mode)\n{"):
+    main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")
+]
+assert "SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));" in sign_task
+
+assert "#define MPU6050_BYPASS_ENABLED 1" in mpu_header
+assert "#define SIGN_ROUTE_REQUIRE_IMU 1" in route_config
+assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
+assert "void LineBypassTurn_Task(void) { GyroTurn_Task(); }" in bypass
+
+print("PASS: one MPU service feeds KEY1 gyro turns and mode 3/4 yaw gates; STOP recalibration and fault guard remain bound")

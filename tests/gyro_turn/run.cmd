@@ -11,4 +11,6 @@ if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\gyro_turn\bus_stubs /ICore\Inc tests\gyro_turn\test_bus.c Core\Src\mpu6050_bus.c /Fomanual-build-gyro-host-test\ /Femanual-build-gyro-host-test\test_bus.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-gyro-host-test\test_bus.exe
+if not "%errorlevel%"=="0" exit /b 1
+python tests\gyro_turn\check_integration.py
 exit /b %errorlevel%
