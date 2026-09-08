@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 3eb6889
+repository_head_at_update: a5799ab
 latest_code_commit: 36551f3
-flashed_source_commit: 4947f9c
-flash_record_commit: c3200d9
-deployed_tag: deployed/2026-09-07-line-direction-evidence-4947f9c
+flashed_source_commit: 36551f3
+flash_record_commit: a5799ab
+deployed_tag: deployed/2026-09-08-v1.2.0-rc1-mode34
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 83332
-flashed_bin_sha256: D17F7ED9926CB33150CFD0681613038AD8425E96272CF1FC94EB74446418E6E1
-flashed_hex_sha256: 4ED1A0D75E674997F0764A2F42332E477410DA5591D4772BF829679B65E28C35
-ground_test_status: not_tested_after_v1.2.0_rc1_host_build
-k210_status: COM14_SIGN34_07f2b73_script_and_model_readback_verified_startup_passed_board_link_not_reverified
+formal_bin_size_bytes: 84412
+flashed_bin_sha256: 5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB
+flashed_hex_sha256: 2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F
+ground_test_status: not_tested_after_v1.2.0_rc1_mode34_deployment
+k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
 candidate_source_commit: 36551f3
 candidate_bin_size_bytes: 84412
 candidate_bin_sha256: 5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB
 candidate_hex_sha256: 2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F
 user_reported_flash: tool_verified_STM32_flash_readback_and_GO_no_physical_test
-k210_candidate_source_commit: 07f2b73
-k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_passed
-remote_sync_status: current_main_and_v1.2.0_rc1_published_via_required_PR
+k210_candidate_source_commit: 36551f3
+k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
+remote_sync_status: github_main_release_current_local_deployment_record_not_pushed
 remote_sync_branch: main
-stm32_runtime_status: COM11_4947f9c_readback_verified_GO_and_default_STOP_confirmed
-k210_requested_deployment: SIGN34_07f2b73_complete
-temporary_flash_selector_commit: 4947f9c
+stm32_runtime_status: COM11_36551f3_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
+k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
+temporary_flash_selector_commit: v1.2.0_rc1_main
 github_release_tag: v1.2.0-rc.1
 github_release_source_commit: 3eb6889
 github_release_firmware_commit: 36551f3
@@ -64,10 +64,11 @@ review count is zero. No ruleset was bypassed or disabled for this merge.
 Pre-release `v1.2.0-rc.1` points to `3eb6889` and publishes the STM32 BIN/HEX,
 checksums, both mutually exclusive K210 `/sd/main.py` choices, the mode 3/4
 road-sign model and instructions. It contains firmware code `36551f3`; it is
-not the independently flashed `4947f9c` image and makes no new physical-test
-claim. The previous `v1.1.0-main-20260907` release remains available as history.
+now the source of the programmer-verified STM32 image and active K210 mode 3/4
+script. It still makes no lifted-wheel or ground-test claim. The previous
+`v1.1.0-main-20260907` release remains available as history.
 
-## Current flashed temporary test image (`4947f9c`)
+## Previous flashed temporary test image (`4947f9c`)
 
 The user requested only to flash exact source `4947f9c`, not merge it. It is on
 the independent `fix/line-direction-evidence` branch and retains canonical
@@ -108,7 +109,7 @@ source `d1d22d9`. Deployment tag
 `deployed/2026-09-07-line-direction-evidence-4947f9c` identifies the exact
 board source. No lifted-wheel or ground test was performed by Codex.
 
-## Canonical main source and current release (not currently flashed)
+## Current deployed canonical release (`v1.2.0-rc.1`)
 
 Functional source `36551f3`, merged by PR #4 as `3eb6889`, updates every active
 mode from its latest accepted branch. KEY1/KEY2 include line commit `4947f9c`
@@ -126,8 +127,9 @@ the direction that actually found the contact.
 Modes 3/4 now keep live line feedback authoritative, continue lost-line search
 without a sign-recognition speed cap, retain a confirmed fork direction and
 withdraw failed or ambiguous exit selection. Their K210 program and road-sign
-model remain the previously verified `07f2b73` pair; they were packaged, not
-rewritten to hardware, in this update.
+model remain the previously verified `07f2b73` pair. This deployment rewrote
+and read back the script; the already matching model was hashed on-device and
+was not rewritten.
 
 The line-recovery/load/bypass suite passed at both 2493 and 1870 CPS, including
 all 16 masks, 256 mirrored ordered pairs, queued-sample ordering, X1/X3 mirrored
@@ -137,9 +139,16 @@ line v4 suites also passed. The formal ARM build passed with text/data/bss
 `5C7F43ACCEE850E30F439121254E1FCA4085CFAAC11C6CE10423463070777CCB`;
 HEX SHA-256 is
 `2C65AB052DB5E55AEADC4ECADE21B766AE53483CE46F868108C6E21D8693815F`.
-No serial port was opened and no STM32/K210 flash, lifted-wheel or ground test
-was performed. The rollback tag
-`rollback/2026-09-08-before-all-modes-update` points to `41e5ae6`.
+On 2026-09-08 COM11 programmed this exact 84412-byte BIN with 42-page
+selective erase, last-page preservation, full readback `VERIFY OK` and
+`GO OK: 0x08000000`. COM14 backed up and rewrote the exact 7256-byte SIGN34
+script, verified the unchanged model on-device and observed `SIGN34 ready`.
+A STOP-only board-link query saw 24 new parsed SIGN frames while `DRV M=0` and
+all wheel targets, measurements and PWM outputs remained zero. No mode start,
+lifted-wheel or ground test was performed. Detailed evidence is in
+`DEPLOYMENT_V1.2.0_RC1_MODE34_20260908.md`. Rollback tag
+`rollback/2026-09-08-before-v1.2.0-rc1-flash` points to prior board source
+`4947f9c`.
 
 ## Previous flashed integrated source (`7ce4944`)
 
@@ -677,8 +686,9 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 - M2 is mapped to PA15/PB3; do not restore the obsolete fallback.
 - Wheel order is M1 left-front, M2 left-rear, M3 right-front, M4 right-rear.
 - Motor direction compensation remains centralized in `Core/Src/motorPWM.c`.
-- K210 is connected as COM14 and currently runs the exact SIGN34 script from
-  `07f2b73`; the mode 5 slow-near script remains preserved and backed up.
+- K210 is connected as COM14 and currently runs the exact 7256-byte SIGN34
+  script present at `36551f3` (the same optimized blob introduced by
+  `07f2b73`); the mode 5 slow-near script remains preserved and backed up.
   UART1 IO8/TX to STM32 USART2 PD6/RX and common ground are unchanged.
 - OLED is the external J12 display and includes battery/status information.
 - Encoder distance/angle is a wheel-motion estimate; ground yaw requires
@@ -690,30 +700,35 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 |---|---|---|
 | computer build/link | passed | release firmware `36551f3`; ELF text/data/bss = 84344/64/11536 bytes; BIN is 84412 bytes |
 | host regression | passed | both line-recovery speed configurations, X1/X3 encoder probes, all direction/ordering/load/bypass cases, latest mode 3/4 sign/ring and mode 5 suites pass |
-| STM32 flash/readback/GO | passed | temporary source `4947f9c`; COM11 selectively erased 41 pages, preserved calibration, wrote/read back 83332 bytes with `VERIFY OK`, completed `GO OK`, and emitted the `DEFAULT STOP` startup banner |
-| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.1` points to merged main `3eb6889`; firmware code `36551f3` is published as BIN/HEX with checksums and separate mode-3/4 and mode-5 K210 assets; no new flash or physical test |
+| STM32 flash/readback/GO | passed | release source `36551f3`; COM11 selectively erased 42 pages, preserved the reserved last page, wrote/read back 84412 bytes with `VERIFY OK`, and completed `GO OK` |
+| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.1` points to merged main `3eb6889`; firmware code `36551f3` is published as BIN/HEX with checksums and separate mode-3/4 and mode-5 K210 assets; the later programmer deployment is recorded separately |
 | K210 deployment/runtime | passed, stationary only | COM14; 7256-byte SIGN34 `/sd/main.py` read back exactly; existing model hash verified without rewrite; model load and `SIGN34 ready` observed |
-| board-to-board UART | current SIGN34 script not reverified | K210 startup proves local inference initialization, not receipt of `$D` frames by STM32 USART2 |
+| board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
 | ground driving | not performed | lone-inner bidirectional probing, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The board currently runs temporary source `4947f9c`, not release firmware
-`36551f3`. The next safe step is a separately authorized flash that preserves
-the last calibration page, followed first by an operator STOP check and then a
-ground test of KEY1/KEY2 from both lone-X1 and lone-X3 approach angles. The
-first probe should start toward the lit sensor and, only after measured wheel
-travel, reverse and expand rather than remaining permanently locked.
+The board now runs release firmware `36551f3` and K210 mode 3/4 SIGN34. The
+programmer, K210 startup and stationary UART-link levels are verified. Final
+STOP telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed
+and PWM output at zero. No physical route or recognition result has been
+claimed.
+
+The next safe step is a user-controlled ground test of KEY3 and KEY4 with a
+clear operator STOP path. First verify ordinary line following without a sign,
+then present one left or right sign before the junction and test one direction
+at a time. K210 startup and increasing SIGN frame counts do not establish
+classification accuracy, branch selection or chassis motion.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
 `k210-mode5-visual-line-main.py` as `/sd/main.py`; both cannot be active under
 that filename at once. Test mode 3/4 exit withdrawal and mode 5 stale-UART stop
-separately. If the release is rejected, rollback tag
-`rollback/2026-09-08-before-all-modes-update` identifies the immediately prior
-canonical source. No ground behavior is established by host tests, build,
-release publication, programmer readback, startup text or GO success.
+separately. If this deployment is rejected, rollback tag
+`rollback/2026-09-08-before-v1.2.0-rc1-flash` identifies prior board source
+`4947f9c`. No ground behavior is established by host tests, build, release
+publication, programmer readback, startup text, UART counters or GO success.
 
 ## Update protocol
 
