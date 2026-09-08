@@ -11,33 +11,33 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 0344d43
-latest_code_commit: f543639
+repository_head_at_update: ff4bbc9
+latest_code_commit: 7dbcb84
 flashed_source_commit: 4589a25
 flash_record_commit: 0344d43
 deployed_tag: deployed/2026-09-08-comprehensive-v5-dfplayer-4589a25
-formal_bin_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.bin
-formal_hex_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.hex
-formal_bin_size_bytes: 86636
+formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
+formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
+formal_bin_size_bytes: 90380
 flashed_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
 flashed_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
 ground_test_status: not_tested_after_comprehensive_v5_4589a25_deployment
 k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
-candidate_source_commit: 4589a25
-candidate_bin_size_bytes: 86636
-candidate_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
-candidate_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
+candidate_source_commit: ff4bbc9
+candidate_bin_size_bytes: 90380
+candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
+candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
 user_reported_flash: tool_verified_4589a25_STM32_flash_readback_and_GO_listening_test_pending
 k210_candidate_source_commit: 0a02d3d
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: github_main_rc3_synced_local_v5_deployment_records_not_pushed
+remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
 remote_sync_branch: main
 stm32_runtime_status: COM11_4589a25_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
 temporary_flash_selector_commit: 4589a25_comprehensive_v5_dfplayer_flashed
-github_release_tag: v1.2.0-rc.3
-github_release_source_commit: 4a343dd
-github_release_firmware_commit: f543639
+github_release_tag: v1.2.0-rc.4
+github_release_source_commit: ff4bbc9
+github_release_firmware_commit: ff4bbc9
 github_release_status: prerelease_published_9_assets_digest_verified_exact_main_firmware_not_flashed_no_physical_test
 ```
 
@@ -56,26 +56,48 @@ as history; they are not alternate definitions of “latest”. The exact workfl
 and temporary historical-image exception are documented in
 `BRANCH_WORKFLOW.md`.
 
-GitHub PR #4 merged the original all-mode integration into protected `main` as
-merge commit `3eb6889`. PR #6 later merged the mode-1 power profile and its
-deployment/release preparation as `3635308`. The active ruleset still requires
-a pull request and protects against deletion and non-fast-forward updates; its
-current required approving review count is zero. No ruleset was bypassed or
-disabled for either merge.
+GitHub PR #10 merged the generic DFPlayer controls and track memory into
+protected `main` as `65e4cce`; PR #11 merged the rc.4 release notes as
+`ff4bbc9`. The active ruleset still requires a pull request and protects
+against deletion and non-fast-forward updates; its required approving review
+count was zero. No ruleset was bypassed or disabled.
 
-Pre-release `v1.2.0-rc.3` points to protected-main PR #8 merge `4a343dd` and
-publishes STM32 BIN/HEX from functional source `f543639`, a SHA-256 list, both
-mutually exclusive K210 `/sd/main.py` choices, the mode 3/4 road-sign model and
-instructions. All nine uploaded asset sizes and GitHub digests match the staged
-local files. K210 assets are byte-identical to rc.2. The exact rc.3 main BIN
-has not been flashed: the board instead runs comprehensive test source
-`4589a25`. It retains `0a02d3d`'s unmerged ten-second sign-probe experiment and
-shared KEY1/KEY2 tracking entry increment, and adds the test-only DFPlayer remote
-controls. K210 still runs the readback-verified SIGN34 mode-3/4 program and
-matching model. No listening, lifted-wheel or ground-test claim is made for the
-current STM32 image. Previous releases remain available as history.
+Pre-release `v1.2.0-rc.4` targets `ff4bbc9` and publishes its exact STM32
+BIN/HEX, a SHA-256 list, both mutually exclusive K210 `/sd/main.py` choices,
+the mode 3/4 road-sign model and instructions. All nine uploaded asset sizes
+and GitHub digests match the staged local files. K210 assets are byte-identical
+to rc.3. The exact rc.4 main BIN has not been flashed: the board still runs
+comprehensive test source `4589a25`. K210 still runs the readback-verified
+SIGN34 mode-3/4 program and matching model. No new listening, lifted-wheel or
+ground-test claim is made. Previous releases remain available as history.
 
-## Current protected main source (`f543639`)
+## Current protected main source (`ff4bbc9`)
+
+Functional commit `7dbcb84767f2ea290568357c0461ef5b6a57a7a7`, merged by PR #10
+as `65e4cce`, replaces filename-specific audio selection with DFPlayer physical
+order previous/next commands. Direction-pad centre now toggles play/pause,
+left/right select previous/next, and up/down adjust volume by two. The default
+volume is 20/30 and remains adjustable to 30/30. The current file continues to
+loop; STOP, mode changes and safety alerts retain audio preemption.
+
+The latest physical track number is appended to the dedicated STM32F103ZE page
+`0x0807F000`; the final motor/turn calibration page at `0x0807F800` remains
+separate and untouched. Same-power-session pause resumes from the exact time
+position. After full power loss, the remembered physical track restarts at its
+beginning because the serial protocol does not provide reliable millisecond
+position persistence. Whole-chip erase clears both reserved pages.
+
+The exact post-release-note main `ff4bbc9` ARM build passed with text/data/bss
+`90312/64/11728`, producing a 90380-byte BIN with SHA-256
+`56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8`;
+the HEX SHA-256 is
+`3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04`.
+DFPlayer protocol/driver/Flash-store tests and all line-recovery, sign-line and
+vision-line-v4 regressions passed. PR #11 merged the release note as `ff4bbc9`.
+This exact firmware has not been flashed or physically tested. Release notes:
+`RELEASE_V1.2.0_RC4.md`.
+
+## Previous protected main source (`f543639`)
 
 Commit `f54363971bc3111acdda33fbed91882a71305bc7` retains the accepted
 continuous obstacle-bypass travel from `453cad2` and promotes the current
@@ -150,7 +172,7 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
-## Current flashed comprehensive test (`0a02d3d`)
+## Previous flashed comprehensive test (`0a02d3d`)
 
 Exact source `0a02d3d0533fd93df468d91624acbbf245548714` adds requested worker
 `a14aaff` to the previous comprehensive test in branch
@@ -904,26 +926,29 @@ as follows:
 
 ## Integrated infrared-remote audio behavior
 
-- Latest physical observation before this fix: pressing the intended sound
-  button produced no audible result. Source inspection found that the active
-  buzzer's PG12 output setup existed only in the unused legacy
-  `MX_Experiment1_GPIO_Init()` path; the integrated startup calls
-  `MX_GPIO_Init()` instead.
-- Commit `0d31f10` initializes PG12 low as a push-pull output in
-  `MX_GPIO_Init()` before the phrase player starts. It does not reconfigure
-  the entity keys, change the NEC key map, or change motor/line behavior.
-- The direction-pad centre/buzzer command `0x05` maps to a dedicated
-  `IR_REMOTE_VIRTUAL_AUDIO_ONCE` event.
-- One complete NEC frame starts exactly one 1.53-second preset five-attack
-  phrase and does not start, stop, or change a driving mode.
-- NEC repeat frames remain suppressed, so holding the key does not queue
-  repeated playback. A later fresh press restarts one complete phrase.
+- External DFPlayer audio uses J8 UART4 at 9600 8N1: PC10/TX drives module RX
+  through the documented series resistor and PC11/RX receives module TX.
+- Direction commands are centre `0x05` play/pause, left `0x04` previous,
+  right `0x06` next, up `0x01` volume +2 and down `0x09` volume -2. Commands
+  do not change the driving mode, and NEC repeat frames remain suppressed.
+- Previous/next use native physical-file-order commands and do not constrain
+  filenames or folders. UART feedback corrects the stored physical index when
+  available. Replacing/reordering the card can therefore change which audio a
+  remembered index identifies.
+- Default volume is 20/30; the remote can adjust it through the full 0..30
+  range. Current-file looping remains enabled.
+- Track records use an append-only, power-loss-safe log at `0x0807F000`.
+  Full-page erase is deferred until vehicle STOP. Linker FLASH length is 508K,
+  reserving that page and the separate `0x0807F800` calibration page.
+- Same-session pause resumes at the time position. A complete power cycle
+  restores the last track from its beginning; exact time offset is not stored.
 - Existing stop/fault, encoder, ultrasonic and bypass warning arbitration can
-  immediately cancel this lower-priority audio.
-- The serial `b` command remains an equivalent one-shot diagnostic entry.
-- After flashing `0d31f10`, the user short-pressed the intended sound button
-  and explicitly confirmed audible output (`响了`). The same fix remains in
-  current `dbf61e4`.
+  immediately cancel the lower-priority DFPlayer audio. The board PG12 phrase
+  module remains available for safety and diagnostic rhythm output.
+- The user reported that the prior no-audio episode likely followed TF-card
+  hot insertion without power-cycling the module. That diagnosis is plausible
+  but is not promoted to a new physical pass result. After changing the card,
+  the DFPlayer itself must be fully power-cycled.
 
 ## Confirmed hardware facts
 
@@ -945,10 +970,10 @@ as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | flashed comprehensive source `0a02d3d`; ELF text/data/bss = 84404/64/11600 bytes; BIN is 84472 bytes; HEX hash is `3D61C879...833E` |
-| host regression | passed | `0a02d3d` line suite passed at both speeds, including 3600 shared KEY1/KEY2 samples, persistent outer correction, continuous bypass and ownership checks; ten-second sign-line and vision-line-v4 also passed |
-| STM32 flash/readback/GO | passed | COM11 selectively erased 42 application pages, preserved the final calibration page, wrote/read back all 84472 bytes with `VERIFY OK`, and completed `GO OK`; routine post-GO checking was omitted at user request |
-| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.3` points to protected-main PR #8 merge `4a343dd`; firmware code `f543639` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded sizes and digests were verified |
+| computer build/link | passed | exact current main `ff4bbc9`; ELF text/data/bss = 90312/64/11728 bytes; BIN is 90380 bytes; HEX hash is `3965EE44...6D04` |
+| host regression | passed | current main DFPlayer protocol/queue/RX/play-pause/generic previous-next/Flash-store tests; complete line suite at both speeds; sign-line and vision-line-v4 passed |
+| STM32 flash/readback/GO | unchanged, older image passed | board remains on `4589a25`; its 86636-byte BIN was previously written/read back with `VERIFY OK` and `GO OK`; rc.4 was not flashed |
+| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.4` targets protected-main `ff4bbc9`; exact main BIN/HEX, checksums and unchanged mode-3/4 and mode-5 K210 assets are published; all nine sizes and GitHub digests were verified |
 | K210 deployment/runtime | passed | COM14 backed up the prior script, wrote/read back the 7256-byte SIGN34 `/sd/main.py`, verified the existing model hash and observed `model load succeed` plus `SIGN34 ready` after soft reboot |
 | board-to-board UART | unchanged from prior STOP-only result | no new link query was run; the earlier four VLINK samples increased parsed SIGN count 102 to 126, but this deployment's physical IO8/TX to PD6/RX path remains untested |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -956,25 +981,22 @@ as follows:
 
 ## Current open issue and next safe step
 
-The STM32 now runs temporary comprehensive firmware `0a02d3d`. A pre-flash
-STOP command was sent, all bytes read back correctly and GO succeeded; there
-was intentionally no routine post-GO serial STOP/zero-output check. K210 COM14
-now runs the correct readback-verified SIGN34 mode-3/4 script and matching
-model after the previously active different script was backed up. No new
-board-link, lifted-wheel or ground result has been claimed.
+The STM32 still runs temporary comprehensive DFPlayer firmware `4589a25`; its
+write/readback/GO passed previously, but listening remains unrecorded and no
+new wheel or ground result is claimed. K210 COM14 still runs the
+readback-verified SIGN34 mode-3/4 script and matching model. This task did not
+open either serial port or modify either board.
 
-GitHub PR #8 merged accepted continuous bypass and current line source
-`f543639` into protected `main` as `4a343dd`. Pre-release `v1.2.0-rc.3` is
-published with nine size/hash-verified assets. Independent comprehensive source
-`0a02d3d` is the flashed image; its ten-second sign-probe experiment and
-KEY1/KEY2 shared-entry increment remain excluded from main and rc.3.
+GitHub PR #10 merged the requested generic audio controls and track memory;
+PR #11 merged its release note. Pre-release `v1.2.0-rc.4` is published with
+nine size/hash-verified assets from current main `ff4bbc9`. That exact STM32
+firmware is compiled but not flashed.
 
-The next physical step is a user-controlled mode-3 and mode-4 test with remote
-STOP immediately available. K210 startup is verified, but actual sign
-classification, UART delivery, selected route and wheel behavior are not.
-Mode 3 uses enhanced line control plus sign routing; mode 4 uses SL2 simplified
-line control plus the same sign routing. Test one mode at a time and return to
-STOP before changing modes.
+The next audio test, only after a separately authorized flash, is to fully
+power-cycle the DFPlayer after inserting its TF card, then verify centre
+play/pause/resume, left/right previous/next, volume, single-track loop and a
+second full power cycle restoring the last selected track. Exact time-position
+resume is expected only within one power session.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
