@@ -1,5 +1,10 @@
 # MPU6050 角度控制分支
 
+> 综合整合说明：本文原本只描述 `842fc1 → 74526f4` 的模式1候选。
+> `test/comprehensive-v6-gyro-20260908` 已把同一套 MpuYaw 服务同时接入
+> 模式1绕障和模式3/4圆环导航；最终组合边界以
+> `COMPREHENSIVE_V6_GYRO_CANDIDATE.md` 为准。
+
 ## 版本与范围
 
 - 分支：`feature/mpu6050-angle`。

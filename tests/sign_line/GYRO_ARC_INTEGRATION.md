@@ -1,5 +1,10 @@
 # MPU-assisted sign semicircle candidate
 
+> 综合整合说明：下文的“未导入模式1”只描述原始 `ac10ba5` 独立候选。
+> `test/comprehensive-v6-gyro-20260908` 已有意合入 `842fc1/74526f4`，由
+> 模式1和模式3/4共用唯一 MpuYaw 服务；组合结果见仓库根目录
+> `COMPREHENSIVE_V6_GYRO_CANDIDATE.md`。
+
 Base main: 49288f1. Branch: fix/sign-gyro-arc. Entry/arc handoff corrections
 4c345b8 and 43262c7 are ported as 63f7dbc and 68db032. The requested 74526f4
 supplies byte-identical mpu6050_yaw.h/.c and mpu6050_bus.c. GyroTurn is an
