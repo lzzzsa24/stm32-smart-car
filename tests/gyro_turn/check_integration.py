@@ -11,6 +11,7 @@ assert main.count('#include "mpu6050_yaw.h"') == 1
 assert main.count("MpuYaw_Init(HAL_GetTick());") == 2  # boot plus explicit c
 assert main.count("MpuYaw_Task(HAL_GetTick(), stationary);") == 1
 assert "GyroTurn_ClearFault()" in main
+assert "if (stationary) (void)GyroTurn_ClearTransientFault();" in main
 assert "case 'g':" in main and "case 'c':" in main
 
 runtime = main[main.index("while (1)"):]
@@ -25,10 +26,13 @@ sign_task = main[
     main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")
 ]
 assert "SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));" in sign_task
+assert sign_task.index("MpuYaw_Refresh(HAL_GetTick());") < sign_task.index("line = line_tracking_read();")
+gyro = (ROOT / "Core/Src/gyro_turn.c").read_text(encoding="utf-8")
+assert gyro.count("MpuYaw_Refresh(now); now = HAL_GetTick();") == 2
 
 assert "#define MPU6050_BYPASS_ENABLED 1" in mpu_header
 assert "#define SIGN_ROUTE_REQUIRE_IMU 1" in route_config
 assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
 assert "void LineBypassTurn_Task(void) { GyroTurn_Task(); }" in bypass
 
-print("PASS: one MPU service feeds KEY1 gyro turns and mode 3/4 yaw gates; STOP recalibration and fault guard remain bound")
+print("PASS: one MPU service with fresh consumer reads; stationary-only transient clear, STOP recalibration and fault guard remain bound")

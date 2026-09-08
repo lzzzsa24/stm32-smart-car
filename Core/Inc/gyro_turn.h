@@ -9,11 +9,13 @@ extern "C" {
    keep line/position/automatic-recovery writers suspended while RUNNING,
    and call Stop before handing motors to another mode. No internal mutex.
    Global sensor service: MpuYaw_Task once per main-loop iteration, BEFORE
-   GyroTurn_Task. Do not reinitialize/calibrate the sensor during a turn. */
+   GyroTurn_Task. Start/Task also refresh that same service at point of use.
+   Do not reinitialize/calibrate the sensor during a turn. */
 typedef enum { GYRO_TURN_IDLE, GYRO_TURN_RUNNING,
                GYRO_TURN_DONE, GYRO_TURN_FAULT } GyroTurnState;
 enum { GYRO_TURN_SENSOR = 1, GYRO_TURN_DRIVE, GYRO_TURN_TIMEOUT,
-       GYRO_TURN_DIRECTION, GYRO_TURN_NO_PROGRESS, GYRO_TURN_ACCURACY };
+       GYRO_TURN_DIRECTION, GYRO_TURN_NO_PROGRESS, GYRO_TURN_ACCURACY,
+       GYRO_TURN_DATA_GAP };
 /* One-shot relative angle from current yaw: +90000 = left 90 degrees,
    -90000 = right 90 degrees. Wheel CPS, NOT PWM. Nonzero +/-360000 mdeg;
    1412..3600 CPS. Requires stopped, fault-free DriveBase and fresh READY IMU.
@@ -35,6 +37,9 @@ void GyroTurn_Stop(void);
    Does not repair IMU faults, clear DriveBase faults or recalibrate yaw. */
 uint8_t GyroTurn_ClearFault(void);
 uint8_t GyroTurn_GetFault(void);
+/* Clear only an aborted transient data-gap action, when STOPPED and fresh.
+   Does not start/resume motion, reset yaw, or clear any hard fault. */
+uint8_t GyroTurn_ClearTransientFault(void);
 GyroTurnState GyroTurn_GetState(void);
 /* Last serviced signed relative yaw, including settling. Capture on DONE
    before starting another action. Preserved on Stop; reset on accepted Start. */

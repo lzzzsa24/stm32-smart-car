@@ -1020,9 +1020,14 @@ static void sign_line_task(AppMode mode)
   MpuYawReading yaw;
   SignRouteStatus route_status;
   WheelEncoderCounts counts;
-  LineTrackingReading line = line_tracking_read();
-  uint32_t now = HAL_GetTick();
+  LineTrackingReading line;
+  uint32_t now;
 
+  /* Diagnostics/display may have run after the background service. Consume
+     available FIFO history immediately before this angle-dependent decision. */
+  MpuYaw_Refresh(HAL_GetTick());
+  line = line_tracking_read();
+  now = HAL_GetTick();
   sign_line_mask = line_reading_mask(&line);
   /* Keep sampling the real line even while a route preference is active. */
   WheelEncoder_GetCounts(&counts);
@@ -1644,6 +1649,9 @@ int main(void)
         else DiagnosticUart_WriteString("IMU CAL REJECTED: STOP FIRST\r\n");
       }
       MpuYaw_Task(HAL_GetTick(), stationary);
+      /* A transient aborted turn can be acknowledged once STOP is physically
+         quiet and data has caught up. A new mode command is still required. */
+      if (stationary) (void)GyroTurn_ClearTransientFault();
 #if MPU6050_BYPASS_ENABLED
       /* Convert IMU/angle failures to operator STOP before the legacy wait
          guard can clear a fault and initiate its timed recovery spin. */
@@ -1651,8 +1659,7 @@ int main(void)
           (!MpuYaw_IsReady(HAL_GetTick()) || GyroTurn_GetFault()))
       {
         requested_mode = APP_MODE_STOPPED;
-        if (app_mode == APP_MODE_INTEGRATED)
-          DiagnosticUart_WriteString("IMU TURN STOP: g=FAULT c=RECALIBRATE\r\n");
+        DiagnosticUart_WriteString("IMU NOT READY: STOP; g=STATUS; retry mode when READY; c=HARD FAULT RECAL\r\n");
       }
 #endif
       if (imu_dump_requested && app_mode == APP_MODE_STOPPED &&
@@ -1669,6 +1676,10 @@ int main(void)
         DiagnosticUart_WriteSigned((int32_t)(imu.yaw_mdeg % 360000));
         DiagnosticUart_WriteString(" RATE_MDEG_S="); DiagnosticUart_WriteSigned(imu.rate_mdeg_s);
         DiagnosticUart_WriteString(" AGE="); DiagnosticUart_WriteUnsigned(HAL_GetTick() - imu.last_sample_ms);
+        DiagnosticUart_WriteString(" PENDING="); DiagnosticUart_WriteUnsigned(imu.pending_frames);
+        DiagnosticUart_WriteString(" FIFO_PEAK="); DiagnosticUart_WriteUnsigned(imu.peak_fifo_bytes);
+        DiagnosticUart_WriteString(" GAP_MAX="); DiagnosticUart_WriteUnsigned(imu.max_service_gap_ms);
+        DiagnosticUart_WriteString(" BACKLOG="); DiagnosticUart_WriteUnsigned(imu.backlog_events);
         DiagnosticUart_WriteString(" TURN_F="); DiagnosticUart_WriteUnsigned(GyroTurn_GetFault());
         DiagnosticUart_WriteString(" TURN_MDEG="); DiagnosticUart_WriteSigned(GyroTurn_GetAchievedAngleMdeg());
         DiagnosticUart_WriteString("\r\n");

@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 typedef enum { MPU_YAW_STARTING, MPU_YAW_CALIBRATING,
-               MPU_YAW_READY, MPU_YAW_FAULT } MpuYawState;
+               MPU_YAW_READY, MPU_YAW_FAULT, MPU_YAW_WAIT_STATIONARY } MpuYawState;
 enum { MPU_FAULT_BUS = 1, MPU_FAULT_ID, MPU_FAULT_FIFO,
        MPU_FAULT_STALE, MPU_FAULT_CALIBRATION, MPU_FAULT_RANGE };
 typedef struct {
@@ -30,17 +30,23 @@ typedef struct {
   int64_t yaw_mdeg;
   uint32_t last_sample_ms;
   uint32_t samples;
+  uint16_t pending_frames, peak_fifo_bytes;
+  uint32_t max_service_gap_ms, backlog_events;
 } MpuYawReading;
 
 /* Sensor service shared by ALL modes; main-loop only, not ISR/reentrant.
    Call only at startup or explicit STOP-state recalibration. No motor IO.
    Resets the shared yaw origin and bias: invalidate old snapshots/targets. */
 void MpuYaw_Init(uint32_t now_ms);
-/* Call once per main-loop iteration, including STOP and unrelated modes.
+/* Service every main-loop iteration, including STOP and unrelated modes.
    stationary must include STOP ownership and measured wheel standstill.
    FIFO is sensor-timed. Don't place this only in an active turn branch.
    Phase waits are cooperative; bus transactions are bounded, not async. */
 void MpuYaw_Task(uint32_t now_ms, uint8_t stationary);
+/* Consumers may refresh this SAME service immediately before an angle
+   decision. Only READY state is serviced; calibration ownership is unchanged.
+   A 5-ms poll gate and FIFO consumption prevent duplicate integration. */
+void MpuYaw_Refresh(uint32_t now_ms);
 void MpuYaw_GetReading(MpuYawReading *out);
 uint8_t MpuYaw_IsReady(uint32_t now_ms);
 

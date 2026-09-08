@@ -1,5 +1,8 @@
 # 综合测试 V6：MPU6050 多模式候选
 
+本文保留 V6 当时的来源与验证记录；后续 V7 调度、FIFO 和标定恢复修复
+见 [COMPREHENSIVE_V7_GYRO_FIX.md](COMPREHENSIVE_V7_GYRO_FIX.md)。
+
 ## 版本边界
 
 - 分支：`test/comprehensive-v6-gyro-20260908`

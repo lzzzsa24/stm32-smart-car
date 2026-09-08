@@ -14,7 +14,8 @@ $files = [ordered]@{
   'README.md' = 'reusable/gyro_angle/README.md'
   'reusable/gyro_angle/examples/angle_mode_example.h' = 'reusable/gyro_angle/examples/angle_mode_example.h'
   'reusable/gyro_angle/examples/angle_mode_example.c' = 'reusable/gyro_angle/examples/angle_mode_example.c'
-  'tests/gyro_turn/run.cmd' = 'tests/gyro_turn/run.cmd'
+  # Standalone module package has no product main.c or real DriveBase sources.
+  'tests/gyro_turn/run.cmd' = 'tests/gyro_turn/run_module.cmd'
   'tests/gyro_turn/test_gyro_turn.c' = 'tests/gyro_turn/test_gyro_turn.c'
   'tests/gyro_turn/test_bus.c' = 'tests/gyro_turn/test_bus.c'
   'tests/gyro_turn/bus_stubs/main.h' = 'tests/gyro_turn/bus_stubs/main.h'

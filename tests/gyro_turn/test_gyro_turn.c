@@ -8,7 +8,7 @@
 #include "angle_mode_example.h"
 
 static uint32_t now;
-static uint8_t fifo[108], regs[256], bad_bus, overflow;
+static uint8_t fifo[1024], regs[256], bad_bus, overflow;
 static uint16_t fifo_size;
 static DriveBaseTelemetry drive;
 static int32_t largest_cps, smallest_cps;
@@ -54,7 +54,7 @@ static void put16(uint8_t *p, int32_t value)
 static void queue(unsigned frames, int32_t z, int32_t az)
 {
   unsigned i;
-  assert(frames <= 9);
+  assert(frames <= 85);
   memset(fifo, 0, sizeof(fifo));
   fifo_size = (uint16_t)(frames * 12);
   for (i = 0; i < frames; ++i) { put16(fifo + i * 12 + 4, az); put16(fifo + i * 12 + 10, z); }
@@ -112,9 +112,10 @@ static void test_calibration_and_faults(void)
   assert(MpuYaw_IsReady(now));
   feed(1, 32767, 0); assert(read_imu().fault == MPU_FAULT_RANGE);
   ready(); now += 31; assert(!MpuYaw_IsReady(now));
-  now += 50; MpuYaw_Task(now, 1); assert(read_imu().fault == MPU_FAULT_STALE);
+  now += 50; MpuYaw_Task(now, 1); assert(read_imu().fault == 0);
+  now += 170; MpuYaw_Task(now, 1); assert(read_imu().fault == MPU_FAULT_STALE);
   ready(); overflow = 1; feed(1, 100, 0); assert(read_imu().fault == MPU_FAULT_FIFO);
-  ready(); queue(9, 100, 16384); now += 10; MpuYaw_Task(now, 0);
+  ready(); fifo_size = 1024; now += 10; MpuYaw_Task(now, 0);
   assert(read_imu().fault == MPU_FAULT_FIFO);
   ready(); bad_bus = 1; feed(1, 100, 0); assert(read_imu().fault == MPU_FAULT_BUS);
   boot(0); regs[0x75] = 0; MpuYaw_Init(now); now += 100; MpuYaw_Task(now, 1);
@@ -148,7 +149,7 @@ static void test_turn_faults(void)
   unsigned i;
   ready(); assert(!GyroTurn_Start(INT32_MIN, 2500)); assert(!GyroTurn_Start(0, 2500));
   assert(!GyroTurn_Start(90000, 4000)); assert(GyroTurn_Start(90000, 2500));
-  now += 31; GyroTurn_Task(); assert(GyroTurn_GetFault() == GYRO_TURN_SENSOR);
+  now += 31; GyroTurn_Task(); assert(GyroTurn_GetFault() == GYRO_TURN_DATA_GAP);
   assert(drive.mode == DRIVE_BASE_STOPPED); GyroTurn_Stop();
   assert(!GyroTurn_Start(90000, 2500)); /* STOP retains fault */
   ready(); assert(GyroTurn_Start(90000, 2500));
@@ -204,14 +205,68 @@ static void test_reusable_example(void)
   now += 31; AngleModeExample_Task();
   assert(AngleModeExample_GetState() == ANGLE_EXAMPLE_FAULT);
   assert(!AngleModeExample_Start(90000, 2500));
-  assert(GyroTurn_GetFault() == GYRO_TURN_SENSOR);
+  assert(GyroTurn_GetFault() == GYRO_TURN_DATA_GAP);
   AngleModeExample_Exit();
   puts("PASS: reusable mode example, mirrored completion, rejected start, cancellation, fault latch and no automatic restart");
+}
+static void test_delayed_service_and_recovery(void)
+{
+  unsigned i;
+  uint32_t samples;
+  ready(); assert(GyroTurn_Start(90000, 2500));
+  queue(3, 6650, 16384); now += 35; GyroTurn_Task();
+  assert(GyroTurn_GetState() == GYRO_TURN_RUNNING && !GyroTurn_GetFault());
+  assert(read_imu().yaw_mdeg == 3000 && fifo_size == 0);
+  /* A delayed loop must drain valid history before checking age. */
+  queue(8, 6650, 16384); now += 81; GyroTurn_Task();
+  assert(GyroTurn_GetState() == GYRO_TURN_RUNNING);
+  assert(read_imu().yaw_mdeg == 11000);
+  samples = read_imu().samples;
+  MpuYaw_Refresh(now); MpuYaw_Refresh(now);
+  assert(read_imu().samples == samples);
+  /* Work is bounded to eight frames; incomplete catch-up is never READY. */
+  ready(); queue(32, 6650, 16384); now += 320; MpuYaw_Task(now, 0);
+  assert(read_imu().pending_frames == 24 && fifo_size == 288);
+  assert(read_imu().fault == 0 && !MpuYaw_IsReady(now));
+  for (i = 0; i < 3; ++i) { now += 5; MpuYaw_Refresh(now); }
+  assert(MpuYaw_IsReady(now) && read_imu().yaw_mdeg == 32000);
+  assert(read_imu().samples == 232 && read_imu().peak_fifo_bytes == 384);
+  assert(read_imu().max_service_gap_ms == 320 && read_imu().backlog_events == 3);
+  /* Temporary age failure aborts this turn. Fresh data may clear only this
+     fault while stopped; neither clearing nor new samples start the motors. */
+  ready(); assert(GyroTurn_Start(90000, 2500));
+  now += 31; GyroTurn_Task();
+  assert(GyroTurn_GetFault() == GYRO_TURN_DATA_GAP);
+  assert(!GyroTurn_ClearTransientFault());
+  feed(1, 100, 0); drive.mode = DRIVE_BASE_SPEED;
+  assert(!GyroTurn_ClearTransientFault());
+  drive.mode = DRIVE_BASE_STOPPED; drive.fault_mask = 1;
+  assert(!GyroTurn_ClearTransientFault());
+  drive.fault_mask = 0;
+  assert(GyroTurn_ClearTransientFault());
+  GyroTurn_Task(); assert(drive.mode == DRIVE_BASE_STOPPED);
+  assert(GyroTurn_GetState() == GYRO_TURN_IDLE && read_imu().calibration_samples == 200);
+  assert(GyroTurn_Start(-90000, 2500));
+  bad_bus = 1; now += 10; GyroTurn_Task();
+  assert(GyroTurn_GetFault() == GYRO_TURN_SENSOR && !GyroTurn_ClearTransientFault());
+  /* Running mode 2 before calibration is an explicit wait, not a ten-second
+     permanent fault. Buffered pre-STOP samples cannot become calibration. */
+  boot(0);
+  for (i = 0; i < 1500; ++i) feed(1, 100, 0);
+  assert(read_imu().state == MPU_YAW_WAIT_STATIONARY && !read_imu().fault);
+  queue(16, 100, 16384); now += 160; MpuYaw_Task(now, 1);
+  assert(read_imu().state == MPU_YAW_WAIT_STATIONARY);
+  now += 5; MpuYaw_Task(now, 1);
+  assert(read_imu().state == MPU_YAW_CALIBRATING && read_imu().calibration_samples == 0);
+  for (i = 0; i < 200; ++i) feed(1, 100, 1);
+  assert(MpuYaw_IsReady(now) && !read_imu().fault);
+  puts("PASS: delayed consumer refresh, budgeted FIFO catch-up, transient abort/rearm and stationary calibration wait");
 }
 int main(void)
 {
   test_yaw(); test_calibration_and_faults(); test_turn(1); test_turn(-1); test_turn_faults();
   test_reusable_example();
+  test_delayed_service_and_recovery();
   puts("PASS: FIFO yaw, calibration, faults, mirrored bypass turns, STOP and settled-angle checks");
   return 0;
 }

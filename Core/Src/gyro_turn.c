@@ -11,6 +11,12 @@ static uint32_t start_ms, timeout_ms, progress_ms, stop_ms, quiet_ms;
 static uint8_t quiet;
 
 static int32_t absolute(int32_t n) { return n < 0 ? -n : n; }
+static uint8_t sensor_reason(void)
+{
+  MpuYawReading imu;
+  MpuYaw_GetReading(&imu);
+  return imu.state == MPU_YAW_READY ? GYRO_TURN_DATA_GAP : GYRO_TURN_SENSOR;
+}
 static void fail(uint8_t reason)
 {
   DriveBase_Stop(DRIVE_STOP_COAST);
@@ -36,7 +42,8 @@ uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
       state == GYRO_TURN_RUNNING || fault_code) return 0;
   DriveBase_GetTelemetry(&drive);
   if (drive.mode != DRIVE_BASE_STOPPED || drive.fault_mask) return 0;
-  if (!MpuYaw_IsReady(now)) { fail(GYRO_TURN_SENSOR); return 0; }
+  MpuYaw_Refresh(now); now = HAL_GetTick();
+  if (!MpuYaw_IsReady(now)) { fail(sensor_reason()); return 0; }
   MpuYaw_GetReading(&imu);
   start_yaw = imu.yaw_mdeg;
   sign = angle_mdeg > 0 ? 1 : -1;
@@ -74,7 +81,8 @@ void GyroTurn_Task(void)
   uint32_t now = HAL_GetTick();
   if (state != GYRO_TURN_RUNNING) return;
   /* Check sample freshness before allowing another drive command. */
-  if (!MpuYaw_IsReady(now)) { fail(GYRO_TURN_SENSOR); return; }
+  MpuYaw_Refresh(now); now = HAL_GetTick();
+  if (!MpuYaw_IsReady(now)) { fail(sensor_reason()); return; }
   MpuYaw_GetReading(&imu);
   delta = imu.yaw_mdeg - start_yaw;
   if (delta < -720000 || delta > 720000) { fail(GYRO_TURN_SENSOR); return; }
@@ -133,5 +141,15 @@ uint8_t GyroTurn_ClearFault(void)
   return 1;
 }
 uint8_t GyroTurn_GetFault(void) { return fault_code; }
+uint8_t GyroTurn_ClearTransientFault(void)
+{
+  DriveBaseTelemetry drive;
+  DriveBase_GetTelemetry(&drive);
+  if (fault_code != GYRO_TURN_DATA_GAP || drive.mode != DRIVE_BASE_STOPPED ||
+      drive.fault_mask || !MpuYaw_IsReady(HAL_GetTick())) return 0U;
+  fault_code = 0U;
+  state = GYRO_TURN_IDLE;
+  return 1U;
+}
 GyroTurnState GyroTurn_GetState(void) { return state; }
 int32_t GyroTurn_GetAchievedAngleMdeg(void) { return achieved; }
