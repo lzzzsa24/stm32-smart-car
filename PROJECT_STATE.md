@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 7736c99
+repository_head_at_update: 6c2e689
 latest_code_commit: 3170221
-flashed_source_commit: c5a4c76
-flash_record_commit: 7736c99
-deployed_tag: deployed/2026-09-08-line-visible-arc-c5a4c76
-formal_bin_path: manual-build-candidate-c5a4c76/exp7_unified_motion.bin
-formal_hex_path: manual-build-candidate-c5a4c76/exp7_unified_motion.hex
-formal_bin_size_bytes: 84636
-flashed_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
-flashed_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
-ground_test_status: not_tested_after_temporary_c5a4c76_deployment
+flashed_source_commit: 2c2ed97
+flash_record_commit: 6c2e689
+deployed_tag: deployed/2026-09-08-comprehensive-v2-2c2ed97
+formal_bin_path: manual-build-candidate-comprehensive-v2-2c2ed97/exp7_unified_motion.bin
+formal_hex_path: manual-build-candidate-comprehensive-v2-2c2ed97/exp7_unified_motion.hex
+formal_bin_size_bytes: 84216
+flashed_bin_sha256: D53897200AD5BD1C0913028446D2C4C2A2B667ABE32FBEAA9AC3B6849DF4815E
+flashed_hex_sha256: DDADBDBDAD506AF344834504035875B213F2B70CDDB1597E1189533135BD2F74
+ground_test_status: not_tested_after_comprehensive_v2_2c2ed97_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: c5a4c76
-candidate_bin_size_bytes: 84636
-candidate_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
-candidate_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
-user_reported_flash: tool_verified_c5a4c76_STM32_flash_readback_and_GO_no_physical_test
+candidate_source_commit: 2c2ed97
+candidate_bin_size_bytes: 84216
+candidate_bin_sha256: D53897200AD5BD1C0913028446D2C4C2A2B667ABE32FBEAA9AC3B6849DF4815E
+candidate_hex_sha256: DDADBDBDAD506AF344834504035875B213F2B70CDDB1597E1189533135BD2F74
+user_reported_flash: tool_verified_2c2ed97_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_pr6_merged_v1.2.0_rc2_published_c5a4c76_deployment_record_via_protected_pr
+remote_sync_status: github_main_at_f17bffa_local_comprehensive_v2_deployment_records_not_pushed
 remote_sync_branch: main
-stm32_runtime_status: COM11_c5a4c76_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
+stm32_runtime_status: COM11_2c2ed97_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
-temporary_flash_selector_commit: c5a4c76_flashed_temporary_comparison
+temporary_flash_selector_commit: 2c2ed97_comprehensive_v2_flashed
 github_release_tag: v1.2.0-rc.2
 github_release_source_commit: 3635308
 github_release_firmware_commit: 3170221
@@ -69,9 +69,9 @@ the mode-1-power STM32 BIN/HEX, SHA-256 list, both mutually exclusive K210
 uploaded asset digests match the staged local files. Its functional firmware
 source is `3170221`, which is also the programmer-verified STM32 image. K210
 assets are byte-identical to rc.1 and the device was not rewritten during that
-STM32 deployment. The board has since been replaced by temporary comparison
-source `c5a4c76`, which is not part of rc.2. No lifted-wheel or ground-test
-claim is made. Previous releases remain available as history.
+STM32 deployment. The board now runs local comprehensive test source
+`2c2ed97`, which is not part of rc.2 or protected `main`. No lifted-wheel or
+ground-test claim is made. Previous releases remain available as history.
 
 ## Published main source and previous deployment (`3170221`)
 
@@ -97,7 +97,40 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
-## Current flashed comparison candidate (`c5a4c76`)
+## Current flashed comprehensive test (`2c2ed97`)
+
+Exact source `2c2ed973ef5e34705f301c16871aed043e9ad461` was assembled from
+current canonical `main` (`f17bffa`) in independent branch
+`test/comprehensive-v2-20260908`. It applies candidate `64f489e` once, followed
+by `4c345b8` and `68c6444`, producing replay commits `c82c8b3`, `0a6a0f3` and
+`2c2ed97`. It therefore combines slower and silent line-loss recovery,
+zero-target-side turn assist, a ten-second sign-probe hold and slow continuous
+obstacle-bypass travel. Because `64f489e` already contains its line-history
+prerequisites, `c5a4c76` and `074ef682` were not replayed separately. Starting
+from current main retains mode-1 power source `3170221`; the later continuous
+bypass layer intentionally caps its short travel commands at 1800 CPS.
+
+The complete line-recovery suite passed at both speed configurations,
+including 120 visible cases, silent recovery, explicit 0/2200 CPS outer
+pivots, moving-side assist with the stopped side at zero, strong exits,
+overlaps, continuous bypass travel, four-wheel load/fault checks and STOP
+ownership. Sign-line passed with the real ten-second hold, and vision-line-v4
+also passed. The formal ARM build passed with text/data/bss
+`84148/64/11592`, producing an 84216-byte BIN with SHA-256
+`D53897200AD5BD1C0913028446D2C4C2A2B667ABE32FBEAA9AC3B6849DF4815E`;
+the HEX SHA-256 is
+`DDADBDBDAD506AF344834504035875B213F2B70CDDB1597E1189533135BD2F74`.
+
+COM11 programmed and read back all 84216 bytes after selectively erasing 42
+application pages while preserving the final calibration page. The programmer
+reported `VERIFY OK` and `GO OK: 0x08000000`. A pre-flash STOP showed mode 0
+and zero four-wheel output. At the user's request, the routine post-GO serial
+STOP/zero-output check was omitted. K210 was not accessed. No lifted-wheel or
+ground test was performed. This source remains an unmerged local test branch
+and was not pushed during this operation. Detailed evidence:
+`DEPLOYMENT_COMPREHENSIVE_V2_2C2ED97_20260908.md`.
+
+## Previous flashed comparison candidate (`c5a4c76`)
 
 Exact source `c5a4c76ab84666f44d03510227bfbeac41083641` was rebuilt in the
 isolated `fix/line-visible-arc` worktree after publishing rc.2. Visible line
@@ -779,41 +812,44 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | prepared unflashed candidate `c5a4c76`; ELF text/data/bss = 84568/64/11536 bytes; BIN is 84636 bytes; HEX hash is `F89A8BDF...18686F` |
-| host regression | passed | `c5a4c76` complete line-recovery suite passed at both speed configurations, including 120 visible-line cases, strong exits, forward arcs, confirmed-loss rotation, four-wheel DriveBase, bypass and STOP ownership |
-| STM32 flash/readback/GO | passed | temporary source `c5a4c76`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84636 bytes with `VERIFY OK`, and completed `GO OK` |
+| computer build/link | passed | flashed comprehensive source `2c2ed97`; ELF text/data/bss = 84148/64/11592 bytes; BIN is 84216 bytes; HEX hash is `DDADBDBD...32F74` |
+| host regression | passed | `2c2ed97` line-recovery passed at both speeds with 120 visible cases, silent recovery, 0/2200 outer pivots, zero-target-side assist, continuous bypass and four-wheel/STOP checks; sign-line ten-second hold and vision-line-v4 also passed |
+| STM32 flash/readback/GO | passed | temporary source `2c2ed97`; COM11 selectively erased 42 application pages, preserved the final calibration page, wrote/read back 84216 bytes with `VERIFY OK`, and completed `GO OK`; routine post-GO serial checking was omitted at user request |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
-| K210 deployment/runtime | unchanged from prior deployment | This temporary STM32 flash did not open, reset or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
+| K210 deployment/runtime | unchanged from prior deployment | This STM32 operation did not open, reset, inspect or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
 | board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
-| ground driving | not performed | lone-inner bidirectional probing, mode 3/4 routing and mode 5 curve tracking remain unverified |
+| ground driving | not performed | composite line recovery, continuous bypass, mode 3/4 routing and mode 5 curve tracking remain unverified |
 
 ## Current open issue and next safe step
 
-The STM32 now runs temporary comparison firmware `c5a4c76`. K210 remains
-unchanged on its previously verified mode 3/4 SIGN34 program. Final STM32 STOP
-telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM
-output at zero. No lifted-wheel or ground result has been claimed for the
-visible-line forward-arc behavior.
+The STM32 now runs temporary comprehensive firmware `2c2ed97`. K210 remains
+unchanged on its previously verified mode 3/4 SIGN34 program. A pre-flash STOP
+showed mode 0 and zero four-wheel output; there was intentionally no routine
+post-GO serial STOP/zero-output check. No lifted-wheel or ground result has
+been claimed for the composite behavior.
 
 GitHub `main` contains the rc.2 release source and earlier deployment history
-through merge `3635308`; rc.2 is published with verified assets. Independent
-candidate `c5a4c76` is now actually flashed, but remains unmerged and does not
-contain `3170221`'s mode-1 power change.
+through `f17bffa`; rc.2 is published with verified assets. Independent
+comprehensive source `2c2ed97` is actually flashed but remains unmerged and
+unpublished. Local `main` only adds its deployment/state records and is ahead
+of GitHub until a later explicitly requested synchronization.
 
 The next safe physical step is a user-controlled line-tracking test with remote
-STOP immediately available. To regain rc.2's mode-1 power profile, flash
-`3170221` again or deliberately integrate it with `c5a4c76`; do not assume the
-current temporary image contains both.
+STOP immediately available. Test line recovery, the ten-second sign-probe hold
+and continuous obstacle-bypass travel separately so a failure can be assigned
+to one candidate layer. The current source starts from main and therefore
+contains `3170221`'s mode-1 power profile, but the continuous bypass layer caps
+its own short forward/reverse segments at 1800 CPS.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
 `k210-mode5-visual-line-main.py` as `/sd/main.py`; both cannot be active under
 that filename at once. Test mode 3/4 exit withdrawal and mode 5 stale-UART stop
-separately. If this mode-1 power deployment is rejected, rollback tag
-`rollback/2026-09-08-before-main-mode1-power-flash` identifies the replaced
-temporary source `074ef682`. No ground behavior is established by host tests,
-build, programmer readback, startup text, UART counters or GO success.
+separately. If this comprehensive image is rejected, rollback tag
+`rollback/2026-09-08-before-comprehensive-v2-test` identifies the replaced
+source `c5a4c76`. No ground behavior is established by host tests, build,
+programmer readback, startup text, UART counters or GO success.
 
 ## Update protocol
 
