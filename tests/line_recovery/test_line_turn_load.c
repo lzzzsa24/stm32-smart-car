@@ -10,6 +10,7 @@
 #include "motorPWM.h"
 #include "main.h"
 #include "line_tracking.h"
+#include "line_recovery.h"
 #include "motion_advanced.h"
 #include "line_wait_guard.h"
 #include "line_search_model.h"
@@ -376,7 +377,10 @@ static void test_rolling_loss_reentry(unsigned right)
     line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
     DriveBase_GetTelemetry(&t);
     assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
-    assert(t.requested_cps[0]!=0 && t.requested_cps[2]!=0);
+    if(mask==2 || mask==8)
+      assert(right?t.requested_cps[0]==2200 && t.requested_cps[2]==0:
+                   t.requested_cps[0]==0 && t.requested_cps[2]==2200);
+    else assert(t.requested_cps[0]!=0 && t.requested_cps[2]!=0);
     if(ms>20) assert(right?pins[0]>0 && pins[1]>0:pins[2]>0 && pins[3]>0);
     if(t.requested_cps[0]*t.requested_cps[2]<0)
     {
@@ -408,7 +412,7 @@ static void test_real_ambiguous_inner_handoffs(unsigned first_right)
     ++tick; DriveBase_Task(tick);
     leg=ms<200?0:(ms-200)/200;
     right=(first_right+leg+1)%2;
-    mask=ms<200?(first_right?8:2):((ms-200)%200<5?(right?4:1):0);
+    mask=ms<100?(first_right?8:2):(ms<200?0:((ms-200)%200<5?(right?4:1):0));
     reading=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
     line_tracking_compute(&reading,3000,&output);
     line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
@@ -421,7 +425,7 @@ static void test_real_ambiguous_inner_handoffs(unsigned first_right)
       assert(t.requested_cps[0]==(first_right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
       assert(t.requested_cps[1]==t.requested_cps[0]);
       assert(t.requested_cps[2]==-t.requested_cps[0] && t.requested_cps[3]==t.requested_cps[2]);
-      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineRecovery_IsSearching());
       assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
       assert(decision.source==LINE_SEARCH_REJOIN &&
              decision.chosen_side==(first_right?1:-1));
@@ -470,7 +474,7 @@ static void test_real_broad_corner_directions(unsigned overlapping)
         assert(pins[0]*expected>0 && pins[1]*expected>0);
         assert(pins[2]*expected<0 && pins[3]*expected<0);
       }
-      assert(BuzzerPhrase400_IsPlaying());
+      assert(LineRecovery_IsSearching());
       assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
       assert(decision.source==LINE_SEARCH_CROSS_HINT && decision.chosen_side==(right?1:-1));
       assert(decision.hint_mask==(overlapping?broad:first));
@@ -550,7 +554,7 @@ static void test_real_white_search(void)
     }
     if(ms>100) assert(!output.valid && t.requested_cps[0]<0 && t.requested_cps[2]>0);
   }
-  assert(BuzzerPhrase400_IsPlaying());
+  assert(LineRecovery_IsSearching());
   reading.x1_black=reading.x3_black=1;
   for(ms=0;ms<700;++ms)
   {
@@ -590,7 +594,7 @@ static void test_real_exit_direction_correction(void)
       assert(!t.fault_mask && t.mode!=DRIVE_BASE_POSITION);
       if(ms>=313)
       {
-        assert(t.mode==DRIVE_BASE_SPEED && BuzzerPhrase400_IsPlaying());
+        assert(t.mode==DRIVE_BASE_SPEED && LineRecovery_IsSearching());
         assert((side?-t.requested_cps[0]:t.requested_cps[0])>0);
         assert(t.requested_cps[0]==t.requested_cps[1]);
         assert(t.requested_cps[2]==t.requested_cps[3]);
@@ -605,6 +609,43 @@ static void test_real_exit_direction_correction(void)
   }
   puts("PASS: actual DriveBase corrects both exit directions with/without middle, including expired window, without brake/restart");
 }
+static void test_real_strong_exit_handoff(void)
+{
+  unsigned right, overlap, ms, w;
+  for(right=0;right<2;++right) for(overlap=0;overlap<2;++overlap)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    for(ms=0;ms<700;++ms)
+    {
+      unsigned mask=ms<100?(right?2:8):0;
+      LineTrackingReading r;
+      if(ms==200) mask=overlap?(right?1:4):(right?8:2);
+      if(ms==201) mask=overlap?(right?9:6):(right?4:1);
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+      ++tick; DriveBase_Task(tick);
+      r=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
+      DriveBase_GetTelemetry(&t);
+      assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+      if(overlap && ms>=201 && ms<301)
+        assert(out.valid && t.requested_cps[0]>0 && t.requested_cps[0]==t.requested_cps[2]);
+      if(ms>=350)
+      {
+        int32_t target=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+        assert(t.requested_cps[0]==target && t.requested_cps[1]==target);
+        assert(t.requested_cps[2]==-target && t.requested_cps[3]==-target);
+        if(ms>=550) for(w=0;w<4;++w)
+          assert((int32_t)pins[w]*(w<2?target:-target)>0);
+      }
+    }
+    line_tracking_reset();
+    for(w=0;w<4;++w) assert(pins[w]==0);
+  }
+  puts("PASS: real DriveBase strong exit through inner contact and ordered nonadjacent overlap, both directions, four-wheel PWM and STOP");
+}
+
 static void test_real_corner_chatter(void)
 {
   unsigned side,ms,w;
@@ -634,16 +675,112 @@ static void test_real_corner_chatter(void)
       if(ms>=600 && ms<2100)
       {
         assert(t.mode==DRIVE_BASE_SPEED && !t.fault_mask);
-        assert((side?pins[0]:-pins[0])>0 && (side?-pins[2]:pins[2])>0);
-        assert(pins[1]*pins[0]>0 && pins[3]*pins[2]>0);
+        if(mask) assert(t.requested_cps[0]>0 && t.requested_cps[2]>0);
+        else if(t.requested_cps[0]*t.requested_cps[2]<0)
+          assert(t.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+        assert(t.requested_cps[0]==t.requested_cps[1] && t.requested_cps[2]==t.requested_cps[3]);
       }
     }
     assert(out.valid && out.left_cps>0 && out.right_cps>0 && !BuzzerPhrase400_IsPlaying());
     line_tracking_reset(); DriveBase_Stop(DRIVE_STOP_COAST);
     assert(!pins[0] && !pins[1] && !pins[2] && !pins[3]);
   }
-  puts("PASS: actual DriveBase keeps four-wheel counter-rotation through corner edge/white chatter");
+  puts("PASS: actual DriveBase switches between forward visible steering and counter-rotation on confirmed loss");
 }
+static void test_slow_outer_profiles(void)
+{
+  unsigned right,gain,smooth,active,stage,ms,w,cases=0;
+  int32_t old_inner=DriveBase_EquivalentCpsFromPwm(2200);
+  int32_t old_outer=DriveBase_EquivalentCpsFromPwm(3000);
+  printf("REPRO: old visible outer pair %ld/%ld CPS; new pivot 0/2200 CPS\n",
+      (long)old_inner,(long)old_outer);
+  assert(old_inner+old_outer>2200);
+  for(right=0;right<2;++right) for(gain=100;gain<=200;gain+=100)
+  for(smooth=0;smooth<2;++smooth) for(active=0;active<2;++active)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    line_tracking_set_smooth_mode((uint8_t)smooth);
+    line_tracking_set_turn_gain_percent((uint16_t)gain);
+    if(active)
+    {
+      LineTrackingReading white={0};
+      tick+=100; line_tracking_compute(&white,3000,&out);
+      assert(LineRecovery_IsSearching());
+    }
+    for(stage=0;stage<4;++stage) for(ms=0;ms<250;++ms)
+    {
+      unsigned mask=stage==0?(right?8:2):(stage==1?(right?12:3):(stage==2?5:15));
+      LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?1:(pins[w]<0?-1:0);
+      ++tick; DriveBase_Task(tick);
+      line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,MOTOR_PWM_PERIOD); DriveBase_GetTelemetry(&t);
+      assert(out.valid && !t.fault_mask && !BuzzerPhrase400_IsPlaying() && !buzzer);
+      if(stage==0)
+      {
+        assert((right?out.right_cps:out.left_cps)==0);
+        assert((right?out.left_cps:out.right_cps)==2200);
+        if(ms>220) for(w=0;w<4;++w)
+          assert((w<2)==(right!=0)?pins[w]>0:pins[w]==0);
+      }
+      else
+      {
+        /* One outer only must be slower than an adjacent pair, centered
+           line or a transverse mark, under both KEY1/KEY2 gains. */
+        assert(out.left_cps+out.right_cps>2200);
+        if(stage==1)
+        {
+          assert((right?out.right_cps:out.left_cps)==1412);
+          assert((right?out.left_cps:out.right_cps)==2400);
+        }
+        if(stage==3) assert(out.left_cps==1412 && out.right_cps==1412);
+      }
+    }
+    ++cases;
+  }
+  line_tracking_reset(); reset(); line_tracking_set_turn_gain_percent(100);
+  compare_load(0,2200,2); compare_load(0,2200,3);
+  compare_load(2200,0,0); compare_load(2200,0,1);
+  line_tracking_reset(); reset();
+  printf("PASS: %u real gain/state profiles: lone outer slower and tighter, pairs/center/wide distinct, stopped side unpowered, moving-side assist retained\n",cases);
+}
+
+static void test_real_visible_arc_and_loss(unsigned right)
+{
+  unsigned ms,w;
+  LineTrackingCommand out={0}; DriveBaseTelemetry t;
+  line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+  line_tracking_set_smooth_mode(1);
+  for(ms=0;ms<1500;++ms)
+  {
+    unsigned mask=ms<200 || ms>=1150?5:(ms>=450 && ms<800?(right?8:2):0);
+    LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+    for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+    ++tick; DriveBase_Task(tick);
+    line_tracking_compute(&r,3000,&out); line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&t); assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+    if(mask) assert(out.valid && t.requested_cps[0]>=0 && t.requested_cps[2]>=0 && t.requested_cps[0]+t.requested_cps[2]>0);
+    if(ms>=450 && ms<800)
+    {
+      assert(right?t.requested_cps[0]>t.requested_cps[2]:t.requested_cps[0]<t.requested_cps[2]);
+      if(ms>=650) for(w=0;w<4;++w)
+        assert((w<2)==(right!=0) ? pins[w]>0 : pins[w]==0);
+    }
+    if(ms>=850 && ms<1150)
+    {
+      int32_t expected=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+      assert(t.requested_cps[0]==expected && t.requested_cps[1]==expected);
+      assert(t.requested_cps[2]==-expected && t.requested_cps[3]==-expected);
+      if(ms>=1050) for(w=0;w<4;++w) assert(pins[w]*(w<2?expected:-expected)>0);
+    }
+    if(ms>=1350) for(w=0;w<4;++w) assert(pins[w]>0);
+  }
+  assert(!BuzzerPhrase400_IsPlaying());
+  line_tracking_reset(); for(w=0;w<4;++w) assert(pins[w]==0);
+  printf("PASS: real four-wheel forward arc side=%u, loss counter-rotation, rejoin and STOP\n",right);
+}
+
 static void test_no_motion_keeps_turn_effort(void)
 {
   unsigned wheel, step;
@@ -737,7 +874,7 @@ static void test_observe_faults(void)
       if(out.valid) DriveBase_SetSideCps(out.left_cps,out.right_cps);
     }
     assert(LineFaultLog_Count() && !DriveBase_GetFaultMask() && pins[0]<0 && pins[2]>0);
-    assert(BuzzerPhrase400_IsPlaying());
+    assert(LineRecovery_IsSearching());
     reading.x1_black=reading.x3_black=1;
     for(i=0;i<60;++i)
     {
@@ -1143,6 +1280,10 @@ int main(void)
   test_real_search_capture();
   test_real_white_search();
   test_real_corner_chatter();
+  test_real_strong_exit_handoff();
+  test_real_visible_arc_and_loss(0);
+  test_real_visible_arc_and_loss(1);
+  test_slow_outer_profiles();
   test_integrated_line_cap();
   test_bounded_automatic_waits();
   test_real_exit_direction_correction();

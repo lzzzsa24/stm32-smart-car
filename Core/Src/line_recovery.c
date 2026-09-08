@@ -1,7 +1,6 @@
 #include "line_recovery.h"
 #include "line_search_model.h"
 #include "drive_base.h"
-#include "buzzer_phrase_40077493715.h"
 
 #define SENSOR_CONFIRM_MS         4U
 #define SENSOR_MAX_SAMPLE_GAP_MS 30U
@@ -17,7 +16,7 @@ static int8_t side;
 static int8_t exit_side;
 static uint8_t exit_edge_seen;
 static uint32_t exit_last_ms;
-static uint8_t center_candidate, audio_owned, audio_requested;
+static uint8_t center_candidate;
 static uint32_t center_since, center_last_ms;
 static LineRecoveryStopReason stop_reason;
 static uint8_t uncertain_search;
@@ -51,26 +50,12 @@ static uint8_t uncertain_sweep_complete(const DriveBaseTelemetry *telemetry)
   return 1U;
 }
 
-static void stop_audio(void)
-{
-  if (audio_owned) BuzzerPhrase400_Stop();
-  audio_owned = 0U;
-  audio_requested = 0U;
-}
-static void search_audio(uint32_t now)
-{
-  BuzzerPhrase400_Task(now);
-  if (!BuzzerPhrase400_IsPlaying())
-  {
-    audio_owned = BuzzerPhrase400_Start(1U);
-  }
-}
+uint8_t LineRecovery_IsSearching(void) { return phase == REC_SEARCH; }
 LineRecoveryStopReason LineRecovery_GetStopReason(void) { return stop_reason; }
 int8_t LineRecovery_GetDirection(void) { return side; }
 void LineRecovery_Stop(LineRecoveryStopReason reason)
 {
   DriveBase_Stop(DRIVE_STOP_COAST);
-  stop_audio();
   uncertain_search = 0U;
   stop_reason = reason;
   phase = REC_FAULT;
@@ -78,7 +63,6 @@ void LineRecovery_Stop(LineRecoveryStopReason reason)
 void LineRecovery_Reset(void)
 {
   if (phase != REC_IDLE) DriveBase_Stop(DRIVE_STOP_COAST);
-  stop_audio();
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
   center_candidate = 0U;
@@ -88,7 +72,6 @@ void LineRecovery_Reset(void)
 }
 void LineRecovery_Commit(void)
 {
-  stop_audio();
   phase = REC_IDLE;
   stop_reason = LINE_REC_STOP_NONE;
   exit_edge_seen = 0U;
@@ -110,13 +93,7 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now)
   phase = REC_SEARCH;
   center_last_ms = now;
   if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
-  else
-  {
-    /* Claim this phrase only for active line recovery. Normal manual audio
-       remains untouched by reset/commit when recovery did not own it. */
-    audio_owned = BuzzerPhrase400_Start(1U);
-    audio_requested = 1U;
-  }
+
 }
 void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now)
 {
@@ -127,20 +104,6 @@ void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now)
   uncertain_search = 1U;
   uncertain_sweep_mdeg = UNCERTAIN_SWEEP_START_MDEG;
   uncertain_snapshot(&telemetry);
-}
-void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
-{
-  side = preferred_side > 0 ? 1 : -1;
-  exit_side = side;
-  exit_edge_seen = 1U;
-  exit_last_ms = now;
-  center_candidate = 0U;
-  uncertain_search = 0U;
-  stop_reason = LINE_REC_STOP_NONE;
-  phase = REC_SEARCH;
-  center_last_ms = now;
-  audio_requested = 0U;
-  if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
 }
 void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
 {
@@ -161,12 +124,14 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
     exit_edge_seen = 1U;
     exit_last_ms = now;
   }
-  else if (r->x1_black || r->x2_black || r->x3_black || r->x4_black)
+  else if (r->x2_black || r->x4_black)
   {
-    /* A newer middle or ambiguous/wide observation supersedes the edge. */
+    /* Conflicting wide/outer evidence invalidates the pending exit. An inner
+       contact is still provisional until live capture confirms, so it must
+       not discard a fresh outer direction or renew that direction's age. */
     exit_edge_seen = 0U;
   }
-  else if (exit_edge_seen)
+  else if (!(r->x1_black || r->x3_black) && exit_edge_seen)
   {
     if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS)
     {
@@ -189,8 +154,6 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   if (phase == REC_FAULT) return LINE_RECOVERY_FAILED;
   if (phase == REC_CAPTURED) return LINE_RECOVERY_CAPTURED;
   LineRecovery_ObserveDirection(r, now);
-  if (!(r->x1_black || r->x2_black || r->x3_black || r->x4_black)) audio_requested = 1U;
-  if (audio_requested) search_audio(now);
   DriveBase_GetTelemetry(&telemetry);
 
   /* An externally requested brake retains ownership; removing our own entry
@@ -222,14 +185,14 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
       { center_candidate = 1U; center_since = now; }
       else if (now - center_since >= SENSOR_CONFIRM_MS)
       {
-        stop_audio();
         phase = REC_CAPTURED;
+        exit_edge_seen = 0U;
         return LINE_RECOVERY_CAPTURED;
       }
       center_last_ms = now;
     }
   }
-  if (phase == REC_SEARCH)
+  if (phase == REC_SEARCH && !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
   {
     int32_t left = side < 0 ? -LINE_SEARCH_TARGET_CPS : LINE_SEARCH_TARGET_CPS;
     DriveBase_PrepareLineTurnAssist(left, -left);

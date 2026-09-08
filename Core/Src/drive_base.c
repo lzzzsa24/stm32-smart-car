@@ -1269,10 +1269,12 @@ void DriveBase_Init(void)
 void DriveBase_PrepareLineTurnAssist(int32_t left_cps, int32_t right_cps)
 {
   line_assist_pending = (uint8_t)(left_cps != right_cps &&
-      left_cps != 0L && right_cps != 0L &&
+      (left_cps != 0L || right_cps != 0L) &&
       left_cps >= -DRIVE_MAX_CPS && left_cps <= DRIVE_MAX_CPS &&
       right_cps >= -DRIVE_MAX_CPS && right_cps <= DRIVE_MAX_CPS);
   line_assist_left = left_cps;
+  /* A visible-edge pivot may stop one side. Its zero-target wheels receive
+     no supplement; the moving side still needs bounded load assistance. */
   line_assist_right = right_cps;
   line_assist_prepared_ms = HAL_GetTick();
 }
