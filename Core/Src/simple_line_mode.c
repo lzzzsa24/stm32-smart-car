@@ -55,6 +55,28 @@ void SimpleLine_Stop(SimpleLineController *controller)
   }
 }
 
+void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask)
+{
+  uint8_t mask = raw_mask & 15U;
+  SimpleLine_Step(controller, mask);
+  if (controller == NULL || controller->mode == SIMPLE_LINE_STOP || mask == 0U)
+    return;
+  /* Use current contact to withdraw a prior spin immediately on reacquisition.
+     Neither a lone outer probe nor its adjacent inner pair owns a pivot here. */
+  if (mask == 8U || mask == 12U || mask == 4U)
+  {
+    controller->last_direction = -1;
+    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_SLOW_PWM, SIMPLE_LINE_OUTER_PWM);
+  }
+  else if (mask == 1U || mask == 3U || mask == 2U)
+  {
+    controller->last_direction = 1;
+    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_OUTER_PWM, SIMPLE_LINE_SLOW_PWM);
+  }
+  else
+    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_SLOW_PWM, SIMPLE_LINE_SLOW_PWM);
+}
+
 void SimpleLine_SetDirection(SimpleLineController *controller,
                              int8_t direction)
 {

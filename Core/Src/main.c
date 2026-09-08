@@ -1018,16 +1018,21 @@ static void sign_line_task(AppMode mode)
   SignRoute_GetStatus(now, &route_status);
   if (route_status.state == SIGN_ROUTE_PROBE && route_status.direction != 0)
     SimpleLine_SetDirection(&simple_line_controller, route_status.direction);
-  SimpleLine_Step(&simple_line_controller, sign_line_mask);
+  if (route_status.state == SIGN_ROUTE_ARC && route_command.just_finished)
+    SimpleLine_SetDirection(&simple_line_controller, (int8_t)-route_status.direction);
+  if (route_status.state == SIGN_ROUTE_ARC)
+    SimpleLine_StepArc(&simple_line_controller, sign_line_mask);
+  else
+    SimpleLine_Step(&simple_line_controller, sign_line_mask);
 
-  if (route_command.just_started != 0U || route_command.just_finished != 0U)
+  if ((route_command.just_started != 0U || route_command.just_finished != 0U) &&
+      route_status.state != SIGN_ROUTE_ARC)
   {
     /* Never resume the old enhanced controller's latched in-place recovery.
        Both sign modes use the same SL2 path that can follow the user's arc. */
     SignRoute_GetStatus(now, &route_status);
     SimpleLine_SetDirection(&simple_line_controller,
-        route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
-                                               route_status.direction);
+        route_status.direction);
   }
 
   if (route_command.active != 0U)

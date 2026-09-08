@@ -1,5 +1,8 @@
 # Mode 3/4 PROBE direction hold
 
+Superseded by ARC_HANDOFF_FIX.md: 10 seconds is now a maximum; stable capture
+ends entry priority early, and all-black no longer requests a branch turn.
+
 User request: retain PROBE L/R for 10 seconds and prioritize that side's
 outermost sensor during this interval. Base: canonical main c3e6bc8, including
 mode-1 power source 3170221. Branch: fix/sign-probe-hold.

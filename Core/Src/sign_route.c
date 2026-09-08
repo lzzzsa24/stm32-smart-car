@@ -385,9 +385,20 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       }
       if (now - route.probe_hold_since_ms < SIGN_PROBE_HOLD_MS)
       {
-        /* The requested outside sensor wins even on a wide/all-black mark.
-           No black on that side: leave live tracking in control, never blind drive. */
-        if (line_mask & (route.direction < 0 ? 8U : 1U))
+        uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
+        /* Remember the choice, not a compulsory ten-second motor turn.
+           A crossbar alone does not prove that we took a branch. */
+        if (line_mask != 15U && (line_mask & selected_edge))
+          route.departed = 1U;
+        if (stable(route.departed && center, now))
+        {
+          enter_phase(SIGN_ROUTE_ARC, now);
+          command->just_finished = 1U;
+          return;
+        }
+        /* Prefer the selected visible branch; a full crossbar is ambiguous.
+           No black on that side: leave live tracking in control. */
+        if (line_mask != 15U && (line_mask & selected_edge))
         {
           command->active = 1U;
           command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
@@ -395,10 +406,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         }
         return;
       }
-      /* A single non-renewable window. Restart selection geometry/time here,
-         so the elapsed hold cannot immediately trigger an old phase timeout. */
-      enter_phase(SIGN_ROUTE_SELECTING, now);
-      route.departed = 1U;
+      /* Ten seconds is a maximum selection window, never a required turn. */
+      cancel_route(1U, now, command);
       return;
     }
 #endif
