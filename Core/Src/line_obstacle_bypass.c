@@ -1,7 +1,7 @@
 #include "line_obstacle_bypass.h"
 
 #include "drive_base.h"
-#include "encoder_linear.h"
+#include "line_bypass_travel.h"
 #include "line_bypass_turn.h"
 #include "main.h"
 #include "motion_advanced.h"
@@ -116,7 +116,7 @@ static void reset_relation_filter(void)
 
 static void stop_motion_controllers(void)
 {
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   LineBypassTurn_Stop();
   advanced_stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
@@ -124,7 +124,7 @@ static void stop_motion_controllers(void)
 
 static void enter_fault(uint8_t mask)
 {
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   LineBypassTurn_Stop();
   DriveBase_Stop(DRIVE_STOP_BRAKE);
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
@@ -241,7 +241,7 @@ static void account_drive_progress(void)
     return;
   }
 
-  progress = EncoderLinear_GetProgressMm();
+  progress = LineBypassTravel_GetProgressMm();
   if (progress <= segment_accounted_mm)
   {
     return;
@@ -396,9 +396,9 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
                                    uint16_t cps)
 {
   LineBypassTurn_Stop();
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
-  if (EncoderLinear_Start(distance_mm, (int32_t)cps) == 0U)
+  if (LineBypassTravel_Start(distance_mm, (int32_t)cps) == 0U)
   {
     enter_fault(BYPASS_FAULT_CONTROLLER);
     return 0U;
@@ -435,7 +435,7 @@ static uint8_t start_turn_sequence(int32_t angle_mdeg,
     return 0U;
   }
 
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   LineBypassTurn_Stop();
   active_turn_mdeg = angle_mdeg;
   turn_steps_remaining = steps;
@@ -686,7 +686,7 @@ static void start_clear_probe(void)
 
 static void begin_direction_guard(void)
 {
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   advanced_stop();
   active_drive_intent = BYPASS_INTENT_NONE;
   bypass_state = LINE_BYPASS_DIRECTION_GUARD;
@@ -697,7 +697,7 @@ static void begin_direction_guard(void)
 
 static void begin_evaluation(void)
 {
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   advanced_stop();
   bypass_state = LINE_BYPASS_EVALUATING;
 }
@@ -964,7 +964,7 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
 
   /* Do not issue an unconditional coast-stop here: that would cancel the
      unified drive layer's non-blocking emergency brake just after detection. */
-  EncoderLinear_Stop();
+  LineBypassTravel_Stop();
   LineBypassTurn_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
   bypass_direction = direction > 0 ? 1 : -1;
@@ -1065,17 +1065,17 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
       break;
 
     case LINE_BYPASS_REVERSING:
-      EncoderLinear_Task();
-      if (EncoderLinear_GetState() == ENCODER_LINEAR_FAULT)
+      LineBypassTravel_Task();
+      if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_FAULT)
       {
-        enter_fault(EncoderLinear_GetFaultMask());
+        enter_fault(LineBypassTravel_GetFaultMask());
       }
       else if (stable_relation == BYPASS_RELATION_TOO_FAR)
       {
         /* Reversing already crossed the safe side-distance boundary. */
         begin_direction_guard();
       }
-      else if (EncoderLinear_GetState() == ENCODER_LINEAR_DONE)
+      else if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_DONE)
       {
         begin_direction_guard();
       }
@@ -1189,7 +1189,7 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
       break;
 
     case LINE_BYPASS_DRIVING:
-      EncoderLinear_Task();
+      LineBypassTravel_Task();
       account_drive_progress();
       if (stable_relation == BYPASS_RELATION_TOO_CLOSE ||
           stable_relation == BYPASS_RELATION_IN_BAND)
@@ -1210,9 +1210,9 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
       {
         finish_done();
       }
-      else if (EncoderLinear_GetState() == ENCODER_LINEAR_FAULT)
+      else if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_FAULT)
       {
-        enter_fault(EncoderLinear_GetFaultMask());
+        enter_fault(LineBypassTravel_GetFaultMask());
       }
       else if ((active_drive_intent == BYPASS_INTENT_ACQUIRE_FLANK &&
                 stable_relation == BYPASS_RELATION_TOO_CLOSE) ||
@@ -1229,7 +1229,7 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
            40 mm step, preventing timid start-stop corrections. */
         begin_evaluation();
       }
-      else if (EncoderLinear_GetState() == ENCODER_LINEAR_DONE)
+      else if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_DONE)
       {
         begin_evaluation();
       }
@@ -1292,7 +1292,7 @@ void LineObstacleBypass_GetTelemetry(LineObstacleBypassTelemetry *telemetry)
   telemetry->inside_ir_adc = inside_ir_adc;
   telemetry->inside_ir_lower = inside_ir_lower;
   telemetry->inside_ir_upper = inside_ir_upper;
-  telemetry->segment_progress_mm = EncoderLinear_GetProgressMm();
+  telemetry->segment_progress_mm = LineBypassTravel_GetProgressMm();
   telemetry->net_turn_mdeg = net_turn_mdeg;
   telemetry->return_target_mdeg = return_target_mdeg;
   telemetry->emergency_brake_active = emergency_brake_active;

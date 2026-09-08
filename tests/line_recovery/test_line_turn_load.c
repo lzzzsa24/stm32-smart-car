@@ -17,6 +17,8 @@
 #include "line_fault_log.h"
 #include "diagnostic_uart.h"
 #include "line_bypass_turn.h"
+#include "line_bypass_travel.h"
+#include "vehicle_geometry.h"
 #include "line_obstacle_bypass.h"
 #include "encoder_linear.h"
 #include "encoder_turn.h"
@@ -840,6 +842,115 @@ static void test_bypass_turn_limits(void)
   puts("PASS: legacy low-speed tail reproduced; bypass ownership, stall, progress timeout and cancellation");
 }
 
+static int32_t travel_target(unsigned mm)
+{
+  return (int32_t)(((int64_t)mm*1040*10000 + 31416*VEHICLE_WHEEL_DIAMETER_MM/2) /
+      (31416*VEHICLE_WHEEL_DIAMETER_MM));
+}
+
+static void test_bypass_travel(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned mm, w, i, reverse, wrap;
+  for(reverse=0;reverse<2;++reverse) for(wrap=0;wrap<2;++wrap)
+  for(mm=20;mm<=40;mm+=20)
+  {
+    int32_t sign=reverse ? -1 : 1, target=travel_target(mm);
+    int32_t origin=wrap ? (reverse ? INT32_MIN+30 : INT32_MAX-30) : 0;
+    LineBypassTravel_Stop(); reset();
+    if(wrap) tick=UINT32_MAX-40;
+    for(w=0;w<4;++w) counts[w]=origin;
+    assert(LineBypassTravel_Start(sign*(int32_t)mm,2600));
+    /* Same 70-count tail as the legacy reproduction: no lower speed or
+       position-pulse/reverse correction is allowed here. */
+    for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)origin+(uint32_t)(sign*(target-70)));
+    tick+=20; LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+    assert(drive.mode==DRIVE_BASE_SPEED);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==sign*1800);
+    /* Spend time under load in the former pulse tail; all four wheels keep
+       same-direction continuous output while encoder feedback advances. */
+    for(i=0;i<12;++i)
+    {
+      for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)counts[w]+(uint32_t)sign);
+      tick+=20; LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+      assert(drive.mode==DRIVE_BASE_SPEED);
+      for(w=0;w<4;++w)
+      {
+        assert(drive.requested_cps[w]==sign*1800);
+        if(i>=8) assert(pins[w]*sign>0);
+      }
+    }
+    for(w=0;w<4;++w) counts[w]=(int32_t)((uint32_t)origin+(uint32_t)(sign*(target+3)));
+    tick+=20; LineBypassTravel_Task();
+    for(i=0;i<20 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+    { tick+=20; LineBypassTravel_Task(); }
+    assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_DONE);
+    assert(LineBypassTravel_GetProgressMm()>=mm);
+    for(w=0;w<4;++w) assert(pins[w]==0);
+    LineBypassTravel_Stop();
+  }
+  puts("PASS: 20/40-mm forward/reverse travel caps cruise at continuous 1800 CPS through old pulse tail; four-wheel PWM, wrap and whole-car completion");
+}
+
+static void test_bypass_travel_ownership(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned i,w;
+  int32_t zero[4]={0};
+  LineBypassTravel_Stop(); reset();
+  assert(!LineBypassTravel_Start(0,2600));
+  assert(!LineBypassTravel_Start(INT32_MIN,2600));
+  assert(!LineBypassTravel_Start(20,0));
+  assert(!LineBypassTravel_Start(20,3601));
+  EncoderLinear_Init(); assert(EncoderLinear_Start(40,2600));
+  assert(!LineBypassTravel_Start(20,2600)); EncoderLinear_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  assert(!LineBypassTravel_Start(20,2600));
+  DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTravel_Task();
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  counts[1]=counts[2]=counts[3]=400; /* moving three cannot hide a stalled wheel */
+  LineBypassTravel_Task(); DriveBase_GetTelemetry(&drive);
+  assert(drive.mode==DRIVE_BASE_SPEED);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  for(i=0;i<140 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+  { LineBypassTravel_Task(); sample(zero); }
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  assert(LineBypassTravel_GetFaultMask()&0x0f);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,2600));
+  for(i=0;i<140 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+  {
+    for(w=0;w<4;++w) ++counts[w];
+    tick+=20; LineBypassTravel_Task();
+  }
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  assert(LineBypassTravel_GetFaultMask()==0x10);
+  LineBypassTravel_Stop();
+  puts("PASS: bypass travel rejects invalid/position requests, respects STOP, checks all wheels, preserves stall and bounded progress faults");
+}
+
+static void test_legacy_bypass_short_tail(void)
+{
+  DriveBaseTelemetry drive;
+  unsigned mm, w;
+  for(mm=20;mm<=40;mm+=20)
+  {
+    reset(); EncoderLinear_Init();
+    assert(EncoderLinear_Start((int32_t)mm,2600));
+    DriveBase_GetTelemetry(&drive);
+    for(w=0;w<4;++w) counts[w]=drive.position_remaining_counts[w]-70;
+    tick+=20; EncoderLinear_Task(); DriveBase_GetTelemetry(&drive);
+    printf("REPRO: legacy %u-mm bypass tail: remaining=%ld target=%ld CPS mode=%u\n",
+        mm,(long)drive.position_remaining_counts[0],(long)drive.requested_cps[0],(unsigned)drive.mode);
+    assert(drive.mode==DRIVE_BASE_POSITION && absolute(drive.requested_cps[0])<1412);
+    EncoderLinear_Stop();
+  }
+}
+
 static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
 {
   LineObstacleBypassConfig config;
@@ -848,6 +959,12 @@ static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
   DriveBaseTelemetry drive;
   unsigned i;
   reset(); EncoderLinear_Init(); LineObstacleBypass_GetDefaultConfig(&config);
+  if(early_ir)
+  {
+    /* Current deployed 3170221 profile; the other branch covers defaults. */
+    config.reverse_cps=1900; config.forward_cps=2600;
+    config.clear_probe_cps=2200; config.return_cps=2300; config.turn_cps=2500;
+  }
   config.stop_time_ms=0; config.direction_guard_ms=0;
   LineObstacleBypass_Init(&config);
   input.infrared_valid=1;
@@ -873,10 +990,47 @@ static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
     LineObstacleBypass_Task(&input); tick+=20;
   }
   assert(LineObstacleBypass_GetState()==LINE_BYPASS_DRIVING);
+  DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_SPEED);
+  for(i=0;i<4;++i) assert(drive.requested_cps[i]>0);
   assert(!LineObstacleBypass_GetFaultMask());
   LineObstacleBypass_GetTelemetry(&bypass);
   if(early_ir) assert(bypass.net_turn_mdeg==0);
   else assert(bypass.net_turn_mdeg * -direction>=45000);
+  if(early_ir)
+  {
+    unsigned segments=0, w;
+    LineObstacleBypassState previous=LINE_BYPASS_IDLE;
+    /* Keep the side in band across repeated short translations. None may
+       return to endpoint position pulses or turn on its own. */
+    for(i=0;i<400;++i)
+    {
+      LineObstacleBypassState current=LineObstacleBypass_GetState();
+      if(current==LINE_BYPASS_DRIVING && previous!=current) ++segments;
+      previous=current;
+      DriveBase_GetTelemetry(&drive);
+      assert(drive.mode!=DRIVE_BASE_POSITION);
+      if(drive.mode==DRIVE_BASE_SPEED)
+      {
+        for(w=0;w<4;++w) { assert(drive.requested_cps[w]>0); counts[w]+=10; }
+      }
+      tick+=20; LineObstacleBypass_Task(&input);
+      assert(LineObstacleBypass_GetState()!=LINE_BYPASS_FAULT);
+      assert(LineObstacleBypass_GetState()!=LINE_BYPASS_TURNING);
+    }
+    assert(segments>=3);
+    /* A real close IR boundary must still interrupt forward travel and
+       transfer to outward turning; invalid IR still faults. */
+    input.left_ir_adc=input.right_ir_adc=1000;
+    for(i=0;i<30 && LineObstacleBypass_GetState()!=LINE_BYPASS_TURNING;++i)
+    { tick+=20; LineObstacleBypass_Task(&input); }
+    assert(LineObstacleBypass_GetState()==LINE_BYPASS_TURNING);
+    DriveBase_GetTelemetry(&drive);
+    assert(drive.requested_cps[0]*drive.requested_cps[2]<0);
+    input.infrared_valid=0; LineObstacleBypass_Task(&input);
+    assert(LineObstacleBypass_GetState()==LINE_BYPASS_FAULT);
+    printf("PASS: KEY1 direction=%d completes %u forward segments without position tails; close/invalid IR retains priority\n",
+        (int)direction,segments);
+  }
   LineObstacleBypass_Stop();
   DriveBase_GetTelemetry(&drive); assert(drive.mode==DRIVE_BASE_STOPPED);
   for(i=0;i<4;++i) assert(pins[i]==0);
@@ -995,6 +1149,9 @@ int main(void)
   test_no_motion_keeps_turn_effort();
   test_observe_faults();
   test_bypass_turn_limits();
+  test_legacy_bypass_short_tail();
+  test_bypass_travel();
+  test_bypass_travel_ownership();
   test_bypass_continuous_turn(1,15000);
   test_bypass_continuous_turn(-1,45000);
   tick=UINT32_MAX-200;
