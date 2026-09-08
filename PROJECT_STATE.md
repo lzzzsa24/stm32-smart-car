@@ -11,34 +11,34 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 5a35c0c
+repository_head_at_update: 7736c99
 latest_code_commit: 3170221
-flashed_source_commit: 3170221
-flash_record_commit: 5a35c0c
-deployed_tag: deployed/2026-09-08-main-mode1-power-3170221
-formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
-formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 84452
-flashed_bin_sha256: 14B484C5091A3549B24360236F941A61CC12688D34900427D73EFAC2D181E9C0
-flashed_hex_sha256: D30049A841C4F9C43F2925C118CDA70C675E45D0B2774D87C94D734549BF7AA8
-ground_test_status: not_tested_after_main_mode1_power_3170221_deployment
+flashed_source_commit: c5a4c76
+flash_record_commit: 7736c99
+deployed_tag: deployed/2026-09-08-line-visible-arc-c5a4c76
+formal_bin_path: manual-build-candidate-c5a4c76/exp7_unified_motion.bin
+formal_hex_path: manual-build-candidate-c5a4c76/exp7_unified_motion.hex
+formal_bin_size_bytes: 84636
+flashed_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
+flashed_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
+ground_test_status: not_tested_after_temporary_c5a4c76_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: 3170221
-candidate_bin_size_bytes: 84452
-candidate_bin_sha256: 14B484C5091A3549B24360236F941A61CC12688D34900427D73EFAC2D181E9C0
-candidate_hex_sha256: D30049A841C4F9C43F2925C118CDA70C675E45D0B2774D87C94D734549BF7AA8
-user_reported_flash: tool_verified_3170221_STM32_flash_readback_and_GO_no_physical_test
+candidate_source_commit: c5a4c76
+candidate_bin_size_bytes: 84636
+candidate_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
+candidate_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
+user_reported_flash: tool_verified_c5a4c76_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_release_current_local_mode1_power_candidate_and_deployment_records_not_pushed
+remote_sync_status: github_main_pr6_merged_v1.2.0_rc2_published_c5a4c76_deployment_record_via_protected_pr
 remote_sync_branch: main
-stm32_runtime_status: COM11_3170221_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
+stm32_runtime_status: COM11_c5a4c76_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
-temporary_flash_selector_commit: main_mode1_power_3170221
-github_release_tag: v1.2.0-rc.1
-github_release_source_commit: 3eb6889
-github_release_firmware_commit: 36551f3
-github_release_status: prerelease_published_host_verified_not_reflashed_or_ground_tested
+temporary_flash_selector_commit: c5a4c76_flashed_temporary_comparison
+github_release_tag: v1.2.0-rc.2
+github_release_source_commit: 3635308
+github_release_firmware_commit: 3170221
+github_release_status: prerelease_published_9_assets_digest_verified_STM32_flash_verified_no_physical_test
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -56,21 +56,24 @@ as history; they are not alternate definitions of “latest”. The exact workfl
 and temporary historical-image exception are documented in
 `BRANCH_WORKFLOW.md`.
 
-GitHub PR #4 merged the all-mode integration into protected `main` as merge
-commit `3eb6889`. The active ruleset still requires a pull request and protects
-against deletion and non-fast-forward updates; its current required approving
-review count is zero. No ruleset was bypassed or disabled for this merge.
+GitHub PR #4 merged the original all-mode integration into protected `main` as
+merge commit `3eb6889`. PR #6 later merged the mode-1 power profile and its
+deployment/release preparation as `3635308`. The active ruleset still requires
+a pull request and protects against deletion and non-fast-forward updates; its
+current required approving review count is zero. No ruleset was bypassed or
+disabled for either merge.
 
-Pre-release `v1.2.0-rc.1` points to `3eb6889` and publishes the STM32 BIN/HEX,
-checksums, both mutually exclusive K210 `/sd/main.py` choices, the mode 3/4
-road-sign model and instructions. It contains integrated firmware code
-`36551f3`. Local canonical `main` adds the mode-1 power revision `3170221`,
-which is now the programmer-verified STM32 image. The K210 still runs the
-unchanged mode 3/4 script from the release. This later STM32 deployment has no
-lifted-wheel or ground-test claim. The previous `v1.1.0-main-20260907` release
-remains available as history.
+Pre-release `v1.2.0-rc.2` points to protected-main merge `3635308` and publishes
+the mode-1-power STM32 BIN/HEX, SHA-256 list, both mutually exclusive K210
+`/sd/main.py` choices, the mode 3/4 road-sign model and instructions. All nine
+uploaded asset digests match the staged local files. Its functional firmware
+source is `3170221`, which is also the programmer-verified STM32 image. K210
+assets are byte-identical to rc.1 and the device was not rewritten during that
+STM32 deployment. The board has since been replaced by temporary comparison
+source `c5a4c76`, which is not part of rc.2. No lifted-wheel or ground-test
+claim is made. Previous releases remain available as history.
 
-## Current deployed main candidate (`3170221`)
+## Published main source and previous deployment (`3170221`)
 
 Commit `317022123395016354249c3c7bc9e9b26c02ff7e` integrates the requested
 mode-1 obstacle-bypass power profile into canonical `main`. It raises the
@@ -94,9 +97,34 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
+## Current flashed comparison candidate (`c5a4c76`)
+
+Exact source `c5a4c76ab84666f44d03510227bfbeac41083641` was rebuilt in the
+isolated `fix/line-visible-arc` worktree after publishing rc.2. Visible line
+evidence now commands a four-wheel forward steering arc; counter-rotation is
+reserved for confirmed line loss. The branch also contains strong-exit and
+ordered-overlap recovery cases.
+
+The full line-recovery suite passed at both speed configurations, including
+120 visible-mask/gain/state cases, forward arcs, confirmed-loss rotation,
+four-wheel rejoin, bypass and STOP ownership. The ARM build passed with
+text/data/bss `84568/64/11536`, BIN size 84636 bytes, BIN SHA-256
+`BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2`
+and HEX SHA-256
+`F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F`.
+Prepared artifacts are under `manual-build-candidate-c5a4c76/`.
+
+This exact comparison commit is not merged and not included in rc.2. Its parent
+predates `3170221`, so it does not contain the new mode-1 power profile. COM11
+programmed all 84636 bytes with selective last-page-preserving erase, full
+readback `VERIFY OK` and `GO OK`. STOP telemetry before and after programming
+showed mode 0 and zero four-wheel outputs. K210 was not accessed. No lifted or
+ground test was performed. Details: `PREPARED_C5A4C76_20260908.md` and
+`DEPLOYMENT_C5A4C76_20260908.md`.
+
 ## Previous flashed temporary test image (`074ef682`)
 
-The STM32 currently runs exact source
+The STM32 previously ran exact source
 `074ef6827016a9931d8de7f06ab3a35ae291dba2` from
 `fix/line-strong-evidence`. This temporary comparison commit is based directly
 on `origin/main` at `eee8773`; it is not merged into canonical `main`. It keeps
@@ -162,7 +190,7 @@ source `d1d22d9`. Deployment tag
 `deployed/2026-09-07-line-direction-evidence-4947f9c` identifies the exact
 board source. No lifted-wheel or ground test was performed by Codex.
 
-## Latest integrated canonical release (`v1.2.0-rc.1`)
+## Previous integrated canonical release (`v1.2.0-rc.1`)
 
 Functional source `36551f3`, merged by PR #4 as `3eb6889`, updates every active
 mode from its latest accepted branch. KEY1/KEY2 include line commit `4947f9c`
@@ -506,7 +534,7 @@ historical baseline. Rollback tag:
   measurement. Continuous-turn direction, obstacle clearance and overshoot are
   still pending lifted-wheel and ground validation at the current battery/load.
 
-## Current STM32 mode map (`36551f3`)
+## Current STM32 mode map (`3170221`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -751,10 +779,10 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | deployed main candidate `3170221`; ELF text/data/bss = 84384/64/11536 bytes; BIN is 84452 bytes; HEX hash is `D30049A8...BF7AA8` |
-| host regression | passed | `3170221` complete line-recovery/bypass suite passed at both speed configurations, including four-wheel DriveBase, obstacle bypass and STOP ownership |
-| STM32 flash/readback/GO | passed | main source `3170221`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84452 bytes with `VERIFY OK`, and completed `GO OK` |
-| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.1` points to merged main `3eb6889`; firmware code `36551f3` is published as BIN/HEX with checksums and separate mode-3/4 and mode-5 K210 assets; the later programmer deployment is recorded separately |
+| computer build/link | passed | prepared unflashed candidate `c5a4c76`; ELF text/data/bss = 84568/64/11536 bytes; BIN is 84636 bytes; HEX hash is `F89A8BDF...18686F` |
+| host regression | passed | `c5a4c76` complete line-recovery suite passed at both speed configurations, including 120 visible-line cases, strong exits, forward arcs, confirmed-loss rotation, four-wheel DriveBase, bypass and STOP ownership |
+| STM32 flash/readback/GO | passed | temporary source `c5a4c76`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84636 bytes with `VERIFY OK`, and completed `GO OK` |
+| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
 | K210 deployment/runtime | unchanged from prior deployment | This temporary STM32 flash did not open, reset or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
 | board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -762,16 +790,21 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 ## Current open issue and next safe step
 
-The STM32 now runs canonical-main mode-1 power firmware `3170221`. K210 remains
+The STM32 now runs temporary comparison firmware `c5a4c76`. K210 remains
 unchanged on its previously verified mode 3/4 SIGN34 program. Final STM32 STOP
 telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM
-output at zero. No lifted-wheel or ground result has been claimed for the new
-power profile.
+output at zero. No lifted-wheel or ground result has been claimed for the
+visible-line forward-arc behavior.
 
-The next safe step is a user-controlled ground test of KEY1 with the remote
-STOP immediately available. The deployed main image does not contain
-`074ef682`'s separate strong-exit change; that comparison commit remains
-unmerged.
+GitHub `main` contains the rc.2 release source and earlier deployment history
+through merge `3635308`; rc.2 is published with verified assets. Independent
+candidate `c5a4c76` is now actually flashed, but remains unmerged and does not
+contain `3170221`'s mode-1 power change.
+
+The next safe physical step is a user-controlled line-tracking test with remote
+STOP immediately available. To regain rc.2's mode-1 power profile, flash
+`3170221` again or deliberately integrate it with `c5a4c76`; do not assume the
+current temporary image contains both.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
