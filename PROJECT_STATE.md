@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 571db38
+repository_head_at_update: 0344d43
 latest_code_commit: f543639
-flashed_source_commit: 0a02d3d
-flash_record_commit: 571db38
-deployed_tag: deployed/2026-09-08-comprehensive-v4-0a02d3d
-formal_bin_path: manual-build-candidate-comprehensive-v4-0a02d3d/exp7_unified_motion.bin
-formal_hex_path: manual-build-candidate-comprehensive-v4-0a02d3d/exp7_unified_motion.hex
-formal_bin_size_bytes: 84472
-flashed_bin_sha256: BE44622428EC5BB8A216F190773D16DE0FA153AC92E1EF4E051AB7AD346E0E92
-flashed_hex_sha256: 3D61C879E7920D8CF37BBF47547E2E6790E773FF1168CC9E0F0BB8D6BF52833E
-ground_test_status: not_tested_after_comprehensive_v4_0a02d3d_deployment
+flashed_source_commit: 4589a25
+flash_record_commit: 0344d43
+deployed_tag: deployed/2026-09-08-comprehensive-v5-dfplayer-4589a25
+formal_bin_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.bin
+formal_hex_path: manual-build-candidate-comprehensive-v5-4589a25/exp7_unified_motion.hex
+formal_bin_size_bytes: 86636
+flashed_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
+flashed_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
+ground_test_status: not_tested_after_comprehensive_v5_4589a25_deployment
 k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
-candidate_source_commit: 0a02d3d
-candidate_bin_size_bytes: 84472
-candidate_bin_sha256: BE44622428EC5BB8A216F190773D16DE0FA153AC92E1EF4E051AB7AD346E0E92
-candidate_hex_sha256: 3D61C879E7920D8CF37BBF47547E2E6790E773FF1168CC9E0F0BB8D6BF52833E
-user_reported_flash: tool_verified_0a02d3d_STM32_flash_readback_and_GO_no_physical_test
+candidate_source_commit: 4589a25
+candidate_bin_size_bytes: 86636
+candidate_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
+candidate_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
+user_reported_flash: tool_verified_4589a25_STM32_flash_readback_and_GO_listening_test_pending
 k210_candidate_source_commit: 0a02d3d
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: github_main_rc3_synced_local_v4_deployment_record_not_pushed
+remote_sync_status: github_main_rc3_synced_local_v5_deployment_records_not_pushed
 remote_sync_branch: main
-stm32_runtime_status: COM11_0a02d3d_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
+stm32_runtime_status: COM11_4589a25_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
-temporary_flash_selector_commit: 0a02d3d_comprehensive_v4_flashed
+temporary_flash_selector_commit: 4589a25_comprehensive_v5_dfplayer_flashed
 github_release_tag: v1.2.0-rc.3
 github_release_source_commit: 4a343dd
 github_release_firmware_commit: f543639
@@ -69,11 +69,11 @@ mutually exclusive K210 `/sd/main.py` choices, the mode 3/4 road-sign model and
 instructions. All nine uploaded asset sizes and GitHub digests match the staged
 local files. K210 assets are byte-identical to rc.2. The exact rc.3 main BIN
 has not been flashed: the board instead runs comprehensive test source
-`0a02d3d`, whose line and bypass trees match but which additionally contains
-the unmerged ten-second sign-probe experiment and shared KEY1/KEY2 tracking
-entry increment. K210 now runs the readback-verified SIGN34 mode-3/4 program
-and matching model. No lifted-wheel or ground-test claim is made. Previous
-releases remain available as history.
+`4589a25`. It retains `0a02d3d`'s unmerged ten-second sign-probe experiment and
+shared KEY1/KEY2 tracking entry increment, and adds the test-only DFPlayer remote
+controls. K210 still runs the readback-verified SIGN34 mode-3/4 program and
+matching model. No listening, lifted-wheel or ground-test claim is made for the
+current STM32 image. Previous releases remain available as history.
 
 ## Current protected main source (`f543639`)
 
