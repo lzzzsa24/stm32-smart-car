@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 3635308
+repository_head_at_update: 7736c99
 latest_code_commit: 3170221
-flashed_source_commit: 3170221
-flash_record_commit: 5a35c0c
-deployed_tag: deployed/2026-09-08-main-mode1-power-3170221
+flashed_source_commit: c5a4c76
+flash_record_commit: 7736c99
+deployed_tag: deployed/2026-09-08-line-visible-arc-c5a4c76
 formal_bin_path: manual-build-candidate-c5a4c76/exp7_unified_motion.bin
 formal_hex_path: manual-build-candidate-c5a4c76/exp7_unified_motion.hex
-formal_bin_size_bytes: 84452
-flashed_bin_sha256: 14B484C5091A3549B24360236F941A61CC12688D34900427D73EFAC2D181E9C0
-flashed_hex_sha256: D30049A841C4F9C43F2925C118CDA70C675E45D0B2774D87C94D734549BF7AA8
-ground_test_status: not_tested_after_main_mode1_power_3170221_deployment
+formal_bin_size_bytes: 84636
+flashed_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
+flashed_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
+ground_test_status: not_tested_after_temporary_c5a4c76_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
 candidate_source_commit: c5a4c76
 candidate_bin_size_bytes: 84636
 candidate_bin_sha256: BE9820DCB9F9673652F18636CBECA4B9BAAC344577796327873BA86C9429B6E2
 candidate_hex_sha256: F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F
-user_reported_flash: tool_verified_3170221_STM32_flash_readback_and_GO_no_physical_test
+user_reported_flash: tool_verified_c5a4c76_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_pr6_merged_v1.2.0_rc2_published_candidate_c5a4c76_record_pending_protected_pr
+remote_sync_status: github_main_pr6_merged_v1.2.0_rc2_published_c5a4c76_deployment_record_pending_protected_pr
 remote_sync_branch: main
-stm32_runtime_status: COM11_3170221_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
+stm32_runtime_status: COM11_c5a4c76_readback_verified_GO_STOP_and_zero_wheel_outputs_confirmed
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
-temporary_flash_selector_commit: c5a4c76_prepared_unflashed
+temporary_flash_selector_commit: c5a4c76_flashed_temporary_comparison
 github_release_tag: v1.2.0-rc.2
 github_release_source_commit: 3635308
 github_release_firmware_commit: 3170221
@@ -68,11 +68,12 @@ the mode-1-power STM32 BIN/HEX, SHA-256 list, both mutually exclusive K210
 `/sd/main.py` choices, the mode 3/4 road-sign model and instructions. All nine
 uploaded asset digests match the staged local files. Its functional firmware
 source is `3170221`, which is also the programmer-verified STM32 image. K210
-assets are byte-identical to rc.1 and the device was not rewritten during this
-STM32 deployment. No lifted-wheel or ground-test claim is made. Previous
-releases remain available as history.
+assets are byte-identical to rc.1 and the device was not rewritten during that
+STM32 deployment. The board has since been replaced by temporary comparison
+source `c5a4c76`, which is not part of rc.2. No lifted-wheel or ground-test
+claim is made. Previous releases remain available as history.
 
-## Current deployed main candidate (`3170221`)
+## Published main source and previous deployment (`3170221`)
 
 Commit `317022123395016354249c3c7bc9e9b26c02ff7e` integrates the requested
 mode-1 obstacle-bypass power profile into canonical `main`. It raises the
@@ -96,7 +97,7 @@ and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
 evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
-## Prepared unflashed comparison candidate (`c5a4c76`)
+## Current flashed comparison candidate (`c5a4c76`)
 
 Exact source `c5a4c76ab84666f44d03510227bfbeac41083641` was rebuilt in the
 isolated `fix/line-visible-arc` worktree after publishing rc.2. Visible line
@@ -113,9 +114,13 @@ and HEX SHA-256
 `F89A8BDF6D6F31A08E60F16263497859BA30A3F4DBB47E814E0F33975018686F`.
 Prepared artifacts are under `manual-build-candidate-c5a4c76/`.
 
-This exact comparison commit is not merged, not flashed and not included in
-rc.2. Its parent predates `3170221`, so it does not contain the new mode-1
-power profile. Details: `PREPARED_C5A4C76_20260908.md`.
+This exact comparison commit is not merged and not included in rc.2. Its parent
+predates `3170221`, so it does not contain the new mode-1 power profile. COM11
+programmed all 84636 bytes with selective last-page-preserving erase, full
+readback `VERIFY OK` and `GO OK`. STOP telemetry before and after programming
+showed mode 0 and zero four-wheel outputs. K210 was not accessed. No lifted or
+ground test was performed. Details: `PREPARED_C5A4C76_20260908.md` and
+`DEPLOYMENT_C5A4C76_20260908.md`.
 
 ## Previous flashed temporary test image (`074ef682`)
 
@@ -776,7 +781,7 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 |---|---|---|
 | computer build/link | passed | prepared unflashed candidate `c5a4c76`; ELF text/data/bss = 84568/64/11536 bytes; BIN is 84636 bytes; HEX hash is `F89A8BDF...18686F` |
 | host regression | passed | `c5a4c76` complete line-recovery suite passed at both speed configurations, including 120 visible-line cases, strong exits, forward arcs, confirmed-loss rotation, four-wheel DriveBase, bypass and STOP ownership |
-| STM32 flash/readback/GO | passed | main source `3170221`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84452 bytes with `VERIFY OK`, and completed `GO OK` |
+| STM32 flash/readback/GO | passed | temporary source `c5a4c76`; COM11 selectively erased 42 application pages, excluded the reserved final page, wrote/read back 84636 bytes with `VERIFY OK`, and completed `GO OK` |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
 | K210 deployment/runtime | unchanged from prior deployment | This temporary STM32 flash did not open, reset or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
 | board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
@@ -785,22 +790,21 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 ## Current open issue and next safe step
 
-The STM32 now runs canonical-main mode-1 power firmware `3170221`. K210 remains
+The STM32 now runs temporary comparison firmware `c5a4c76`. K210 remains
 unchanged on its previously verified mode 3/4 SIGN34 program. Final STM32 STOP
 telemetry was `DRV M=0 P=0 F=0` with every wheel target, measured speed and PWM
-output at zero. No lifted-wheel or ground result has been claimed for the new
-power profile.
+output at zero. No lifted-wheel or ground result has been claimed for the
+visible-line forward-arc behavior.
 
-GitHub `main` contains the release source and deployment history through merge
-`3635308`; rc.2 is published with verified assets. Independent candidate
-`c5a4c76` is compiled and staged for a possible later explicit flash, but it is
-not merged and does not contain `3170221`'s mode-1 power change. Do not infer
-that it is on the vehicle from its build artifacts.
+GitHub `main` contains the rc.2 release source and earlier deployment history
+through merge `3635308`; rc.2 is published with verified assets. Independent
+candidate `c5a4c76` is now actually flashed, but remains unmerged and does not
+contain `3170221`'s mode-1 power change.
 
-The next safe physical step for the current board is a user-controlled KEY1
-ground test with remote STOP immediately available. A later request to flash
-`c5a4c76` should use its exact staged hash and will replace the current main
-image unless the two branches are first deliberately integrated.
+The next safe physical step is a user-controlled line-tracking test with remote
+STOP immediately available. To regain rc.2's mode-1 power profile, flash
+`3170221` again or deliberately integrate it with `c5a4c76`; do not assume the
+current temporary image contains both.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
