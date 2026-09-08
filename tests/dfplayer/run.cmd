@@ -11,4 +11,8 @@ if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\dfplayer\stubs /ICore\Inc tests\dfplayer\test_dfplayer_driver.c Core\Src\dfplayer_mini.c Core\Src\dfplayer_protocol.c /Fomanual-build-dfplayer-host-test\ /Femanual-build-dfplayer-host-test\test_dfplayer_driver.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-dfplayer-host-test\test_dfplayer_driver.exe
+if not "%errorlevel%"=="0" exit /b 1
+cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\dfplayer\stubs /ICore\Inc tests\dfplayer\test_audio_resume_store.c Core\Src\audio_resume_store.c /Fomanual-build-dfplayer-host-test\ /Femanual-build-dfplayer-host-test\test_audio_resume_store.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-dfplayer-host-test\test_audio_resume_store.exe
 exit /b %errorlevel%

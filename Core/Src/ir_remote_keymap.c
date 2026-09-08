@@ -6,7 +6,7 @@
  * printed codes are bit-reversed on the wire; these are the command bytes
  * reconstructed by this project's LSB-first NEC decoder. */
 #define IR_COMMAND_AUDIO_VOLUME_UP    0x01U
-#define IR_COMMAND_AUDIO_LEFT_UNUSED  0x04U
+#define IR_COMMAND_AUDIO_PREVIOUS     0x04U
 #define IR_COMMAND_CENTER_AUDIO       0x05U
 #define IR_COMMAND_AUDIO_NEXT         0x06U
 #define IR_COMMAND_AUDIO_VOLUME_DOWN  0x09U
@@ -34,14 +34,15 @@ uint8_t IrRemoteKeyMap_Map(uint8_t command)
     case IR_COMMAND_NUMBER_0:
       return IR_REMOTE_VIRTUAL_STOP;
     case IR_COMMAND_CENTER_AUDIO:
-      return IR_REMOTE_VIRTUAL_AUDIO_PLAY;
+      return IR_REMOTE_VIRTUAL_AUDIO_TOGGLE;
     case IR_COMMAND_AUDIO_VOLUME_UP:
       return IR_REMOTE_VIRTUAL_AUDIO_VOLUME_UP;
     case IR_COMMAND_AUDIO_VOLUME_DOWN:
       return IR_REMOTE_VIRTUAL_AUDIO_VOLUME_DOWN;
     case IR_COMMAND_AUDIO_NEXT:
       return IR_REMOTE_VIRTUAL_AUDIO_NEXT;
-    case IR_COMMAND_AUDIO_LEFT_UNUSED:
+    case IR_COMMAND_AUDIO_PREVIOUS:
+      return IR_REMOTE_VIRTUAL_AUDIO_PREVIOUS;
     default:
       return IR_REMOTE_VIRTUAL_KEY_NONE;
   }
