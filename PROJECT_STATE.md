@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 7931b2e
-latest_code_commit: 453cad2
+repository_head_at_update: 001a452
+latest_code_commit: f543639
 flashed_source_commit: f34e7dd
 flash_record_commit: 7931b2e
 deployed_tag: deployed/2026-09-08-comprehensive-v3-f34e7dd
@@ -23,14 +23,14 @@ flashed_bin_sha256: D44DF291F6A49176E67D76BD16D6B1356B07D919603580005318D74BA47E
 flashed_hex_sha256: 0D4F79D56ACB603B9D705F44A4C445C2D519244686135A683E81962ED4138414
 ground_test_status: not_tested_after_comprehensive_v3_f34e7dd_deployment
 k210_status: COM14_SIGN34_36551f3_script_and_model_readback_verified_startup_and_STOP_link_passed
-candidate_source_commit: f34e7dd
-candidate_bin_size_bytes: 84488
-candidate_bin_sha256: D44DF291F6A49176E67D76BD16D6B1356B07D919603580005318D74BA47ED54A
-candidate_hex_sha256: 0D4F79D56ACB603B9D705F44A4C445C2D519244686135A683E81962ED4138414
+candidate_source_commit: f543639
+candidate_bin_size_bytes: 84276
+candidate_bin_sha256: 36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6
+candidate_hex_sha256: D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F
 user_reported_flash: tool_verified_f34e7dd_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_at_f17bffa_local_main_bypass_453cad2_and_comprehensive_v3_records_not_pushed
+remote_sync_status: github_main_at_f17bffa_local_rc3_line_bypass_ready_for_protected_pr
 remote_sync_branch: main
 stm32_runtime_status: COM11_f34e7dd_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
@@ -73,7 +73,33 @@ STM32 deployment. The board now runs local comprehensive test source
 `f34e7dd`, which is not part of rc.2 or protected `main`. No lifted-wheel or
 ground-test claim is made. Previous releases remain available as history.
 
-## Current local main source (`453cad2`)
+## Current local main source (`f543639`)
+
+Commit `f54363971bc3111acdda33fbed91882a71305bc7` retains the accepted
+continuous obstacle-bypass travel from `453cad2` and promotes the current
+tested line controller in two dependency-ordered commits. `6a4ed26` is the
+main replay of `64f489e`: brief sole-outer evidence uses a 0/2200-CPS forward
+pivot, adjacent pairs retain mirrored 1412/2400-CPS forward arcs, all-white
+loss searches in the remembered direction, and automatic loss/rejoin remains
+silent. `f543639` replays the final `f34e7dd` increment: 120 ms of uninterrupted
+sole-outer evidence escalates to mirrored -2200/+2200-CPS powered correction,
+which is cleared by any other raw mask, a sampling gap above 30 ms, reset,
+queue overwrite or explicit zero cap/STOP.
+
+The line source and tests are byte-equivalent to the line portion of the
+currently flashed `f34e7dd` composite. The independent ten-second sign-probe
+hold `4c345b8` was deliberately excluded and remains under test. Complete
+line-recovery/load/bypass tests passed at both configured search speeds;
+unchanged sign-line and vision-line-v4 tests also passed. The formal ARM build
+passed with text/data/bss `84208/64/11592`, producing an 84276-byte BIN with
+SHA-256
+`36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6`;
+the HEX SHA-256 is
+`D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F`.
+This exact main BIN has not been flashed or physically tested. Release notes:
+`RELEASE_V1.2.0_RC3.md`.
+
+## Previous local main source (`453cad2`)
 
 Commit `453cad2cffcfbb4b8494b36cbdca8fc48c620476` promotes only the latest
 obstacle-bypass update from worker `68c6444` onto canonical local `main`. Short
@@ -635,7 +661,7 @@ historical baseline. Rollback tag:
 - Encoder distance establishes bounded wheel travel, not guaranteed chassis
   displacement; physical clearance and traction remain ground-test items.
 
-## Current main mode map (`453cad2`)
+## Current main mode map (`f543639`)
 
 | Input | Mode | Motor owner |
 |---|---|---|
@@ -651,10 +677,10 @@ The infrared remote also supplies the virtual mode keys and a stop command.
 
 ## Integrated line-loss behavior
 
-The latest observation before this integration was that one repeatable approach
-angle produced only X1 or X3 and could lock recovery in the wrong direction.
-Current `36551f3` retains continuous recovery and adds an explicit ambiguity
-path for that physical pattern. KEY1/KEY2 behave as follows:
+The latest integrated controller retains the ambiguity handling for a
+repeatable approach angle that produces only X1 or X3, then layers the current
+visible-edge and persistent-error behavior through `f543639`. KEY1/KEY2 behave
+as follows:
 
 - On ordinary line loss it rolls directly into continuous rotation in the most
   recent reliable direction; without a hint it defaults left. Search uses equal
@@ -665,27 +691,29 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
   four-wheel encoder travel corresponding to 30 degrees. Each new sweep grows
   by 30 degrees up to 120 degrees; later sweeps alternate at that bound. Time
   and battery level alone cannot reverse the probe.
-- While searching it continuously repeats the existing 1.53-second preset
-  buzzer phrase. A middle X1/X3 line hit, excluding the both-outer wide-line
-  case, must confirm for 4 ms before the phrase is stopped.
+- Automatic search and rejoin remain silent. The infrared-remote or serial
+  one-shot preset phrase is independent. A middle X1/X3 line hit, excluding
+  the both-outer wide-line case, must confirm for 4 ms before capture.
 - Confirmed capture enters at least 500 ms of low-speed line following and
   requires stable middle-line evidence for 80 ms before normal speed resumes.
   Losing the line during capture restarts same-direction rotation and audio.
 - Outer-only and all-four-black input cannot directly complete capture. Manual
   STOP, mode change or zero base-speed still stop motion and cancel the phrase;
   power-on still enters STOP.
-- During normal tracking or low-speed capture, a single outer sensor, or that
-  outer sensor together with the adjacent middle sensor, locks the matching
-  turn direction and enters continuous counter-rotation. Outer/white chatter
-  then cannot restart braking or reverse the search direction.
+- During normal tracking or low-speed capture, a brief single outer sensor
+  commands a 0/2200-CPS forward pivot, while an adjacent same-side pair uses a
+  mirrored 1412/2400-CPS forward arc. If the same sole outer remains valid for
+  120 ms with sample gaps no greater than 30 ms, both sides counter-rotate at
+  2200 CPS. Any different raw mask immediately withdraws that escalation.
 - While that turn is locked, any outer sensor still seeing black keeps the
   counter-rotation active. Only when both outer sensors are white and at least
   one middle sensor remains black for 20 ms does braking and stationary capture
   begin. A failed 80 ms stationary confirmation resumes the same turn.
-- The old 120/280 ms sharp-corner phases and weak forward arc are removed.
-  Corner rotation uses the same 2493-CPS search target; ordinary shallow-curve
-  steering and normal straight speed are unchanged. Online corner entry does
-  not start the buzzer until the sensors become all-white.
+- The old timed sharp-corner phases and high-speed weak forward arc remain
+  removed. Visible persistent-edge correction uses 2200 CPS; actual all-white
+  loss uses the configured search target and remembered direction. Ordinary
+  shallow-curve steering and normal straight speed are unchanged, and online
+  corner entry does not start the buzzer.
 - Three/four simultaneous black sensors or non-adjacent multi-black patterns
   now have transverse-line priority in normal tracking, locked turning, initial
   loss braking and low-speed capture. They cancel turning/audio and command
@@ -880,8 +908,8 @@ path for that physical pattern. KEY1/KEY2 behave as follows:
 
 | Evidence level | Current result | Scope |
 |---|---|---|
-| computer build/link | passed | flashed comprehensive source `f34e7dd`; ELF text/data/bss = 84420/64/11600 bytes; BIN is 84488 bytes; HEX hash is `0D4F79D5...8414` |
-| host regression | passed | `f34e7dd` line suite passed at both speeds, including persistent outer 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/STOP and real DriveBase signs; continuous bypass, sign-line ten-second hold and vision-line-v4 also passed |
+| computer build/link | passed | current local main source `f543639`; ELF text/data/bss = 84208/64/11592 bytes; BIN is 84276 bytes; HEX hash is `D63E0222...0B3F` |
+| host regression | passed | `f543639` line suite passed at both speeds, including persistent outer 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/STOP and real DriveBase signs; continuous bypass plus unchanged sign-line and vision-line-v4 also passed |
 | STM32 flash/readback/GO | passed after retry | first COM11 attempt preserved the calibration page and erased 42 application pages, then Windows denied access before a complete write; the re-enumerated retry wrote/read back all 84488 bytes with `VERIFY OK` and completed `GO OK`; routine post-GO checking was omitted at user request |
 | GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
 | K210 deployment/runtime | unchanged from prior deployment | This STM32 operation did not open, reset, inspect or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
@@ -899,19 +927,17 @@ lifted-wheel or ground result has been claimed for the composite behavior.
 
 GitHub `main` contains the rc.2 release source and earlier deployment history
 through `f17bffa`; rc.2 is published with verified assets. Local `main` now
-contains only the promoted bypass change as source `453cad2`, plus local
-deployment/state records, and remains ahead of GitHub until a later explicitly
-requested synchronization. Independent comprehensive source `f34e7dd` is the
-flashed image but remains unmerged and unpublished; its line and sign
-experiments therefore do not define main.
+contains accepted bypass plus current line source `f543639` and is prepared for
+the protected-branch PR and `v1.2.0-rc.3` publication requested in this task.
+Independent comprehensive source `f34e7dd` is still the flashed image; only its
+ten-second sign-probe experiment remains excluded from main.
 
-The next safe physical step is a user-controlled mode-2 line test with remote
-STOP immediately available. Check that a brief sole outer hit still pivots
-forward, while a genuinely continuous 120-ms sole outer hit escalates to the
-correct mirrored powered turn and immediately releases on middle evidence.
-Continuous obstacle-bypass travel is accepted in local main, but its 20/40-mm
-chassis movement, infrared boundary response and traction still need a ground
-test.
+The next safe physical step for the exact main image is an explicitly
+authorized flash followed by a user-controlled mode-2 line test with remote
+STOP immediately available. The current board's `f34e7dd` line code is
+equivalent, but its extra unmerged sign layer means its programmer result is
+not proof that the exact `f543639` BIN was flashed. Continuous bypass chassis
+movement, infrared boundary response and traction also still need ground tests.
 
 Modes 3/4 require `k210-mode34-sign-main.py` as K210 `/sd/main.py` plus the
 packaged road-sign model. Mode 5 instead requires
