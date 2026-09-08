@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-08
 integration_branch: main
-repository_head_at_update: 001a452
+repository_head_at_update: 4a343dd
 latest_code_commit: f543639
 flashed_source_commit: f34e7dd
 flash_record_commit: 7931b2e
@@ -30,15 +30,15 @@ candidate_hex_sha256: D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50
 user_reported_flash: tool_verified_f34e7dd_STM32_flash_readback_and_GO_no_physical_test
 k210_candidate_source_commit: 36551f3
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_and_STOP_link_passed
-remote_sync_status: github_main_at_f17bffa_local_rc3_line_bypass_ready_for_protected_pr
+remote_sync_status: github_main_pr8_merged_v1.2.0_rc3_published_state_sync_via_protected_pr
 remote_sync_branch: main
 stm32_runtime_status: COM11_f34e7dd_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_v1.2.0_rc1_complete
 temporary_flash_selector_commit: f34e7dd_comprehensive_v3_flashed
-github_release_tag: v1.2.0-rc.2
-github_release_source_commit: 3635308
-github_release_firmware_commit: 3170221
-github_release_status: prerelease_published_9_assets_digest_verified_STM32_flash_verified_no_physical_test
+github_release_tag: v1.2.0-rc.3
+github_release_source_commit: 4a343dd
+github_release_firmware_commit: f543639
+github_release_status: prerelease_published_9_assets_digest_verified_exact_main_firmware_not_flashed_no_physical_test
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -63,17 +63,17 @@ a pull request and protects against deletion and non-fast-forward updates; its
 current required approving review count is zero. No ruleset was bypassed or
 disabled for either merge.
 
-Pre-release `v1.2.0-rc.2` points to protected-main merge `3635308` and publishes
-the mode-1-power STM32 BIN/HEX, SHA-256 list, both mutually exclusive K210
-`/sd/main.py` choices, the mode 3/4 road-sign model and instructions. All nine
-uploaded asset digests match the staged local files. Its functional firmware
-source is `3170221`, which is also the programmer-verified STM32 image. K210
-assets are byte-identical to rc.1 and the device was not rewritten during that
-STM32 deployment. The board now runs local comprehensive test source
-`f34e7dd`, which is not part of rc.2 or protected `main`. No lifted-wheel or
-ground-test claim is made. Previous releases remain available as history.
+Pre-release `v1.2.0-rc.3` points to protected-main PR #8 merge `4a343dd` and
+publishes STM32 BIN/HEX from functional source `f543639`, a SHA-256 list, both
+mutually exclusive K210 `/sd/main.py` choices, the mode 3/4 road-sign model and
+instructions. All nine uploaded asset sizes and GitHub digests match the staged
+local files. K210 assets are byte-identical to rc.2. The exact rc.3 main BIN
+has not been flashed: the board instead runs comprehensive test source
+`f34e7dd`, whose line and bypass trees match but which additionally contains
+the unmerged ten-second sign-probe experiment. No lifted-wheel or ground-test
+claim is made. Previous releases remain available as history.
 
-## Current local main source (`f543639`)
+## Current protected main source (`f543639`)
 
 Commit `f54363971bc3111acdda33fbed91882a71305bc7` retains the accepted
 continuous obstacle-bypass travel from `453cad2` and promotes the current
@@ -96,7 +96,8 @@ SHA-256
 `36F1FB5C78483CA09B0B33A7ACE55C89713CFC6487E52598464D235FC7A384D6`;
 the HEX SHA-256 is
 `D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F`.
-This exact main BIN has not been flashed or physically tested. Release notes:
+PR #8 merged this source and its release preparation as `4a343dd`. This exact
+main BIN has not been flashed or physically tested. Release notes:
 `RELEASE_V1.2.0_RC3.md`.
 
 ## Previous local main source (`453cad2`)
@@ -911,7 +912,7 @@ as follows:
 | computer build/link | passed | current local main source `f543639`; ELF text/data/bss = 84208/64/11592 bytes; BIN is 84276 bytes; HEX hash is `D63E0222...0B3F` |
 | host regression | passed | `f543639` line suite passed at both speeds, including persistent outer 119/120-ms boundary, 60 mirrored interruptions, ISR/queue/STOP and real DriveBase signs; continuous bypass plus unchanged sign-line and vision-line-v4 also passed |
 | STM32 flash/readback/GO | passed after retry | first COM11 attempt preserved the calibration page and erased 42 application pages, then Windows denied access before a complete write; the re-enumerated retry wrote/read back all 84488 bytes with `VERIFY OK` and completed `GO OK`; routine post-GO checking was omitted at user request |
-| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.2` points to protected-main merge `3635308`; firmware code `3170221` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded digests were verified |
+| GitHub main candidate release | passed, pre-release | `v1.2.0-rc.3` points to protected-main PR #8 merge `4a343dd`; firmware code `f543639` is published as BIN/HEX with checksums and unchanged separate mode-3/4 and mode-5 K210 assets; all nine uploaded sizes and digests were verified |
 | K210 deployment/runtime | unchanged from prior deployment | This STM32 operation did not open, reset, inspect or rewrite K210; the prior 7256-byte SIGN34 `/sd/main.py` and model remain the last verified K210 state |
 | board-to-board UART | passed, STOP only | four VLINK samples increased parsed SIGN count 102 to 126; aggregate BAD grew only with the unconsumed STOP-state detection queue; no mode start was sent |
 | wheels off ground | not performed | programmer success does not establish search reversal, mode 5 steering, UART-loss stop or operator STOP response |
@@ -925,12 +926,11 @@ command was sent and the board reported its `DEFAULT STOP` startup banner;
 there was intentionally no routine post-GO serial STOP/zero-output check. No
 lifted-wheel or ground result has been claimed for the composite behavior.
 
-GitHub `main` contains the rc.2 release source and earlier deployment history
-through `f17bffa`; rc.2 is published with verified assets. Local `main` now
-contains accepted bypass plus current line source `f543639` and is prepared for
-the protected-branch PR and `v1.2.0-rc.3` publication requested in this task.
-Independent comprehensive source `f34e7dd` is still the flashed image; only its
-ten-second sign-probe experiment remains excluded from main.
+GitHub PR #8 merged accepted continuous bypass and current line source
+`f543639` into protected `main` as `4a343dd`. Pre-release `v1.2.0-rc.3` is
+published with nine size/hash-verified assets. Independent comprehensive source
+`f34e7dd` is still the flashed image; only its ten-second sign-probe experiment
+remains excluded from main and rc.3.
 
 The next safe physical step for the exact main image is an explicitly
 authorized flash followed by a user-controlled mode-2 line test with remote
