@@ -19,4 +19,6 @@ if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\line_recovery\test_line_fault_log.c Core\Src\line_fault_log.c /Fomanual-build-line-host-test\ /Femanual-build-line-host-test\test_line_fault_log.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-line-host-test\test_line_fault_log.exe
+if not "%errorlevel%"=="0" exit /b 1
+python tests\line_recovery\check_mode12_integration.py
 exit /b %errorlevel%

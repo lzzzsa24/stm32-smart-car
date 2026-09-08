@@ -194,7 +194,6 @@ static void oled_application_task(AppMode mode);
 static void battery_telemetry_task(void);
 static void drive_base_telemetry_task(void);
 static void vision_line_v4_diagnostic_dump(void);
-static void apply_line_tracking_command(const LineTrackingCommand *command, int16_t forward_limit);
 static void make_bypass_input(LineObstacleBypassInput *input,
                               const LineTrackingReading *line,
                               const IrAvoidReading *infrared);
@@ -887,13 +886,6 @@ static void drive_base_telemetry_task(void)
   DiagnosticUart_WriteString("\r\n");
 }
 
-static void apply_line_tracking_command(const LineTrackingCommand *command, int16_t forward_limit)
-{
-  /* Both modes share final-target application. KEY1 retains its ultrasonic
-     speed cap without losing line turn effort when the cap rescales targets. */
-  line_tracking_apply_command(command, forward_limit);
-}
-
 static uint8_t line_reading_mask(const LineTrackingReading *line)
 {
   if (line == 0)
@@ -1413,12 +1405,8 @@ static void experiment7_integrated_once(void)
 
   /* 优先级 3：无视觉动作时进行四路黑线闭环循迹。 */
   {
-    LineTrackingReading line = line_tracking_read();
-    LineTrackingCommand line_command;
-    LineTrackingAction action = line_tracking_compute(&line, line_speed,
-                                                       &line_command);
-
-    apply_line_tracking_command(&line_command, ultrasonic_forward_speed_limit);
+    LineTrackingAction action = line_tracking_follow_once(line_speed,
+                                                        ultrasonic_forward_speed_limit);
 
     /* 差速转弯时声束不再稳定指向同一墙面，相对运动估计作废。 */
     if (action != LINE_ACTION_FORWARD && action != LINE_ACTION_CROSSING)
@@ -1649,11 +1637,9 @@ int main(void)
       app_mode = requested_mode;
       if (app_mode == APP_MODE_INTEGRATED)
       {
-        line_tracking_set_no_line_forward(1U);
-        /* KEY1 and KEY2 share the filtered centre controller.  Sharp outer
-           sensor turns and lost-line recovery remain immediate. */
-        line_tracking_set_smooth_mode(1U);
-        line_tracking_set_turn_gain_percent(200U);
+        /* Use the same current tracking profile as KEY2; obstacle ownership
+           and ultrasonic speed caps remain in the integrated-mode wrapper. */
+        line_tracking_start_following();
         /* 切回综合模式后从 WAIT_SAFE 重新确认距离，不沿用上一次动作。 */
         configure_ultrasonic_avoid();
         WheelSpeedObserver_Start();
@@ -1662,9 +1648,7 @@ int main(void)
       }
       else if (app_mode == APP_MODE_LINE_ONLY)
       {
-        line_tracking_set_no_line_forward(0U);
-        line_tracking_set_smooth_mode(1U);
-        line_tracking_set_turn_gain_percent(100U);
+        line_tracking_start_following();
         UltrasonicMotion_Reset();
         passive_measure_trigger_ms = HAL_GetTick() -
                                      EXP7_PASSIVE_MEASURE_INTERVAL_MS;
@@ -1822,8 +1806,6 @@ int main(void)
 
     if (app_mode == APP_MODE_LINE_ONLY)
     {
-      LineTrackingReading line;
-      LineTrackingCommand line_command;
       LineTrackingAction line_action;
 
       /* 丢弃纯寻线期间收到的视觉事件，避免切回 KEY1 后执行旧命令。 */
@@ -1834,10 +1816,8 @@ int main(void)
       app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
       advanced_set_forward_speed_limit(MOTOR_PWM_PERIOD);
       passive_ultrasonic_motion_task();
-      line = line_tracking_read();
-      line_action = line_tracking_compute(&line, EXP7_LINE_SPEED,
-                                           &line_command);
-      apply_line_tracking_command(&line_command, (int16_t)MOTOR_PWM_PERIOD);
+      line_action = line_tracking_follow_once(EXP7_LINE_SPEED,
+                                             (int16_t)MOTOR_PWM_PERIOD);
       if (line_action != LINE_ACTION_FORWARD &&
           line_action != LINE_ACTION_CROSSING)
       {
