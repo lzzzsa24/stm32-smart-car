@@ -16,7 +16,9 @@ typedef enum
 LineRecoveryStopReason LineRecovery_GetStopReason(void);
 /* Current sensor-corrected side, -1 left / +1 right; zero after reset. */
 int8_t LineRecovery_GetDirection(void);
-/* Replay sampled direction evidence in main context, without motor/audio work. */
+/* Replay sampled direction evidence in main context, without motor/audio work.
+   Unconfirmed inner contact preserves the pending outer exit until white,
+   actual capture, contradictory outer evidence or its original age limit. */
 void LineRecovery_ObserveDirection(const LineTrackingReading *reading, uint32_t now);
 void LineRecovery_Stop(LineRecoveryStopReason reason);
 
@@ -28,10 +30,8 @@ void LineRecovery_Begin(int8_t preferred_side, uint32_t now);
    but reverse expanding encoder-bounded sweeps until stronger evidence or a
    middle capture is found. */
 void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now);
-/* Begin an observed corner without a stop/roll/spin timer cycle. Each fresh
-   unambiguous outer edge followed by white can correct its side.
-   DriveBase ramps handle wheel reversal; audio starts only if all-white. */
-void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now);
+/* With visible line evidence Step only observes/captures; the tracking wrapper
+   supplies forward steering. Only all-white search owns opposite wheel targets. */
 LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
                                      LineTrackingCommand *command, uint32_t now);
 void LineRecovery_Commit(void);

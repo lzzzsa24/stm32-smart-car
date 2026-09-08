@@ -97,14 +97,16 @@ static void test_corner_edge_chatter(void)
     printf("corner side=%u after 600ms: left=%ld right=%ld\n",side,
            (long)telemetry.requested_cps[0],(long)telemetry.requested_cps[2]);
     fflush(stdout);
-    assert(telemetry.requested_cps[0]*telemetry.requested_cps[2]<0);
+    assert(output.valid && telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0);
     assert(!BuzzerPhrase400_IsPlaying()); /* Outer contact is a turn, not yet loss. */
     before=brakes;
     for(i=0;i<100;++i)
     {
-      hold(0,30); hold(outer,30); hold(pair,30);
-      assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED);
+      hold(0,100);
       assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+      hold(outer,30); hold(pair,30);
+      assert(output.valid && telemetry.mode==DRIVE_BASE_SPEED);
+      assert(telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0);
       assert(brakes==before && BuzzerPhrase400_IsPlaying());
     }
     for(i=0;i<20;++i)
@@ -116,9 +118,9 @@ static void test_corner_edge_chatter(void)
     assert(!BuzzerPhrase400_IsPlaying());
     /* If low-speed capture falls back to the edge, restore a continuous turn
        without another stationary confirmation pause on that outer sensor. */
-    hold(outer,30); assert(brakes==before && !output.valid);
-    assert(telemetry.requested_cps[0]==(side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
-    hold(0,30); hold(pair,300); assert(brakes==before);
+    hold(outer,30); assert(brakes==before && output.valid);
+    assert(telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0);
+    hold(0,100); hold(pair,300); assert(brakes==before);
     assert(BuzzerPhrase400_IsPlaying());
     hold(5,180); assert(brakes==before && !BuzzerPhrase400_IsPlaying());
     hold(5,550); assert(output.left_cps>2400);
@@ -127,7 +129,7 @@ static void test_corner_edge_chatter(void)
 }
 static void test_three_black_cancels_corner(void)
 {
-  reset(0,0); hold(2,100);
+  reset(0,0); hold(2,100); hold(0,100);
   assert(telemetry.requested_cps[0]<0);
   sample(7,10,3000); /* Physical X2/X1/X3 black; rightmost X4 white. */
   printf("three black after corner: left=%ld right=%ld\n",
@@ -146,7 +148,7 @@ static void test_patterns_and_narrow_windows(void)
     if(mask==0) assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED && !brakes);
     else assert(output.valid && output.left_cps>0 && output.right_cps>0);
     if(mask==2 || mask==3 || mask==8 || mask==12)
-    { hold(mask,30); assert(!output.valid && telemetry.requested_cps[0]*telemetry.requested_cps[2]<0); }
+    { hold(mask,30); assert(output.valid && telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0); }
   }
   for(mode=0;mode<5;++mode) for(i=0;i<sizeof wide/sizeof wide[0];++i)
   {
@@ -169,7 +171,7 @@ static void test_patterns_and_narrow_windows(void)
 
   reset(0,0); hold(0,100); before=brakes;
   sample(1,1,3000); sample(0,1,3000); sample(1,100,3000);
-  assert(!output.valid && BuzzerPhrase400_IsPlaying()); /* Isolated or stale samples rejected. */
+  assert(output.valid && BuzzerPhrase400_IsPlaying()); /* Forward contact is not confirmed capture. */
   sample(0,1,3000); sample(1,1,3000); sample(1,4,3000);
   assert(output.valid && output.left_cps>0 && output.right_cps>0);
   assert(brakes==before && !BuzzerPhrase400_IsPlaying()); /* No stationary reacquisition. */
@@ -266,7 +268,7 @@ static void test_direction_after_unconfirmed_middle(void)
 {
   unsigned i,before;
   LineSearchRecord decision;
-  reset(0,0); hold(2,100); /* Earlier left corner still owns recovery. */
+  reset(0,0); hold(2,100); hold(0,100); /* Earlier left search owns recovery. */
   sample(8,1,3000); hold(0,100);
   printf("locked left, last right edge: left=%ld\n",(long)telemetry.requested_cps[0]);
   fflush(stdout);
@@ -465,11 +467,11 @@ static void test_latest_outer_after_long_search(void)
   fflush(stdout); assert(failures==0);
   reset(0,0); hold(2,30); hold(0,300);
   sample(8,1,3000);
-  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* contact alone */
+  assert(output.valid && telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0); /* visible contact advances */
   sample(0,201,3000);
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* stale edge */
   sample(8,1,3000); sample(5,1,3000); sample(0,1,3000);
-  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* newer middle */
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS); /* unconfirmed middle preserves the fresh exit */
   sample(8,1,3000); sample(2,1,3000); sample(0,1,3000);
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* latest edge wins */
   sample(8,1,3000); sample(0,1,3000);
@@ -484,7 +486,7 @@ static void test_alternating_corner_handoffs(void)
   LineSensorSample_Start();
   for(first=0;first<2;++first)
   {
-    reset(0,0); hold(first?8:2,30);
+    reset(0,0); hold(first?8:2,30); hold(0,100);
     /* No reset between contacts: a one-sided inner capture is ambiguous, so
        re-loss retains the search direction that physically found it. */
     for(iteration=0;iteration<12;++iteration)
@@ -501,7 +503,7 @@ static void test_alternating_corner_handoffs(void)
   {
     unsigned inner=first?1:4;
     int32_t expected=first?-LINE_SEARCH_TARGET_CPS:LINE_SEARCH_TARGET_CPS;
-    reset(0,0); hold(first?8:2,30);
+    reset(0,0); hold(first?8:2,30); hold(0,100);
     sample(5,1,3000); sample(5,4,3000); /* capture starts at t=0 */
     if(queued)
     {
@@ -706,11 +708,11 @@ static void test_overlapping_direction_and_interrupted_confirmation(void)
     reset(0,1); hold(5,100); sample(edge,1,3000);
     background_sample(0,15); background_sample(edge,1); sample(edge,0,3000);
     if(!output.valid) ++false_corner;
-    hold(edge,20); assert(!output.valid); /* A new continuous contact still turns. */
+    hold(edge,20); assert(output.valid && output.left_cps>0 && output.right_cps>0); /* Visible edge stays forward. */
 
     reset(0,1); hold(0,100); sample(5,1,3000);
     background_sample(right?0:8,4); background_sample(5,1); sample(5,0,3000);
-    if(output.valid) ++false_capture;
+    if(!BuzzerPhrase400_IsPlaying()) ++false_capture;
     sample(5,4,3000); assert(output.valid); /* New continuous capture still succeeds. */
   }
   printf("Overlap wrong=%u/16; interrupted corner=%u/2; interrupted capture=%u/2\n",
@@ -763,9 +765,125 @@ static void test_direction_pattern_matrix(void)
   line_tracking_reset();
 }
 
+static void test_strong_exit_survives_inner_contact(void)
+{
+  static const unsigned middles[]={1,4,5};
+  unsigned right, queued, middle, wrap, wrong=0, overlap_wrong=0;
+  LineSearchRecord decision;
+  LineSensorSample_Start();
+  for(right=0;right<2;++right) for(queued=0;queued<2;++queued)
+  {
+    for(middle=0;middle<3;++middle) for(wrap=0;wrap<2;++wrap)
+    {
+      unsigned edge=right?8:2;
+      tick=wrap?UINT32_MAX-332U:1000U;
+      reset(0,1); hold(right?2:8,30); hold(0,300);
+      if(queued) { background_sample(edge,1); background_sample(middles[middle],1); background_sample(0,1); sample(0,0,3000); }
+      else { sample(edge,1,3000); sample(middles[middle],1,3000); sample(0,1,3000); }
+      if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++wrong;
+      assert(!output.valid && BuzzerPhrase400_IsPlaying());
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+      assert(decision.source==LINE_SEARCH_CORRECTION && decision.chosen_side==(right?1:-1));
+    }
+    reset(0,1); hold(right?1:4,30);
+    if(queued) { background_sample(right?9:6,1); background_sample(0,1); sample(0,0,3000); }
+    else { sample(right?9:6,1,3000); sample(0,1,3000); }
+    hold(0,120);
+    if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++overlap_wrong;
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.hint_mask==(right?9:6) && decision.source==LINE_SEARCH_CROSS_HINT);
+  }
+  printf("Pending outer through inner: wrong=%u/24; ordered overlap: wrong=%u/4\n",wrong,overlap_wrong);
+  fflush(stdout); assert(!wrong && !overlap_wrong);
+  for(right=0;right<2;++right)
+  {
+    unsigned edge=right?8:2, inner=right?1:4, overlap=right?9:6;
+    /* Normal tracking: lone-inner bounce never deletes a recent strong side. */
+    reset(0,1); sample(edge,1,3000); sample(inner,1,3000); hold(0,120);
+    assert(telemetry.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(0,201,3000);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* inner does not renew 200-ms exit age */
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(right?2:8,1,3000); sample(0,1,3000);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* newest outer wins */
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(inner,4,3000);
+    assert(output.valid && !BuzzerPhrase400_IsPlaying()); /* confirmed capture still commits */
+    hold(0,120);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* no stale pending exit after capture */
+
+    reset(0,1); hold(inner,30); reset(0,1); sample(overlap,1,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* no transition across reset */
+
+    reset(0,1); hold(inner,30); sample(overlap,31,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* no transition across >30-ms observation gap */
+
+    reset(0,1); hold(inner,30); sample(15,1,3000); sample(overlap,1,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* broad mark interrupts the ordering evidence */
+
+    reset(0,1); hold(inner,30); sample(overlap,1,3000); hold(overlap,410); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* static pair never renews inferred side */
+
+    reset(0,1); hold(inner,30); background_sample(overlap,260); sample(0,0,3000);
+    hold(0,120); assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT && decision.queue_overwritten>0);
+
+    tick=UINT32_MAX-32U; reset(0,1); hold(inner,30);
+    background_sample(overlap,1); background_sample(0,2); sample(0,0,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.hint_mask==overlap && decision.chosen_side==(right?1:-1));
+  }
+  puts("PASS: strong-hint bounce protection, expiry, newer outer, capture, reset, gap, broad interruption, static overlap, overflow, wrap");
+  line_tracking_reset();
+}
+
+static void test_visible_forward_and_lost_spin(void)
+{
+  unsigned mask, smooth, gain, active, i, cases=0;
+  for(mask=1;mask<16;++mask) for(smooth=0;smooth<2;++smooth)
+  for(gain=100;gain<=200;gain+=100) for(active=0;active<2;++active)
+  {
+    reset(0,(uint8_t)smooth); line_tracking_set_turn_gain_percent((uint16_t)gain);
+    if(active) hold(0,120);
+    for(i=0;i<30;++i)
+    {
+      sample(mask,10,3000);
+      assert(output.valid && telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0);
+      assert(!brakes);
+      if(mask==2 || mask==3) assert(output.left_cps<output.right_cps);
+      if(mask==8 || mask==12) assert(output.left_cps>output.right_cps);
+    }
+    hold(0,120);
+    assert(!output.valid && BuzzerPhrase400_IsPlaying());
+    assert(telemetry.requested_cps[0]==-telemetry.requested_cps[2]);
+    assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS || telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+    line_tracking_reset(); assert(!BuzzerPhrase400_IsPlaying() && telemetry.requested_cps[0]==0);
+    ++cases;
+  }
+  line_tracking_set_turn_gain_percent(100);
+  reset(0,1); hold(5,100); sample(0,1,3000); hold(0,49);
+  assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
+  hold(0,20); assert(!output.valid && telemetry.requested_cps[0]==-telemetry.requested_cps[2]);
+  reset(0,1); sample(15,1,3000); hold(0,90);
+  assert(output.valid && output.left_cps==output.right_cps && output.left_cps>0);
+  hold(0,20); assert(!output.valid && telemetry.requested_cps[0]==-telemetry.requested_cps[2]);
+  printf("PASS: %u visible mask/gain/state cases stay forward; confirmed loss spins; 60/100-ms gaps preserved\n",cases);
+  line_tracking_reset();
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_visible_forward_and_lost_spin();
+  test_strong_exit_survives_inner_contact();
   test_overlapping_direction_and_interrupted_confirmation();
   test_direction_pattern_matrix();
   test_direction_survives_short_wide_mark();
@@ -787,12 +905,13 @@ int main(void)
     reset((uint8_t)forward,(uint8_t)smooth); hold(5,300); sample(0,70,3000);
     assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED && !brakes && BuzzerPhrase400_IsPlaying());
     hold(0,90000); assert_search(); assert(attacks>250); /* Beyond 8 s and 24 phrase repeats. */
-    hold(2,10000); assert_search(); hold(8,10000); assert_search();
-    hold(3,1000); assert_search(); /* Same-side pair remains an edge. */
+    hold(2,10000); assert(output.valid && output.left_cps>0 && output.right_cps>0);
+    hold(8,10000); assert(output.valid && output.left_cps>0 && output.right_cps>0);
+    hold(3,1000); assert(output.valid && output.left_cps>0 && output.right_cps>0);
     sample(5,10,3000); assert(telemetry.mode==DRIVE_BASE_SPEED);
-    hold(0,200); assert_search(); /* False contact resumes, never latches stop. */
+    hold(0,200); assert(!output.valid && BuzzerPhrase400_IsPlaying()); /* False contact resumes, never latches stop. */
     hold(5,180); assert(output.valid && output.left_cps>0 && !BuzzerPhrase400_IsPlaying() && !buzzer);
-    hold(2,2000); assert(!output.valid && telemetry.requested_cps[0]<0 && telemetry.requested_cps[2]>0);
+    hold(2,2000); assert(output.valid && telemetry.requested_cps[0]>0 && telemetry.requested_cps[2]>0);
     hold(5,750); assert(output.left_cps>2400 && !BuzzerPhrase400_IsPlaying());
     hold(5,500); assert(output.left_cps==2700 && output.right_cps==2700);
     sample(0,10,3000); hold(0,160); assert_search();

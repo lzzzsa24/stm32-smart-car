@@ -128,20 +128,6 @@ void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now)
   uncertain_sweep_mdeg = UNCERTAIN_SWEEP_START_MDEG;
   uncertain_snapshot(&telemetry);
 }
-void LineRecovery_BeginCorner(int8_t preferred_side, uint32_t now)
-{
-  side = preferred_side > 0 ? 1 : -1;
-  exit_side = side;
-  exit_edge_seen = 1U;
-  exit_last_ms = now;
-  center_candidate = 0U;
-  uncertain_search = 0U;
-  stop_reason = LINE_REC_STOP_NONE;
-  phase = REC_SEARCH;
-  center_last_ms = now;
-  audio_requested = 0U;
-  if (DriveBase_GetFaultMask()) LineRecovery_Stop(LINE_REC_STOP_DRIVE_FAULT);
-}
 void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
 {
   int8_t edge = r->x2_black && !r->x3_black && !r->x4_black ? -1 :
@@ -161,12 +147,14 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
     exit_edge_seen = 1U;
     exit_last_ms = now;
   }
-  else if (r->x1_black || r->x2_black || r->x3_black || r->x4_black)
+  else if (r->x2_black || r->x4_black)
   {
-    /* A newer middle or ambiguous/wide observation supersedes the edge. */
+    /* Conflicting wide/outer evidence invalidates the pending exit. An inner
+       contact is still provisional until live capture confirms, so it must
+       not discard a fresh outer direction or renew that direction's age. */
     exit_edge_seen = 0U;
   }
-  else if (exit_edge_seen)
+  else if (!(r->x1_black || r->x3_black) && exit_edge_seen)
   {
     if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS)
     {
@@ -224,12 +212,13 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
       {
         stop_audio();
         phase = REC_CAPTURED;
+        exit_edge_seen = 0U;
         return LINE_RECOVERY_CAPTURED;
       }
       center_last_ms = now;
     }
   }
-  if (phase == REC_SEARCH)
+  if (phase == REC_SEARCH && !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
   {
     int32_t left = side < 0 ? -LINE_SEARCH_TARGET_CPS : LINE_SEARCH_TARGET_CPS;
     DriveBase_PrepareLineTurnAssist(left, -left);

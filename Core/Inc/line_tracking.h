@@ -56,7 +56,8 @@ void line_tracking_reset(void);
    ownership; a zero forward cap remains an explicit stop request. */
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才搜索鸣响。
-   三/四路黑或不相邻多点黑优先低速穿越，覆盖旧转向。可靠外侧急弯持续转向，
+   看见黑线时两侧保持正向差速；三/四路黑或不相邻多点黑优先低速穿越。
+   外侧持续识黑也不原地旋转；短缺口确认后丢线才使用两侧等大反向目标搜索。
    三路相邻识黑只更新方向提示，不立即原地转向；双外侧/非相邻组合不产生新提示。
    近期侧向提示可跨越短多黑区域保留至原采样后 400 ms；中心/反侧证据可使其失效。
    窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */

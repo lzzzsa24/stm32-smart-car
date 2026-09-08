@@ -52,18 +52,18 @@ static LineRecoveryState recovery_state;
 static uint32_t recovery_state_started_ms;
 static uint8_t crossing_active, middle_recent_valid;
 static uint32_t crossing_last_ms, middle_last_ms;
-static int8_t corner_candidate;
-static uint32_t corner_since_ms, corner_last_ms;
 static uint32_t sample_overwritten;
 static uint32_t last_observation_ms;
 static uint8_t last_edge_mask, last_wide_mask;
 static uint32_t last_edge_ms, last_wide_ms;
 static int8_t last_logged_side;
+static uint8_t previous_raw_valid, previous_raw_mask;
+static uint32_t previous_raw_ms;
 
 #define TRACKING_HINT_CONFIRM_MS                4U
+#define TRACKING_EDGE_TRANSITION_MAX_GAP_MS    30U
 #define TRACKING_CROSS_CLEAR_MS               100U
 #define TRACKING_NARROW_GAP_MS                 60U
-#define TRACKING_CORNER_CONFIRM_MS             12U
 #define TRACKING_HINT_MAX_AGE_MS              200U
 /* Allow one short broad bend plus the 100-ms crossing tail to obscure a
    recent side. This is an absolute age from real directional evidence;
@@ -153,6 +153,21 @@ static void command_stop(LineTrackingCommand *command)
 {
   command_set_pwm(command, 0, 0, LINE_ACTION_STOP);
 }
+
+static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
+{
+  int16_t left = TRACKING_SETTLE_CENTER_PWM, right = TRACKING_SETTLE_CENTER_PWM;
+  LineTrackingAction action = LINE_ACTION_FORWARD;
+  if (r->x2_black && !r->x3_black && !r->x4_black)
+  { left = TRACKING_SETTLE_INNER_PWM; right = turn_speed_for_gain(TRACKING_MIN_OUTER_PWM); action = LINE_ACTION_LEFT_ADJUST; }
+  else if (r->x4_black && !r->x1_black && !r->x2_black)
+  { left = turn_speed_for_gain(TRACKING_MIN_OUTER_PWM); right = TRACKING_SETTLE_INNER_PWM; action = LINE_ACTION_RIGHT_ADJUST; }
+  else if (r->x1_black && !r->x3_black)
+  { left = TRACKING_SETTLE_INNER_PWM; right = TRACKING_SETTLE_OUTER_PWM; action = LINE_ACTION_LEFT_ADJUST; }
+  else if (r->x3_black && !r->x1_black)
+  { left = TRACKING_SETTLE_OUTER_PWM; right = TRACKING_SETTLE_INNER_PWM; action = LINE_ACTION_RIGHT_ADJUST; }
+  command_set_pwm(command, left, right, action);
+}
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
 {
   int32_t left, right, maximum, limit;
@@ -202,8 +217,19 @@ static uint8_t reading_mask(const LineTrackingReading *r)
       (r->x3_black << 2) | (r->x4_black << 3));
 }
 
-/* Observe sensor position, never the filtered motor correction. A newly
-   opposing observation invalidates the old hint while it is being confirmed. */
+static void remember_outer_direction(int8_t side, uint8_t mask, uint32_t now)
+{
+  ambiguous_inner_side = 0;
+  ambiguous_inner_mask = 0U;
+  predicted_turn_direction = direction_candidate = side;
+  direction_crossing_hold = 0U;
+  direction_last_seen_ms = direction_candidate_since_ms = now;
+  direction_hint_mask = mask;
+  direction_center_active = 0U;
+}
+
+/* Observe sensor position, never filtered motor correction. Strong outer
+   evidence replaces a hint; lone-inner observations stay ambiguous. */
 static void update_direction_hint(const LineTrackingReading *reading,
                                   uint8_t active_count, uint32_t now)
 {
@@ -216,13 +242,7 @@ static void update_direction_hint(const LineTrackingReading *reading,
      command gate are separate, so this observation cannot itself start a spin. */
   if (line_tracking_direction_evidence(reading))
   {
-    ambiguous_inner_side = 0;
-    ambiguous_inner_mask = 0U;
-    predicted_turn_direction = direction_candidate = side;
-    direction_crossing_hold = 0U;
-    direction_last_seen_ms = direction_candidate_since_ms = now;
-    direction_hint_mask = reading_mask(reading);
-    direction_center_active = 0U;
+    remember_outer_direction(side, reading_mask(reading), now);
     return;
   }
   if (reading->x2_black && reading->x4_black)
@@ -315,13 +335,13 @@ void line_tracking_reset(void)
   LineSensorSample_Reset();
   sample_overwritten = 0U;
   last_edge_mask = last_wide_mask = 0U;
+  previous_raw_valid = 0U;
   last_logged_side = 0;
   last_observation_ms = HAL_GetTick();
   DriveBase_SetLineFaultObservation(0U, 0U, 0U);
   LineRecovery_Reset();
   crossing_active = middle_recent_valid = 0U;
-  corner_candidate = 0;
-  crossing_last_ms = middle_last_ms = corner_since_ms = corner_last_ms = HAL_GetTick();
+  crossing_last_ms = middle_last_ms = HAL_GetTick();
   line_has_been_seen = 0U;
   predicted_turn_direction = 0;
   direction_crossing_hold = 0U;
@@ -410,6 +430,17 @@ static uint8_t unambiguous_edge(const LineTrackingReading *r)
 static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
 {
   uint8_t mask = reading_mask(r);
+  /* A static nonadjacent pair is ambiguous. A recent lone-inner observation
+     followed by the opposite outer newly appearing supplies ordered evidence.
+     Keep broad-pattern motor suppression; only update the future exit hint. */
+  if (previous_raw_valid && now - previous_raw_ms <= TRACKING_EDGE_TRANSITION_MAX_GAP_MS)
+  {
+    if (previous_raw_mask == 1U && mask == 9U) remember_outer_direction(1, mask, now);
+    else if (previous_raw_mask == 4U && mask == 6U) remember_outer_direction(-1, mask, now);
+  }
+  previous_raw_mask = mask;
+  previous_raw_ms = now;
+  previous_raw_valid = 1U;
   if (unambiguous_edge(r)) { last_edge_mask = mask; last_edge_ms = now; }
   if (transverse(r)) { last_wide_mask = mask; last_wide_ms = now; }
 }
@@ -457,7 +488,7 @@ static void observe_crossing(uint32_t now)
     direction_crossing_hold = 1U;
   else
   { predicted_turn_direction = 0; direction_crossing_hold = 0U; }
-  corner_candidate = recovery_turn_direction = direction_candidate = 0;
+  recovery_turn_direction = direction_candidate = 0;
   direction_center_active = 0U;
   smooth_filter_valid = smooth_centered_active = 0U;
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
@@ -470,10 +501,11 @@ static void consume_sampled_evidence(uint32_t through_ms)
   if (lost != sample_overwritten)
   {
     /* Missing history cannot support an old normal-mode directional hint. */
-    predicted_turn_direction = direction_candidate = corner_candidate = 0;
+    predicted_turn_direction = direction_candidate = 0;
     direction_crossing_hold = 0U;
     ambiguous_inner_side = 0;
     ambiguous_inner_mask = 0U;
+    previous_raw_valid = 0U;
     direction_center_active = 0U;
     sample_overwritten = lost;
   }
@@ -496,8 +528,6 @@ static void consume_sampled_evidence(uint32_t through_ms)
       observe_crossing(sample.time_ms);
       continue;
     }
-    /* A main-loop corner timer cannot span a contradictory ISR observation. */
-    if (line_tracking_direction_evidence(&r) != corner_candidate) corner_candidate = 0;
     if ((r.x1_black || r.x3_black) && !r.x2_black && !r.x4_black)
     { middle_recent_valid = 1U; middle_last_ms = sample.time_ms; }
     /* Observe all narrow evidence even during the crossing motor guard or
@@ -593,27 +623,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
               (reading->x4_black && !reading->x1_black && !reading->x2_black ? 1 : 0);
   if ((recovery_state == LINE_RECOVERY_NORMAL || recovery_state == LINE_RECOVERY_SETTLE) && edge_side)
   {
-    if (corner_candidate != edge_side || now - corner_last_ms > 30U)
-    { corner_candidate = edge_side; corner_since_ms = now; }
-    corner_last_ms = now;
-    if (now - corner_since_ms >= TRACKING_CORNER_CONFIRM_MS)
-    {
-      recovery_turn_direction = edge_side;
-      record_search(now, LINE_SEARCH_CORNER);
-      smooth_filter_valid = smooth_centered_active = 0U;
-      smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-      LineRecovery_BeginCorner(recovery_turn_direction, now);
-      recovery_state = LINE_RECOVERY_ACTIVE;
-    }
-    else
-    {
-      command_set_pwm(command, edge_side < 0 ? TRACKING_SETTLE_INNER_PWM : TRACKING_SETTLE_OUTER_PWM,
-                      edge_side < 0 ? TRACKING_SETTLE_OUTER_PWM : TRACKING_SETTLE_INNER_PWM,
-                      edge_side < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST);
-      return command->action;
-    }
+    smooth_filter_valid = smooth_centered_active = 0U;
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+    command_visible_adjust(reading, command);
+    return command->action;
   }
-  else corner_candidate = 0;
   if (recovery_state == LINE_RECOVERY_ACTIVE)
   {
     LineRecoveryResult result = LineRecovery_Step(reading, command, now);
@@ -643,7 +657,16 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       recovery_stop(LineRecovery_GetStopReason());
       command_stop(command);
     }
-    if (result != LINE_RECOVERY_CAPTURED) return command->action;
+    if (result != LINE_RECOVERY_CAPTURED)
+    {
+      if (result == LINE_RECOVERY_BUSY && active_count)
+      {
+        DriveBaseTelemetry telemetry;
+        DriveBase_GetTelemetry(&telemetry);
+        if (telemetry.mode != DRIVE_BASE_BRAKING) command_visible_adjust(reading, command);
+      }
+      return command->action;
+    }
   }
   if (recovery_state == LINE_RECOVERY_STOPPED)
   {
