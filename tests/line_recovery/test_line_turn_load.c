@@ -719,10 +719,10 @@ static void test_slow_outer_profiles(void)
       assert(out.valid && !t.fault_mask && !BuzzerPhrase400_IsPlaying() && !buzzer);
       if(stage==0)
       {
-        assert((right?out.right_cps:out.left_cps)==0);
+        assert((right?out.right_cps:out.left_cps)==(ms<120?0:-2200));
         assert((right?out.left_cps:out.right_cps)==2200);
         if(ms>220) for(w=0;w<4;++w)
-          assert((w<2)==(right!=0)?pins[w]>0:pins[w]==0);
+          assert((w<2)==(right!=0)?pins[w]>0:pins[w]<0);
       }
       else
       {
@@ -743,7 +743,7 @@ static void test_slow_outer_profiles(void)
   compare_load(0,2200,2); compare_load(0,2200,3);
   compare_load(2200,0,0); compare_load(2200,0,1);
   line_tracking_reset(); reset();
-  printf("PASS: %u real gain/state profiles: lone outer slower and tighter, pairs/center/wide distinct, stopped side unpowered, moving-side assist retained\n",cases);
+  printf("PASS: %u real gain/state profiles: brief outer pivot escalates to powered counter-rotation; pairs/center/wide distinct and assist retained\n",cases);
 }
 
 static void test_real_visible_arc_and_loss(unsigned right)
@@ -760,12 +760,15 @@ static void test_real_visible_arc_and_loss(unsigned right)
     ++tick; DriveBase_Task(tick);
     line_tracking_compute(&r,3000,&out); line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
     DriveBase_GetTelemetry(&t); assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
-    if(mask) assert(out.valid && t.requested_cps[0]>=0 && t.requested_cps[2]>=0 && t.requested_cps[0]+t.requested_cps[2]>0);
+    if(mask) assert(out.valid);
+    if(mask==5) assert(t.requested_cps[0]>0 && t.requested_cps[2]>0);
     if(ms>=450 && ms<800)
     {
       assert(right?t.requested_cps[0]>t.requested_cps[2]:t.requested_cps[0]<t.requested_cps[2]);
+      assert((right?t.requested_cps[2]:t.requested_cps[0])==(ms<570?0:-2200));
+      assert((right?t.requested_cps[0]:t.requested_cps[2])==2200);
       if(ms>=650) for(w=0;w<4;++w)
-        assert((w<2)==(right!=0) ? pins[w]>0 : pins[w]==0);
+        assert((w<2)==(right!=0) ? pins[w]>0 : pins[w]<0);
     }
     if(ms>=850 && ms<1150)
     {

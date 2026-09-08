@@ -59,6 +59,9 @@ static uint32_t last_edge_ms, last_wide_ms;
 static int8_t last_logged_side;
 static uint8_t previous_raw_valid, previous_raw_mask;
 static uint32_t previous_raw_ms;
+static int8_t held_outer_side;
+static uint8_t held_outer_strong;
+static uint32_t held_outer_since_ms, held_outer_last_ms;
 
 #define TRACKING_HINT_CONFIRM_MS                4U
 #define TRACKING_EDGE_TRANSITION_MAX_GAP_MS    30U
@@ -78,6 +81,8 @@ static uint32_t previous_raw_ms;
 #define TRACKING_SETTLE_OUTER_PWM           2400
 #define TRACKING_SETTLE_CENTER_PWM          2200
 #define TRACKING_EDGE_OUTER_CPS             2200L
+#define TRACKING_EDGE_ESCALATE_MS             120U
+#define TRACKING_EDGE_MAX_SAMPLE_GAP_MS        30U
 #define TRACKING_ADJACENT_INNER_CPS          1412L
 #define TRACKING_ADJACENT_OUTER_CPS          2400L
 #define TRACKING_NORMAL_CENTER_PWM          2700
@@ -175,10 +180,19 @@ static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCom
   }
   if (action != LINE_ACTION_FORWARD)
   {
-    /* A lone outer hit is the largest displacement: stop the inside wheels
-       and advance the outside slowly. Do not inflate CPS through equivalent
-       PWM conversion or KEY1's legacy PWM turn gain. Adjacent pairs use a
-       gentler two-side arc; wide patterns are handled before this helper. */
+    int8_t live_side = action == LINE_ACTION_LEFT_ADJUST ? -1 : 1;
+    if (!r->x1_black && !r->x3_black && held_outer_strong && held_outer_side == live_side)
+    {
+      /* A zero-target inside wheel coasts; it cannot guarantee heading
+         correction on the floor. Persistent lone-edge evidence therefore
+         removes forward travel and powers both sides against each other.
+         Any other raw pattern clears this escalation, not a timed turn lock. */
+      command->left_cps = live_side * TRACKING_EDGE_OUTER_CPS;
+      command->right_cps = -command->left_cps;
+    }
+    /* Both the initial pivot and sustained correction use explicit CPS.
+       Do not inflate them through PWM conversion or KEY1's legacy gain.
+       Adjacent pairs keep their forward arc; wide patterns have priority. */
     DriveBase_PrepareLineTurnAssist(command->left_cps, command->right_cps);
     command->action = action;
     command->valid = 1U;
@@ -194,6 +208,9 @@ void line_tracking_apply_command(const LineTrackingCommand *command, int16_t for
 {
   int32_t left, right, maximum, limit;
   if (!command || !command->valid) return;
+  /* Persistent visible-edge correction can now counter-rotate too. A caller
+     explicitly stopping must still win even when one target is negative. */
+  if (forward_limit_pwm <= 0) { DriveBase_Stop(DRIVE_STOP_COAST); return; }
   left = command->left_cps; right = command->right_cps;
   if (left >= 0L && right >= 0L)
   {
@@ -358,6 +375,8 @@ void line_tracking_reset(void)
   sample_overwritten = 0U;
   last_edge_mask = last_wide_mask = 0U;
   previous_raw_valid = 0U;
+  held_outer_side = 0;
+  held_outer_strong = 0U;
   last_logged_side = 0;
   last_observation_ms = HAL_GetTick();
   DriveBase_SetLineFaultObservation(0U, 0U, 0U);
@@ -452,6 +471,23 @@ static uint8_t unambiguous_edge(const LineTrackingReading *r)
 static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
 {
   uint8_t mask = reading_mask(r);
+  int8_t outer = mask == 2U ? -1 : (mask == 8U ? 1 : 0);
+  if (!outer)
+  {
+    held_outer_side = 0;
+    held_outer_strong = 0U;
+  }
+  else
+  {
+    if (held_outer_side != outer || now - held_outer_last_ms > TRACKING_EDGE_MAX_SAMPLE_GAP_MS)
+    {
+      held_outer_since_ms = now;
+      held_outer_strong = 0U;
+    }
+    held_outer_side = outer;
+    held_outer_last_ms = now;
+    if (now - held_outer_since_ms >= TRACKING_EDGE_ESCALATE_MS) held_outer_strong = 1U;
+  }
   /* A static nonadjacent pair is ambiguous. A recent lone-inner observation
      followed by the opposite outer newly appearing supplies ordered evidence.
      Keep broad-pattern motor suppression; only update the future exit hint. */
@@ -528,6 +564,8 @@ static void consume_sampled_evidence(uint32_t through_ms)
     ambiguous_inner_side = 0;
     ambiguous_inner_mask = 0U;
     previous_raw_valid = 0U;
+    held_outer_side = 0;
+    held_outer_strong = 0U;
     direction_center_active = 0U;
     sample_overwritten = lost;
   }
