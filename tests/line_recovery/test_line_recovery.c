@@ -469,7 +469,7 @@ static void test_latest_outer_after_long_search(void)
   sample(0,201,3000);
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* stale edge */
   sample(8,1,3000); sample(5,1,3000); sample(0,1,3000);
-  assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* newer middle */
+  assert(telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS); /* unconfirmed middle preserves the fresh exit */
   sample(8,1,3000); sample(2,1,3000); sample(0,1,3000);
   assert(telemetry.requested_cps[0]==-LINE_SEARCH_TARGET_CPS); /* latest edge wins */
   sample(8,1,3000); sample(0,1,3000);
@@ -763,9 +763,90 @@ static void test_direction_pattern_matrix(void)
   line_tracking_reset();
 }
 
+static void test_strong_exit_survives_inner_contact(void)
+{
+  static const unsigned middles[]={1,4,5};
+  unsigned right, queued, middle, wrap, wrong=0, overlap_wrong=0;
+  LineSearchRecord decision;
+  LineSensorSample_Start();
+  for(right=0;right<2;++right) for(queued=0;queued<2;++queued)
+  {
+    for(middle=0;middle<3;++middle) for(wrap=0;wrap<2;++wrap)
+    {
+      unsigned edge=right?8:2;
+      tick=wrap?UINT32_MAX-332U:1000U;
+      reset(0,1); hold(right?2:8,30); hold(0,300);
+      if(queued) { background_sample(edge,1); background_sample(middles[middle],1); background_sample(0,1); sample(0,0,3000); }
+      else { sample(edge,1,3000); sample(middles[middle],1,3000); sample(0,1,3000); }
+      if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++wrong;
+      assert(!output.valid && BuzzerPhrase400_IsPlaying());
+      assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+      assert(decision.source==LINE_SEARCH_CORRECTION && decision.chosen_side==(right?1:-1));
+    }
+    reset(0,1); hold(right?1:4,30);
+    if(queued) { background_sample(right?9:6,1); background_sample(0,1); sample(0,0,3000); }
+    else { sample(right?9:6,1,3000); sample(0,1,3000); }
+    hold(0,120);
+    if(telemetry.requested_cps[0]!=(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS)) ++overlap_wrong;
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.hint_mask==(right?9:6) && decision.source==LINE_SEARCH_CROSS_HINT);
+  }
+  printf("Pending outer through inner: wrong=%u/24; ordered overlap: wrong=%u/4\n",wrong,overlap_wrong);
+  fflush(stdout); assert(!wrong && !overlap_wrong);
+  for(right=0;right<2;++right)
+  {
+    unsigned edge=right?8:2, inner=right?1:4, overlap=right?9:6;
+    /* Normal tracking: lone-inner bounce never deletes a recent strong side. */
+    reset(0,1); sample(edge,1,3000); sample(inner,1,3000); hold(0,120);
+    assert(telemetry.requested_cps[0]==(right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS));
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(0,201,3000);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* inner does not renew 200-ms exit age */
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(right?2:8,1,3000); sample(0,1,3000);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* newest outer wins */
+
+    reset(0,1); hold(right?2:8,30); hold(0,300);
+    sample(edge,1,3000); sample(inner,1,3000); sample(inner,4,3000);
+    assert(output.valid && !BuzzerPhrase400_IsPlaying()); /* confirmed capture still commits */
+    hold(0,120);
+    assert(LineRecovery_GetDirection()==(right?-1:1)); /* no stale pending exit after capture */
+
+    reset(0,1); hold(inner,30); reset(0,1); sample(overlap,1,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* no transition across reset */
+
+    reset(0,1); hold(inner,30); sample(overlap,31,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* no transition across >30-ms observation gap */
+
+    reset(0,1); hold(inner,30); sample(15,1,3000); sample(overlap,1,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* broad mark interrupts the ordering evidence */
+
+    reset(0,1); hold(inner,30); sample(overlap,1,3000); hold(overlap,410); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT); /* static pair never renews inferred side */
+
+    reset(0,1); hold(inner,30); background_sample(overlap,260); sample(0,0,3000);
+    hold(0,120); assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.source==LINE_SEARCH_DEFAULT && decision.queue_overwritten>0);
+
+    tick=UINT32_MAX-32U; reset(0,1); hold(inner,30);
+    background_sample(overlap,1); background_sample(0,2); sample(0,0,3000); hold(0,120);
+    assert(LineFaultLog_GetSearch(LineFaultLog_SearchCount()-1,&decision));
+    assert(decision.hint_mask==overlap && decision.chosen_side==(right?1:-1));
+  }
+  puts("PASS: strong-hint bounce protection, expiry, newer outer, capture, reset, gap, broad interruption, static overlap, overflow, wrap");
+  line_tracking_reset();
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_strong_exit_survives_inner_contact();
   test_overlapping_direction_and_interrupted_confirmation();
   test_direction_pattern_matrix();
   test_direction_survives_short_wide_mark();

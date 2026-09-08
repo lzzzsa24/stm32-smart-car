@@ -59,8 +59,11 @@ static uint32_t last_observation_ms;
 static uint8_t last_edge_mask, last_wide_mask;
 static uint32_t last_edge_ms, last_wide_ms;
 static int8_t last_logged_side;
+static uint8_t previous_raw_valid, previous_raw_mask;
+static uint32_t previous_raw_ms;
 
 #define TRACKING_HINT_CONFIRM_MS                4U
+#define TRACKING_EDGE_TRANSITION_MAX_GAP_MS    30U
 #define TRACKING_CROSS_CLEAR_MS               100U
 #define TRACKING_NARROW_GAP_MS                 60U
 #define TRACKING_CORNER_CONFIRM_MS             12U
@@ -202,8 +205,19 @@ static uint8_t reading_mask(const LineTrackingReading *r)
       (r->x3_black << 2) | (r->x4_black << 3));
 }
 
-/* Observe sensor position, never the filtered motor correction. A newly
-   opposing observation invalidates the old hint while it is being confirmed. */
+static void remember_outer_direction(int8_t side, uint8_t mask, uint32_t now)
+{
+  ambiguous_inner_side = 0;
+  ambiguous_inner_mask = 0U;
+  predicted_turn_direction = direction_candidate = side;
+  direction_crossing_hold = 0U;
+  direction_last_seen_ms = direction_candidate_since_ms = now;
+  direction_hint_mask = mask;
+  direction_center_active = 0U;
+}
+
+/* Observe sensor position, never filtered motor correction. Strong outer
+   evidence replaces a hint; lone-inner observations stay ambiguous. */
 static void update_direction_hint(const LineTrackingReading *reading,
                                   uint8_t active_count, uint32_t now)
 {
@@ -216,13 +230,7 @@ static void update_direction_hint(const LineTrackingReading *reading,
      command gate are separate, so this observation cannot itself start a spin. */
   if (line_tracking_direction_evidence(reading))
   {
-    ambiguous_inner_side = 0;
-    ambiguous_inner_mask = 0U;
-    predicted_turn_direction = direction_candidate = side;
-    direction_crossing_hold = 0U;
-    direction_last_seen_ms = direction_candidate_since_ms = now;
-    direction_hint_mask = reading_mask(reading);
-    direction_center_active = 0U;
+    remember_outer_direction(side, reading_mask(reading), now);
     return;
   }
   if (reading->x2_black && reading->x4_black)
@@ -315,6 +323,7 @@ void line_tracking_reset(void)
   LineSensorSample_Reset();
   sample_overwritten = 0U;
   last_edge_mask = last_wide_mask = 0U;
+  previous_raw_valid = 0U;
   last_logged_side = 0;
   last_observation_ms = HAL_GetTick();
   DriveBase_SetLineFaultObservation(0U, 0U, 0U);
@@ -410,6 +419,17 @@ static uint8_t unambiguous_edge(const LineTrackingReading *r)
 static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
 {
   uint8_t mask = reading_mask(r);
+  /* A static nonadjacent pair is ambiguous. A recent lone-inner observation
+     followed by the opposite outer newly appearing supplies ordered evidence.
+     Keep broad-pattern motor suppression; only update the future exit hint. */
+  if (previous_raw_valid && now - previous_raw_ms <= TRACKING_EDGE_TRANSITION_MAX_GAP_MS)
+  {
+    if (previous_raw_mask == 1U && mask == 9U) remember_outer_direction(1, mask, now);
+    else if (previous_raw_mask == 4U && mask == 6U) remember_outer_direction(-1, mask, now);
+  }
+  previous_raw_mask = mask;
+  previous_raw_ms = now;
+  previous_raw_valid = 1U;
   if (unambiguous_edge(r)) { last_edge_mask = mask; last_edge_ms = now; }
   if (transverse(r)) { last_wide_mask = mask; last_wide_ms = now; }
 }
@@ -474,6 +494,7 @@ static void consume_sampled_evidence(uint32_t through_ms)
     direction_crossing_hold = 0U;
     ambiguous_inner_side = 0;
     ambiguous_inner_mask = 0U;
+    previous_raw_valid = 0U;
     direction_center_active = 0U;
     sample_overwritten = lost;
   }

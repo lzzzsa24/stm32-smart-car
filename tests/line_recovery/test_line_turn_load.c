@@ -603,6 +603,43 @@ static void test_real_exit_direction_correction(void)
   }
   puts("PASS: actual DriveBase corrects both exit directions with/without middle, including expired window, without brake/restart");
 }
+static void test_real_strong_exit_handoff(void)
+{
+  unsigned right, overlap, ms, w;
+  for(right=0;right<2;++right) for(overlap=0;overlap<2;++overlap)
+  {
+    LineTrackingCommand out={0}; DriveBaseTelemetry t;
+    line_tracking_reset(); reset(); line_tracking_set_no_line_forward(0);
+    for(ms=0;ms<700;++ms)
+    {
+      unsigned mask=ms<100?(right?2:8):0;
+      LineTrackingReading r;
+      if(ms==200) mask=overlap?(right?1:4):(right?8:2);
+      if(ms==201) mask=overlap?(right?9:6):(right?4:1);
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?3:(pins[w]<0?-3:0);
+      ++tick; DriveBase_Task(tick);
+      r=(LineTrackingReading){mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,MOTOR_PWM_PERIOD);
+      DriveBase_GetTelemetry(&t);
+      assert(!t.fault_mask && t.mode==DRIVE_BASE_SPEED);
+      if(overlap && ms>=201 && ms<301)
+        assert(out.valid && t.requested_cps[0]>0 && t.requested_cps[0]==t.requested_cps[2]);
+      if(ms>=350)
+      {
+        int32_t target=right?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+        assert(t.requested_cps[0]==target && t.requested_cps[1]==target);
+        assert(t.requested_cps[2]==-target && t.requested_cps[3]==-target);
+        if(ms>=550) for(w=0;w<4;++w)
+          assert((int32_t)pins[w]*(w<2?target:-target)>0);
+      }
+    }
+    line_tracking_reset();
+    for(w=0;w<4;++w) assert(pins[w]==0);
+  }
+  puts("PASS: real DriveBase strong exit through inner contact and ordered nonadjacent overlap, both directions, four-wheel PWM and STOP");
+}
+
 static void test_real_corner_chatter(void)
 {
   unsigned side,ms,w;
@@ -989,6 +1026,7 @@ int main(void)
   test_real_search_capture();
   test_real_white_search();
   test_real_corner_chatter();
+  test_real_strong_exit_handoff();
   test_integrated_line_cap();
   test_bounded_automatic_waits();
   test_real_exit_direction_correction();

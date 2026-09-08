@@ -16,7 +16,9 @@ typedef enum
 LineRecoveryStopReason LineRecovery_GetStopReason(void);
 /* Current sensor-corrected side, -1 left / +1 right; zero after reset. */
 int8_t LineRecovery_GetDirection(void);
-/* Replay sampled direction evidence in main context, without motor/audio work. */
+/* Replay sampled direction evidence in main context, without motor/audio work.
+   Unconfirmed inner contact preserves the pending outer exit until white,
+   actual capture, contradictory outer evidence or its original age limit. */
 void LineRecovery_ObserveDirection(const LineTrackingReading *reading, uint32_t now);
 void LineRecovery_Stop(LineRecoveryStopReason reason);
 

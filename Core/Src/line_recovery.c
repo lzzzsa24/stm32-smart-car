@@ -161,12 +161,14 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
     exit_edge_seen = 1U;
     exit_last_ms = now;
   }
-  else if (r->x1_black || r->x2_black || r->x3_black || r->x4_black)
+  else if (r->x2_black || r->x4_black)
   {
-    /* A newer middle or ambiguous/wide observation supersedes the edge. */
+    /* Conflicting wide/outer evidence invalidates the pending exit. An inner
+       contact is still provisional until live capture confirms, so it must
+       not discard a fresh outer direction or renew that direction's age. */
     exit_edge_seen = 0U;
   }
-  else if (exit_edge_seen)
+  else if (!(r->x1_black || r->x3_black) && exit_edge_seen)
   {
     if (now - exit_last_ms <= EXIT_HINT_MAX_AGE_MS)
     {
@@ -224,6 +226,7 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
       {
         stop_audio();
         phase = REC_CAPTURED;
+        exit_edge_seen = 0U;
         return LINE_RECOVERY_CAPTURED;
       }
       center_last_ms = now;
