@@ -22,18 +22,18 @@ formal_bin_size_bytes: 99460
 flashed_bin_sha256: 7268C24CD4B0C8534AD509E477495EAE6CAAB5C453DFD869ABC89FA028EE382B
 flashed_hex_sha256: F661FB276C15B97D4186C9A2D7E47192BC4E7EBA7FA6C1E2B9CD284FD04994C7
 ground_test_status: not_tested_after_comprehensive_v8_c767baa_deployment
-k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
+k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
 candidate_source_commit: ff4bbc9
 candidate_bin_size_bytes: 90380
 candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
 candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
 user_reported_flash: tool_verified_c767baa_STM32_flash_readback_and_GO
-k210_candidate_source_commit: 0a02d3d
+k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
 remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
 remote_sync_branch: main
 stm32_runtime_status: COM11_c767baa_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
-k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
+k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
 temporary_flash_selector_commit: c767baa_comprehensive_v8_auto_recovery_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
@@ -48,6 +48,19 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 ## Canonical repository layout
 
 ### Latest deployment override — 2026-09-09
+
+Subsequently, the user requested the modes 3/4 K210 program. COM14 identified
+CanMV_Yahboom 2.1.1 with GC2145. The existing `/sd/main.py` (7256 bytes) already
+matched V8 `c767baa`'s `K210/sign_mode34.py`; it and `/flash/main.py` were backed
+up before the requested rewrite. Full script readback matched SHA-256
+`2BCFCC5E08671EE0F0E3BD0712A1DD217A3450BFDBD3C3DDA7EFE8807D38A3D8`.
+The existing 571432-byte `/sd/KPU/road_sign_det/road_sign_det.kmodel` matched
+`B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`
+on-device and was not rewritten. Soft reboot reported SD mount OK, model load
+success and `SIGN34 ready`, threshold 0.20, vflip/hmirror 0/0. Backup, manifest
+and startup log: `F:/myproject/jidian/validation/k210-sign34-20260909/backup-20260909-092318`.
+STM32 was not accessed in this K210 deployment. No board-link or motion test
+was performed; the active K210 application supports modes 3/4, not mode 5.
 
 At the user's explicit request, the STM32 now runs temporary comprehensive V8
 source `c767baa158a25cbf411aae6c1dadb5b631a2e51e`. Its exact clean worktree
