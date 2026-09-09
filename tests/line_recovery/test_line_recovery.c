@@ -29,6 +29,7 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *p,uint16_t n,GPIO_PinState s)
 { assert(p==Buzzer_GPIO_Port && n==Buzzer_Pin); if(s && !buzzer) ++attacks; buzzer=s; }
 int32_t DriveBase_EquivalentCpsFromPwm(int16_t p) { return p; }
 void DriveBase_PrepareLineTurnAssist(int32_t l,int32_t r) { (void)l; (void)r; }
+void DriveBase_PrepareFastLineTurnAssist(int32_t l,int32_t r) { (void)l; (void)r; }
 void DriveBase_SetLineFaultObservation(uint8_t e,uint8_t s,uint8_t r)
 { (void)e; (void)s; (void)r; }
 void DriveBase_GetTelemetry(DriveBaseTelemetry *t) { *t=telemetry; }
@@ -84,6 +85,42 @@ static void reset(uint8_t forward,uint8_t smooth)
   attacks=spins=reversals=brakes=0; previous_spin=0;
   line_tracking_set_no_line_forward(forward); line_tracking_set_smooth_mode(smooth);
 }
+static void test_fast_follow(void)
+{
+  unsigned side;
+  for(side=0;side<2;++side)
+  {
+    unsigned outer=side?8:2, pair=side?12:3;
+    reset(0,1); line_tracking_set_fast_follow(1);
+    hold(5,260); assert(output.left_cps==3050 && output.right_cps==3050);
+    sample(pair,10,3000);
+    assert((side?output.left_cps:output.right_cps)==3400);
+    assert((side?output.right_cps:output.left_cps)==1700);
+    sample(outer,10,3000);
+    assert((side?output.left_cps:output.right_cps)==3200);
+    assert((side?output.right_cps:output.left_cps)==0);
+    hold(outer,60);
+    assert(output.left_cps==-output.right_cps);
+    assert((side?output.left_cps:output.right_cps)==3200);
+    /* Wide interference immediately ends the spin and remains moving. */
+    sample(7,10,3000); assert(output.left_cps==2400 && output.right_cps==2400);
+    hold(5,150); hold(0,50);
+    assert(output.left_cps==2400 && output.right_cps==2400);
+    hold(0,80); assert(LineRecovery_IsSearching() && !output.valid);
+    hold(5,140); assert(output.valid && output.left_cps>=2800);
+    assert(!brakes && !attacks);
+    line_tracking_apply_command(&output,2000);
+    assert(telemetry.requested_cps[0]<=2000 && telemetry.requested_cps[2]<=2000);
+    line_tracking_apply_command(&output,0); assert(telemetry.mode==DRIVE_BASE_STOPPED);
+    sample(5,10,0); assert(!output.left_cps && !output.right_cps);
+    /* A mode reset cannot leak the fast profile into modes1-4. */
+    reset(0,1); hold(outer,150);
+    assert((side?output.left_cps:output.right_cps)==2200);
+    reset(0,1); hold(5,700); assert(output.left_cps==2700);
+  }
+  puts("PASS: mode5 fast centre, mirrored edge/adjacent steering, rolling 120ms rejoin, wide/gap priority, caps and mode reset");
+}
+
 static void assert_search(void)
 {
   assert(!output.valid && telemetry.mode==DRIVE_BASE_SPEED && LineRecovery_IsSearching());
@@ -1005,6 +1042,7 @@ static void test_mode1_straight_boost(void)
 
 int main(void)
 {
+  test_fast_follow();
   unsigned smooth,forward,i;
   test_mode1_straight_boost();
   test_persistent_outer_escalates();

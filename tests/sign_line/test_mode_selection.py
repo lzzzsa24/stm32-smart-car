@@ -44,7 +44,7 @@ static void app_audio_adjust_volume(int step) { (void)step; }
 checks = r'''
 _Static_assert(APP_MODE_INTEGRATED==0 && APP_MODE_LINE_ONLY==1 &&
                APP_MODE_SIGN_LINE==2 && APP_MODE_SIGN_GYRO_TANGENT==3 &&
-               APP_MODE_VISION_LINE_V4==4 && APP_MODE_STOPPED==5,
+               APP_MODE_FIXED_BYPASS==4 && APP_MODE_STOPPED==5,
                "Assigning key 4 must not renumber other mode telemetry");
 int main(void)
 {
@@ -53,7 +53,7 @@ int main(void)
   const uint8_t keys[]={IR_REMOTE_VIRTUAL_KEY1,IR_REMOTE_VIRTUAL_KEY2,
       IR_REMOTE_VIRTUAL_KEY3,IR_REMOTE_VIRTUAL_KEY4,IR_REMOTE_VIRTUAL_KEY5};
   const AppMode modes[]={APP_MODE_INTEGRATED,APP_MODE_LINE_ONLY,
-      APP_MODE_SIGN_LINE,APP_MODE_SIGN_GYRO_TANGENT,APP_MODE_VISION_LINE_V4};
+      APP_MODE_SIGN_LINE,APP_MODE_SIGN_GYRO_TANGENT,APP_MODE_FIXED_BYPASS};
   for(current=APP_MODE_INTEGRATED;current<=APP_MODE_STOPPED;++current)
   {
     for(source=0;source<2;++source)

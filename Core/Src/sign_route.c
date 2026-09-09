@@ -592,7 +592,7 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       cancel_route(4U, now, command);
       return 1U;
     }
-    if (turn_yaw >= SIGN_EXIT_MIN_MDEG &&
+    if (turn_yaw >= SIGN_SELECT_CAPTURE_MIN_MDEG &&
         heading_error >= -10000LL && heading_error <= 10000LL)
     {
       enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);

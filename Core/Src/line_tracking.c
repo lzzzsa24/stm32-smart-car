@@ -39,6 +39,7 @@ static uint32_t smooth_centered_since_ms;
 static uint32_t smooth_ramp_update_ms;
 static int16_t smooth_straight_pwm;
 static uint8_t smooth_straight_boost;
+static uint8_t fast_follow_enabled;
 static uint16_t smooth_turn_gain_percent = 100U;
 
 typedef enum
@@ -99,6 +100,25 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
 
+/* Faster mode-5 following keeps edge priority and crossing/gap evidence.
+   These are target profiles, not raw motor PWM overrides. */
+#define FAST_STRAIGHT_BASE_PWM                 2800
+#define FAST_STRAIGHT_MAX_PWM                  3050
+#define FAST_CENTER_HOLD_MS                     120U
+#define FAST_REJOIN_MS                          120U
+#define FAST_EDGE_CPS                          3200L
+#define FAST_EDGE_ESCALATE_MS                    60U
+
+static int16_t follow_base_pwm(void)
+{ return fast_follow_enabled ? FAST_STRAIGHT_BASE_PWM : TRACKING_SMOOTH_STRAIGHT_BASE_PWM; }
+static int16_t follow_center_pwm(void)
+{ return fast_follow_enabled ? 2400 : TRACKING_SETTLE_CENTER_PWM; }
+static void prepare_follow_assist(int32_t left, int32_t right)
+{
+  if (fast_follow_enabled) DriveBase_PrepareFastLineTurnAssist(left, right);
+  else DriveBase_PrepareLineTurnAssist(left, right);
+}
+
 static int16_t clamp_speed(int32_t speed)
 {
   if (speed <= 0)
@@ -154,7 +174,7 @@ static void command_set_pwm(LineTrackingCommand *command,
   command->right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
   /* Preparing does not own the motors. DriveBase accepts only exact targets;
      a consumer applying a speed cap must rebind the claim to the final pair. */
-  DriveBase_PrepareLineTurnAssist(command->left_cps, command->right_cps);
+  prepare_follow_assist(command->left_cps, command->right_cps);
   command->action = action;
   command->valid = 1U;
 }
@@ -200,18 +220,21 @@ void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
 
 static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
 {
-  int16_t left = TRACKING_SETTLE_CENTER_PWM, right = TRACKING_SETTLE_CENTER_PWM;
+  int16_t left = follow_center_pwm(), right = follow_center_pwm();
+  int32_t edge_cps = fast_follow_enabled ? FAST_EDGE_CPS : TRACKING_EDGE_OUTER_CPS;
+  int32_t adjacent_inner = fast_follow_enabled ? 1700L : TRACKING_ADJACENT_INNER_CPS;
+  int32_t adjacent_outer = fast_follow_enabled ? 3400L : TRACKING_ADJACENT_OUTER_CPS;
   LineTrackingAction action = LINE_ACTION_FORWARD;
   if (r->x2_black && !r->x3_black && !r->x4_black)
   {
-    command->left_cps = r->x1_black ? TRACKING_ADJACENT_INNER_CPS : 0;
-    command->right_cps = r->x1_black ? TRACKING_ADJACENT_OUTER_CPS : TRACKING_EDGE_OUTER_CPS;
+    command->left_cps = r->x1_black ? adjacent_inner : 0;
+    command->right_cps = r->x1_black ? adjacent_outer : edge_cps;
     action = LINE_ACTION_LEFT_ADJUST;
   }
   else if (r->x4_black && !r->x1_black && !r->x2_black)
   {
-    command->left_cps = r->x3_black ? TRACKING_ADJACENT_OUTER_CPS : TRACKING_EDGE_OUTER_CPS;
-    command->right_cps = r->x3_black ? TRACKING_ADJACENT_INNER_CPS : 0;
+    command->left_cps = r->x3_black ? adjacent_outer : edge_cps;
+    command->right_cps = r->x3_black ? adjacent_inner : 0;
     action = LINE_ACTION_RIGHT_ADJUST;
   }
   if (action != LINE_ACTION_FORWARD)
@@ -223,21 +246,23 @@ static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCom
          correction on the floor. Persistent lone-edge evidence therefore
          removes forward travel and powers both sides against each other.
          Any other raw pattern clears this escalation, not a timed turn lock. */
-      command->left_cps = live_side * TRACKING_EDGE_OUTER_CPS;
+      command->left_cps = live_side * edge_cps;
       command->right_cps = -command->left_cps;
     }
     /* Both the initial pivot and sustained correction use explicit CPS.
        Do not inflate them through PWM conversion or KEY1's legacy gain.
        Adjacent pairs keep their forward arc; wide patterns have priority. */
-    DriveBase_PrepareLineTurnAssist(command->left_cps, command->right_cps);
+    prepare_follow_assist(command->left_cps, command->right_cps);
     command->action = action;
     command->valid = 1U;
     return;
   }
   if (r->x1_black && !r->x3_black)
-  { left = TRACKING_SETTLE_INNER_PWM; right = TRACKING_SETTLE_OUTER_PWM; action = LINE_ACTION_LEFT_ADJUST; }
+  { left = fast_follow_enabled ? 2400 : TRACKING_SETTLE_INNER_PWM;
+    right = fast_follow_enabled ? 2750 : TRACKING_SETTLE_OUTER_PWM; action = LINE_ACTION_LEFT_ADJUST; }
   else if (r->x3_black && !r->x1_black)
-  { left = TRACKING_SETTLE_OUTER_PWM; right = TRACKING_SETTLE_INNER_PWM; action = LINE_ACTION_RIGHT_ADJUST; }
+  { left = fast_follow_enabled ? 2750 : TRACKING_SETTLE_OUTER_PWM;
+    right = fast_follow_enabled ? 2400 : TRACKING_SETTLE_INNER_PWM; action = LINE_ACTION_RIGHT_ADJUST; }
   command_set_pwm(command, left, right, action);
 }
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
@@ -266,7 +291,7 @@ void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t
   }
   /* KEY1's ultrasonic cap changes the targets. A claim prepared before the
      cap is deliberately rejected by DriveBase, so bind only the final pair. */
-  DriveBase_PrepareLineTurnAssist(left, right);
+  prepare_follow_assist(left, right);
   if (left == 0L && right == 0L) DriveBase_Stop(DRIVE_STOP_COAST);
   else DriveBase_SetSideCps(left, right);
 }
@@ -447,6 +472,7 @@ void line_tracking_reset(void)
   smooth_ramp_update_ms = HAL_GetTick();
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
   smooth_straight_boost = 0U;
+  fast_follow_enabled = 0U;
   recovery_state = LINE_RECOVERY_NORMAL;
   recovery_state_started_ms = HAL_GetTick();
 }
@@ -457,6 +483,15 @@ void line_tracking_set_straight_boost(uint8_t enable)
   if (!smooth_straight_boost &&
       smooth_straight_pwm > TRACKING_SMOOTH_STRAIGHT_MAX_PWM)
     smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
+}
+
+void line_tracking_set_fast_follow(uint8_t enable)
+{
+  uint8_t next = enable != 0U;
+  if (next == fast_follow_enabled) return;
+  fast_follow_enabled = next;
+  smooth_straight_pwm = follow_base_pwm();
+  smooth_centered_active = smooth_filter_valid = 0U;
 }
 
 void line_tracking_set_no_line_forward(uint8_t enable)
@@ -572,7 +607,9 @@ static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
     }
     held_outer_side = outer;
     held_outer_last_ms = now;
-    if (now - held_outer_since_ms >= TRACKING_EDGE_ESCALATE_MS) held_outer_strong = 1U;
+    if (now - held_outer_since_ms >=
+        (fast_follow_enabled ? FAST_EDGE_ESCALATE_MS : TRACKING_EDGE_ESCALATE_MS))
+      held_outer_strong = 1U;
   }
   /* A static nonadjacent pair is ambiguous. A recent lone-inner observation
      followed by the opposite outer newly appearing supplies ordered evidence.
@@ -753,7 +790,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   {
     if (line_tracking_direction_evidence(reading)) update_direction_hint(reading, active_count, now);
     observe_crossing(now);
-    command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
+    command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
     return command->action;
   }
   if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
@@ -763,7 +800,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     if (!(current_line_priority && active_count) &&
         now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
-      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
+      command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
       return command->action;
     }
     crossing_active = 0U;
@@ -829,7 +866,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
     if (middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
     {
-      command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_FORWARD);
+      command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_FORWARD);
       return command->action;
     }
     if (no_line_forward_enabled != 0U && line_has_been_seen == 0U)
@@ -872,7 +909,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   }
   if (recovery_state == LINE_RECOVERY_SETTLE)
   {
-    if (now - recovery_state_started_ms >= TRACKING_REACQUIRE_SETTLE_MS &&
+    if (now - recovery_state_started_ms >=
+        (fast_follow_enabled ? FAST_REJOIN_MS : TRACKING_REACQUIRE_SETTLE_MS) &&
         middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
     {
       LineRecovery_Commit();
@@ -886,6 +924,11 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   }
   if (settling || hold_slow_profile)
   {
+    if (fast_follow_enabled)
+    {
+      command_visible_adjust(reading, command);
+      return command->action;
+    }
     /* Single-side outer evidence already returned to continuous turning.
        Middle and ambiguous/crossing patterns receive low-speed guidance. */
     weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
@@ -933,8 +976,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       int16_t curve_center;
       int16_t left_target;
       int16_t right_target;
-      int16_t straight_max = smooth_straight_boost
-          ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
+      int16_t straight_max = fast_follow_enabled ? FAST_STRAIGHT_MAX_PWM :
+          (smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM);
       uint8_t stable_center = (line_position == 0 &&
                                reading->x2_black == 0U &&
                                reading->x4_black == 0U) ? 1U : 0U;
@@ -946,10 +989,10 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
           smooth_centered_active = 1U;
           smooth_centered_since_ms = now;
           smooth_ramp_update_ms = now;
-          smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+          smooth_straight_pwm = follow_base_pwm();
         }
         else if (now - smooth_centered_since_ms >=
-                 TRACKING_SMOOTH_CENTER_HOLD_MS &&
+                 (fast_follow_enabled ? FAST_CENTER_HOLD_MS : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
                  now - smooth_ramp_update_ms >=
                  TRACKING_SMOOTH_RAMP_INTERVAL_MS)
         {
@@ -958,9 +1001,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
           {
             smooth_straight_pwm = clamp_speed(
                 (int32_t)smooth_straight_pwm +
-                TRACKING_SMOOTH_RAMP_STEP_PWM);
-            if (smooth_straight_pwm > straight_max)
-              smooth_straight_pwm = straight_max;
+                (fast_follow_enabled ? 40 : TRACKING_SMOOTH_RAMP_STEP_PWM));
+            if (smooth_straight_pwm > straight_max) smooth_straight_pwm = straight_max;
           }
         }
       }
@@ -997,6 +1039,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       steering_work = ((int32_t)smooth_error_q8 * 3) / 2 +
                       derivative_q8 / 2;
       steering_work = (steering_work * smooth_turn_gain_percent) / 100L;
+      if (fast_follow_enabled) steering_work = steering_work * 125L / 100L;
       if (steering_work > TRACKING_SMOOTH_STEER_LIMIT)
       {
         steering = TRACKING_SMOOTH_STEER_LIMIT;
@@ -1012,7 +1055,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
 
       magnitude = smooth_error_q8 < 0
                 ? (int16_t)-smooth_error_q8 : smooth_error_q8;
-      curve_center = TRACKING_SMOOTH_CURVE_CENTER_PWM -
+      curve_center = (fast_follow_enabled ? 2900 : TRACKING_SMOOTH_CURVE_CENTER_PWM) -
           (int16_t)(((int32_t)magnitude *
                      TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM) / 256);
       left_target = clamp_speed((int32_t)curve_center + steering);

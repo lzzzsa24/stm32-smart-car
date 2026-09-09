@@ -449,7 +449,7 @@ static void build_screen(uint8_t app_mode,
     case 1U: draw_battery_header("LINE"); break;
     case 2U: draw_battery_header("M3 LINE"); break;
     case 3U: draw_battery_header("M4 RESERVED"); break;
-    case 4U: draw_battery_header("M5 VISION"); break;
+    case 4U: draw_battery_header("M5 BYPASS"); break;
     case 5U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
   }

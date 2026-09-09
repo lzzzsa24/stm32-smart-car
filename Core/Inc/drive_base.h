@@ -101,6 +101,9 @@ void DriveBase_SetSideCps(int32_t left_cps, int32_t right_cps);
    is consumed even on rejection; ordinary callers never renew it. Assistance
    expires after 60 ms without a newly armed, accepted command. No motion here. */
 void DriveBase_PrepareLineTurnAssist(int32_t left_cps, int32_t right_cps);
+/* Same one-command/60-ms lease; faster ramp and bounded deficit assistance.
+   Reserved for the mode-5 normal follower, not bypass or position owners. */
+void DriveBase_PrepareFastLineTurnAssist(int32_t left_cps, int32_t right_cps);
 
 /* Explicit line ownership. Encoder-derived speed faults are logged without
    stopping; direction/signal faults use bounded feedforward until mode reset.

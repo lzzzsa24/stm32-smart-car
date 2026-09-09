@@ -8,16 +8,11 @@ vision_uart = (ROOT / "Core/Src/vision_uart.c").read_text(encoding="utf-8")
 k210 = (ROOT / "K210/main.py").read_text(encoding="utf-8")
 sign = (ROOT / "K210/sign_mode34.py").read_text(encoding="utf-8")
 
-assert "APP_MODE_VISION_LINE_V4" in main
-assert "return APP_MODE_VISION_LINE_V4;" in main
+assert "return APP_MODE_FIXED_BYPASS;" in main
 assert "case '5': return IR_REMOTE_VIRTUAL_KEY5;" in main
-assert "vision_line_v4_task();" in main
-assert "VisionLineV4Control_Step" in main
-assert "vision_line_v4_command.state == VISION_LINE_V4_WAITING ||" in main
-assert "vision_line_v4_command.state == VISION_LINE_V4_LINK_STOP" in main
-assert "line_tracking_follow_once(2200, (int16_t)MOTOR_PWM_PERIOD)" in main
-assert "vision_line_fallback = 0U;" in main
-assert '"VLINE5 CURVE V4 START\\r\\n"' in main
+assert "vision_line_v4_task" not in main
+assert "VisionLineV4Control_Step" not in main
+assert "line_tracking_set_fast_follow(fixed_bypass_mode);" in main
 assert "vision_line_v4_diagnostic_dump();" in main
 assert 'DiagnosticUart_WriteString("VLINK V4=");' in main
 assert "IrRemoteKeyMap_Map(command)" in ir_source
@@ -39,4 +34,4 @@ assert "road_sign" not in k210
 assert "SIGN34 ready" in sign
 compile(k210, str(ROOT / "K210/main.py"), "exec")
 
-print("PASS: mode 5 binding, K210 v4 protocol, no sign model in mode 5")
+print("PASS: mode5 visual control retired; archived K210 v4 protocol retained")

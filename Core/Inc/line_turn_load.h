@@ -12,4 +12,7 @@ typedef struct
 int16_t LineTurnLoad_Update(LineTurnLoadState *state, uint8_t enabled,
                            int32_t target_cps, int32_t measured_cps,
                            uint32_t elapsed_ms);
+int16_t LineTurnLoad_UpdateFast(LineTurnLoadState *state, uint8_t enabled,
+                               int32_t target_cps, int32_t measured_cps,
+                               uint32_t elapsed_ms);
 #endif

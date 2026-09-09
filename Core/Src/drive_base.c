@@ -125,6 +125,7 @@ static uint8_t pulse_wrong_direction_streak[DRIVE_BASE_WHEEL_COUNT];
 static uint16_t battery_mv;
 static uint16_t voltage_compensation_permille;
 static uint8_t line_assist_pending, line_assist_active;
+static uint8_t line_fast_pending, line_fast_active;
 static uint32_t line_assist_prepared_ms, line_assist_accepted_ms;
 static int32_t line_assist_left, line_assist_right;
 static LineTurnLoadState line_load[DRIVE_BASE_WHEEL_COUNT];
@@ -133,6 +134,7 @@ static void reset_line_assist(void)
 {
   uint8_t motor;
   line_assist_pending = line_assist_active = 0U;
+  line_fast_pending = line_fast_active = 0U;
   for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
   {
     line_load[motor].slow_ms = 0U;
@@ -376,6 +378,9 @@ static void update_voltage_compensation(void)
 static int32_t ramp_toward(int32_t current, int32_t target)
 {
   int32_t step = DRIVE_TARGET_RAMP_CPS_PER_PERIOD;
+  if (drive_mode == DRIVE_BASE_SPEED && line_assist_active && line_fast_active &&
+      HAL_GetTick() - line_assist_accepted_ms < 60U)
+    step = 1100L;
 
   target = clamp_i32(target, -DRIVE_MAX_CPS, DRIVE_MAX_CPS);
   if ((current > 0L && target < 0L) || (current < 0L && target > 0L))
@@ -404,7 +409,7 @@ static int16_t speed_control_output(uint8_t motor,
   int8_t direction = sign_i32(target_cps);
   uint8_t direction_index = direction > 0 ? 1U : 0U;
 
-  line_extra = LineTurnLoad_Update(&line_load[motor],
+  line_extra = (line_fast_active ? LineTurnLoad_UpdateFast : LineTurnLoad_Update)(&line_load[motor],
       (uint8_t)(drive_mode == DRIVE_BASE_SPEED && line_assist_active &&
                 HAL_GetTick() - line_assist_accepted_ms < 60U &&
                 target_cps == requested_cps[motor]),
@@ -1268,6 +1273,7 @@ void DriveBase_Init(void)
 
 void DriveBase_PrepareLineTurnAssist(int32_t left_cps, int32_t right_cps)
 {
+  line_fast_pending = 0U;
   line_assist_pending = (uint8_t)(left_cps != right_cps &&
       (left_cps != 0L || right_cps != 0L) &&
       left_cps >= -DRIVE_MAX_CPS && left_cps <= DRIVE_MAX_CPS &&
@@ -1277,6 +1283,12 @@ void DriveBase_PrepareLineTurnAssist(int32_t left_cps, int32_t right_cps)
      no supplement; the moving side still needs bounded load assistance. */
   line_assist_right = right_cps;
   line_assist_prepared_ms = HAL_GetTick();
+}
+
+void DriveBase_PrepareFastLineTurnAssist(int32_t left_cps, int32_t right_cps)
+{
+  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  line_fast_pending = line_assist_pending;
 }
 
 void DriveBase_SetLineFaultObservation(uint8_t enabled, uint8_t sensors,
@@ -1330,7 +1342,8 @@ void DriveBase_SetWheelCps(int32_t motor1_cps,
       motor1_cps == line_assist_left && motor2_cps == line_assist_left &&
       motor3_cps == line_assist_right && motor4_cps == line_assist_right);
 
-  line_assist_pending = 0U;
+  uint8_t fast_claim = (uint8_t)(line_claim && line_fast_pending);
+  line_assist_pending = line_fast_pending = 0U;
 
   if (fault_mask != 0U || brake_phase != DRIVE_BRAKE_NONE ||
       position_state == DRIVE_POSITION_RUNNING ||
@@ -1367,12 +1380,13 @@ void DriveBase_SetWheelCps(int32_t motor1_cps,
   if (!line_claim) reset_line_assist();
   else
   {
-    if (now - line_assist_accepted_ms >= 60U)
+    if (now - line_assist_accepted_ms >= 60U || line_fast_active != fast_claim)
     {
       /* A delayed caller cannot revive effort learned before its pause. */
       reset_line_assist();
     }
     line_assist_active = 1U;
+    line_fast_active = fast_claim;
     line_assist_accepted_ms = now;
   }
 }

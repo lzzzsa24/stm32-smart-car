@@ -15,7 +15,7 @@ def block(text, marker):
 
 transition = block(main, "if (requested_mode != app_mode)")
 for mode in ("APP_MODE_INTEGRATED", "APP_MODE_LINE_ONLY"):
-    entry = block(transition, f"if (app_mode == {mode})")
+    entry = block(transition, "if ((app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_FIXED_BYPASS))" if mode == "APP_MODE_INTEGRATED" else f"if (app_mode == {mode})")
     assert entry.count("line_tracking_start_following();") == 1
     assert "line_tracking_set_" not in entry, "mode-specific tracking settings drifted"
 

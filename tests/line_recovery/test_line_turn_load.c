@@ -63,7 +63,8 @@ static void reset(void)
 }
 static void command(int32_t left,int32_t right,uint8_t assist)
 {
-  if(assist) DriveBase_PrepareLineTurnAssist(left,right);
+  if(assist==2) DriveBase_PrepareFastLineTurnAssist(left,right);
+  else if(assist) DriveBase_PrepareLineTurnAssist(left,right);
   DriveBase_SetSideCps(left,right);
 }
 static void sample(const int32_t delta[4])
@@ -1319,12 +1320,108 @@ static void test_bypass_contact_handoff(void)
   }
   puts("PASS: bypass outer contact preserves mirrored direction through white handoff and starts controlled visible correction");
 }
+static void test_fast_turn_assist(void)
+{
+  LineTurnLoadState load={0};
+  DriveBaseTelemetry fast, legacy;
+  unsigned wheel, i;
+  int direction;
+  const int32_t stopped[4]={0};
+  assert(LineTurnLoad_UpdateFast(&load,1,3200,0,20)==400);
+  assert(LineTurnLoad_UpdateFast(&load,1,3200,0,20)==800);
+  assert(LineTurnLoad_UpdateFast(&load,1,3200,0,20)==900);
+  assert(LineTurnLoad_UpdateFast(&load,1,3200,3000,20)==0);
+  assert(LineTurnLoad_UpdateFast(&load,1,-3200,50,20)==0);
+  assert(LineTurnLoad_UpdateFast(&load,1,3200,0,61)==0);
+  assert(LineTurnLoad_UpdateFast(&load,0,3200,0,20)==0);
+  for(direction=-1;direction<=1;direction+=2)
+    for(wheel=0;wheel<4;++wheel)
+    {
+      legacy=trace(direction*3200,-direction*3200,wheel,1);
+      fast=trace(direction*3200,-direction*3200,wheel,2);
+      assert(absolute(fast.output_pwm[wheel])>=absolute(legacy.output_pwm[wheel]));
+      for(i=0;i<4;++i) assert(absolute(fast.output_pwm[i])<=3599);
+    }
+  /* The fast lease accelerates a live turn, not straight/bypass/position. */
+  reset(); command(4500,-4500,2); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==1100);
+  reset(); command(4500,-4500,1); sample(stopped);
+  DriveBase_GetTelemetry(&legacy); assert(legacy.controlled_cps[0]==700);
+  reset(); command(4500,4500,2); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==700);
+  reset(); DriveBase_PrepareFastLineTurnAssist(4500,-4500);
+  DriveBase_SetSideCps(4000,-4000); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==700);
+  reset(); DriveBase_PrepareFastLineTurnAssist(4500,-4500); tick+=21;
+  DriveBase_SetSideCps(4500,-4500); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==700);
+  reset(); command(4500,-4500,2); sample(stopped); sample(stopped); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==2900); /* 60ms expiry */
+  command(4500,-4500,1); sample(stopped);
+  DriveBase_GetTelemetry(&fast); assert(fast.controlled_cps[0]==3600);
+  DriveBase_Stop(DRIVE_STOP_COAST);
+  for(i=0;i<4;++i) assert(pins[i]==0);
+  {
+    DrivePositionCommand move={{1000,1000,1000,1000},{2500,2500,2500,2500},1000,12,DRIVE_STOP_COAST};
+    assert(DriveBase_StartPositionMove(&move)); command(3200,-3200,2);
+    DriveBase_GetTelemetry(&fast); assert(fast.mode==DRIVE_BASE_POSITION);
+    DriveBase_Stop(DRIVE_STOP_COAST);
+  }
+  reset(); command(3200,-3200,2);
+  {
+    const int32_t moving[4]={64,64,-64,-64};
+    sample(moving); /* Brake ownership requires actual measured motion. */
+  }
+  DriveBase_Stop(DRIVE_STOP_BRAKE); command(3200,-3200,2);
+  DriveBase_GetTelemetry(&fast); assert(fast.mode==DRIVE_BASE_BRAKING);
+  reset(); line_tracking_reset();
+  puts("PASS: fast line assistance bounded/feedback-cleared, four-wheel mirror, faster ramp, lease expiry, mismatch, straight and STOP/position/brake isolation");
+}
+
+static void test_fast_follow_continuity(void)
+{
+  DriveBaseTelemetry d;
+  LineTrackingCommand out;
+  unsigned pass, phase, frame, wheel;
+  const unsigned masks[5]={5,2,8,5,7};
+  reset(); line_tracking_start_following(); line_tracking_set_fast_follow(1);
+  for(pass=0;pass<10;++pass) for(phase=0;phase<5;++phase)
+    for(frame=0;frame<20;++frame)
+    {
+      unsigned mask=masks[phase];
+      LineTrackingReading r={mask&1,(mask>>1)&1,(mask>>2)&1,(mask>>3)&1};
+      int32_t delta[4];
+      DriveBase_GetTelemetry(&d);
+      for(wheel=0;wheel<4;++wheel) delta[wheel]=d.controlled_cps[wheel]/50;
+      sample(delta); line_tracking_compute(&r,3000,&out);
+      line_tracking_apply_command(&out,3599); DriveBase_GetTelemetry(&d);
+      assert(d.mode==DRIVE_BASE_SPEED && out.valid);
+      assert(out.left_cps || out.right_cps);
+      for(wheel=0;wheel<4;++wheel) assert(absolute(d.output_pwm[wheel])<=3599);
+      if(phase==1 && frame>=8) assert(d.requested_cps[0]==-3200 && d.requested_cps[2]==3200);
+      if(phase==2 && frame>=8) assert(d.requested_cps[0]==3200 && d.requested_cps[2]==-3200);
+      if(phase==0 && frame==19) assert(d.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(3050));
+    }
+  line_tracking_apply_command(&out,0);
+  DriveBase_GetTelemetry(&d); assert(d.mode==DRIVE_BASE_STOPPED);
+  line_tracking_start_following();
+  {
+    LineTrackingReading outer={0,1,0,0};
+    line_tracking_compute(&outer,3000,&out); line_tracking_apply_command(&out,3599);
+    DriveBase_GetTelemetry(&d); assert(d.requested_cps[0]==0 && d.requested_cps[2]==2200);
+  }
+  line_tracking_reset(); reset();
+  puts("PASS: mode5 real four-wheel 1000-frame centre/left/right/wide sequence has no brake/stop commands; cap and legacy reentry retained");
+}
+
 int main(void)
 {
   LineTurnLoadState s={0};
   DriveBaseTelemetry t, baseline;
   int32_t creep[4]={1,50,-50,-50}, stopped[4]={0}, wrong[4]={-20,50,-50,-50};
   unsigned i;
+  test_fast_turn_assist();
+  test_fast_follow_continuity();
   test_bypass_contact_handoff();
   test_mode1_boost_real_drive();
   /* A single bad sample gets no assistance; the ramp and cap are finite. */
