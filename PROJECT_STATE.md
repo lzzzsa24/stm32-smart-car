@@ -23,10 +23,10 @@ flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572
 flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
 ground_test_status: not_tested_after_v14_8a46fd6_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
-candidate_source_commit: 91f2e3999762f93c0ecea58999c7a9464a974caf
+candidate_source_commit: 9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5
 candidate_bin_size_bytes: 104200
-candidate_bin_sha256: B29CFA61526E10D2D115727292FE3B82E277A094E4D9C499ADE31370725B3ECB
-candidate_hex_sha256: AB09A761EF3D04395269A4A5E74012F6ACEB2127328B9CCB77C53D169D639E56
+candidate_bin_sha256: 997E54D55F3F279EB27FBBBE0F32D93FCF6AFD68A768F485E4D4D2F01441F461
+candidate_hex_sha256: 3D82C83C4BD1B0F8004947ED040FE19E72ECF54B14F1961FAAC49C34E381F970
 user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
@@ -49,11 +49,14 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ### Latest unflashed comprehensive candidate: V15
 
-Source `91f2e3999762f93c0ecea58999c7a9464a974caf`, branch
+Source `9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5`, branch
 `test/comprehensive-v15-sign-horn-20260909`, worktree
 `F:/myproject/jidian/worktrees/comprehensive-v15-sign-horn`.
 Merges full V14 and `4c24f1f`: highest-score single left/right/horn selection,
-confirmed one-shot PG12 horn in modes 3/4, preserving STRACE and gyro logic.
+confirmed PG12 horn event in modes 3/4 now plays five complete phrases
+(nominally 7.65 seconds, nonblocking), preserving STRACE and gyro logic.
+Five-repeat integration assertion, unchanged horn latch regression and formal
+build passed. No new physical or listening test.
 Sign-line/K210/gyro/trace/horn and DFPlayer host tests plus ARM build passed.
 See that worktree's `COMPREHENSIVE_V15_SIGN_HORN.md` for artifacts. No flash,
 physical test or push; deployed STM32 and K210 remain unchanged. Testing the
