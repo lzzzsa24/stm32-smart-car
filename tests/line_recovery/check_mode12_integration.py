@@ -53,3 +53,6 @@ assert "UltrasonicAvoid_IsNoEchoFallbackActive" not in audio
 assert "UltrasonicAvoid_GetLastDistanceCm" not in audio
 assert "app_buzzer_safety_write(buzzer, safety_override);" in audio
 print("PASS: KEY1/KEY2 share tracking cycle; only KEY1 opts into straight boost; bypass/ultrasonic ownership and rejoin retained")
+assert main.count("bypass_config.fixed_route_direction = 1;") == 1
+assert 'DiagnosticUart_WriteUnsigned(telemetry.fixed_route_phase)' in main
+print("PASS: only mode-1 bypass enables the fixed right-hand rectangle and exposes phase telemetry")

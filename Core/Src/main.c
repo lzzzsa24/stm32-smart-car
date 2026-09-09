@@ -391,6 +391,8 @@ static void bypass_telemetry_task(void)
   DiagnosticUart_WriteString(" RV="); DiagnosticUart_WriteUnsigned(telemetry.return_yaw_valid);
   DiagnosticUart_WriteString(" RC="); DiagnosticUart_WriteUnsigned(telemetry.return_cruise);
   DiagnosticUart_WriteString(" CAP="); DiagnosticUart_WriteUnsigned(telemetry.captured_line_mask);
+  DiagnosticUart_WriteString(" FIX="); DiagnosticUart_WriteUnsigned(telemetry.fixed_route_phase);
+  DiagnosticUart_WriteString(" FB="); DiagnosticUart_WriteUnsigned(telemetry.fixed_route_fallback);
   DiagnosticUart_WriteString(" RM=");
   DiagnosticUart_WriteUnsigned(telemetry.return_travel_mm);
   DiagnosticUart_WriteString(" V=");
@@ -1565,6 +1567,7 @@ int main(void)
   EncoderTurn_Init();
   SquareEncoder_Init();
   LineObstacleBypass_GetDefaultConfig(&bypass_config);
+  bypass_config.fixed_route_direction = 1; /* Fixed rectangle: right 18 cm, ahead 12 cm, inward 45 deg. */
   bypass_config.emergency_speed_cps = EXP7_EMERGENCY_BRAKE_SPEED_CPS;
   bypass_config.reverse_cps = EXP7_BYPASS_REVERSE_CPS;
   bypass_config.forward_cps = EXP7_BYPASS_FORWARD_CPS;
