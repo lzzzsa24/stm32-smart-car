@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: ff4bbc9
 latest_code_commit: 7dbcb84
-flashed_source_commit: c177c3d4eaa89f5c15b87cb4fca761835000be02
-flash_record_commit: 1733e1d
-deployed_tag: deployed/2026-09-09-v12-c177c3d
+flashed_source_commit: b326a6ad4fa975982111ec82c21508c1e46074a1
+flash_record_commit: cb9c328
+deployed_tag: deployed/2026-09-09-v13-b326a6a
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 102148
-flashed_bin_sha256: FE4C8E49114DBA4A519FBE07CD6056DC539F40F1333F664AFD3F85CF56D12858
-flashed_hex_sha256: F5BF543E55ABD86BC495A5CDD57A7EDCA49101FD626733B9BFFB0E27BFCF2F37
-ground_test_status: not_tested_after_v12_c177c3d_deployment
+formal_bin_size_bytes: 102636
+flashed_bin_sha256: B53205952EE5709F8D0E78C55E751AB19477F6351ED278B36515E5BFD1D3EE48
+flashed_hex_sha256: 3044B999BBA711881AFCB4C6499DB39D731ED1680CC7164BA58DC2D2E40AE3D5
+ground_test_status: not_tested_after_v13_b326a6a_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
 candidate_source_commit: ff4bbc9
 candidate_bin_size_bytes: 90380
 candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
 candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
-user_reported_flash: tool_verified_c177c3d_STM32_flash_readback_and_GO
+user_reported_flash: tool_verified_b326a6a_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
 remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
 remote_sync_branch: main
-stm32_runtime_status: COM11_c177c3d_GO_IMU_CAL0_REJECT4_AZ21806to21940_not_READY
+stm32_runtime_status: COM11_b326a6a_GO_IMU_READY_CAL200_static20samples_pass_ACC_WARN1
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
-temporary_flash_selector_commit: c177c3d_comprehensive_v12_flashed
+temporary_flash_selector_commit: b326a6a_comprehensive_v13_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -48,6 +48,14 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 ## Canonical repository layout
 
 ### Latest deployment override — 2026-09-09
+
+Current board is V13 b326a6a: rebuilt, 102636 bytes written/read back, GO OK.
+Twenty stationary IMU queries all reported READY/CAL=200/F=0, AGE=18..23 ms,
+no backlog or restart. Displayed yaw changed +0.129 degree over 19.328 seconds.
+ACC_WARN=1 remains (mean AZ=21874); accelerometer magnitude is not calibrated.
+One initial unstable acceleration window was rejected before successful bias
+calibration. No physical turn/ground accuracy test. K210 unchanged.
+See DEPLOYMENT_B326A6A_20260909.md. V12/V11 failure statements below are historical.
 
 Newest: V12 c177c3d supersedes V11 below. Build, 102148-byte readback and GO
 passed. Five stationary IMU queries showed CAL=0, REJECT=4: Z acceleration
