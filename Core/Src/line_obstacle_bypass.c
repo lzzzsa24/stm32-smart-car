@@ -5,6 +5,7 @@
 #include "line_bypass_turn.h"
 #include "main.h"
 #include "motion_advanced.h"
+#include "mpu6050_yaw.h"
 
 /* Fault bits 0..3 are reserved for M1..M4 encoder/motor faults. */
 #define BYPASS_FAULT_CONTROLLER            0x10U
@@ -63,6 +64,15 @@ static uint32_t flank_travel_mm;
 static uint32_t return_travel_mm;
 static uint32_t segment_accounted_mm;
 static uint8_t latest_line_mask;
+static uint8_t capture_mask, capture_window_open, line_sample_valid;
+static uint32_t capture_ms, capture_window_ms, bypass_started_ms, last_line_sample_ms;
+static uint8_t return_phase_active, return_cruise, return_yaw_valid;
+static int32_t return_yaw_mdeg;
+#if MPU6050_BYPASS_ENABLED
+static int64_t bypass_start_yaw;
+static uint32_t bypass_yaw_generation;
+static uint8_t bypass_yaw_reference_valid;
+#endif
 static int32_t return_target_mdeg;
 
 static uint16_t inside_ir_adc;
@@ -298,17 +308,30 @@ static uint8_t state_allows_line_reacquire(void)
 
 static uint8_t line_reacquire_is_armed(void)
 {
-  return (flank_acquired != 0U ||
+  return (return_alignment_pending || return_aligned ||
+          active_drive_intent == BYPASS_INTENT_RETURN_TO_LINE ||
+          (bypass_state == LINE_BYPASS_TURNING &&
+           after_turn_drive_intent == BYPASS_INTENT_RETURN_TO_LINE) ||
+          flank_acquired != 0U ||
           (acquire_escape_committed != 0U &&
            flank_travel_mm >=
                bypass_config.blind_parallel_travel_mm)) ? 1U : 0U;
 }
 
-static void update_line_history(uint8_t line_mask)
+static void update_line_history(uint8_t line_mask, uint32_t sample_ms)
 {
   uint8_t clear_required = bypass_config.line_clear_samples;
   uint8_t confirm_required = bypass_config.line_confirm_samples;
 
+  uint8_t narrow = line_mask == 1U || line_mask == 2U || line_mask == 3U ||
+      line_mask == 4U || line_mask == 6U || line_mask == 8U || line_mask == 12U;
+  if (bypass_state == LINE_BYPASS_IDLE || bypass_state == LINE_BYPASS_DONE ||
+      bypass_state == LINE_BYPASS_FAULT || HAL_GetTick() - sample_ms > 100U ||
+      (int32_t)(sample_ms - bypass_started_ms) < 0 ||
+      (line_sample_valid && (int32_t)(sample_ms - last_line_sample_ms) <= 0)) return;
+  if (line_sample_valid && sample_ms - last_line_sample_ms > 30U)
+    line_clear_count = line_confirm_count = 0U;
+  line_sample_valid = 1U; last_line_sample_ms = sample_ms;
   latest_line_mask = line_mask;
   if (clear_required == 0U)
   {
@@ -334,14 +357,25 @@ static void update_line_history(uint8_t line_mask)
   }
 
   line_clear_count = 0U;
+  if (!narrow)
+  {
+    /* Later wide/transverse evidence invalidates a short edge of that mark. */
+    capture_mask = line_confirm_count = 0U;
+    return;
+  }
   if (original_line_cleared != 0U &&
       line_reacquire_is_armed() != 0U &&
-      state_allows_line_reacquire() != 0U)
+      state_allows_line_reacquire() != 0U && capture_window_open &&
+      (int32_t)(sample_ms - capture_window_ms) >= 0)
   {
     if (line_confirm_count < confirm_required)
     {
       ++line_confirm_count;
     }
+    /* Narrow outer contact may be only one ISR sample. Capture ownership now;
+       the line controller performs the subsequent low-speed centring. */
+    if ((line_mask & 9U) || line_confirm_count >= confirm_required)
+    { capture_mask = line_mask; capture_ms = sample_ms; }
   }
   else
   {
@@ -351,16 +385,19 @@ static void update_line_history(uint8_t line_mask)
 
 static uint8_t line_reacquired(void)
 {
-  uint8_t required = bypass_config.line_confirm_samples;
-
-  if (required == 0U)
-  {
-    required = 1U;
-  }
-  return (original_line_cleared != 0U &&
-          line_reacquire_is_armed() != 0U &&
-          line_confirm_count >= required) ? 1U : 0U;
+  return (capture_mask && HAL_GetTick() - capture_ms <= 100U &&
+          original_line_cleared != 0U &&
+          line_reacquire_is_armed() != 0U) ? 1U : 0U;
 }
+
+void LineObstacleBypass_ObserveRawSensors(uint8_t raw_mask, uint32_t sample_ms)
+{
+  uint8_t display = (uint8_t)(((raw_mask & 2U) ? 8U : 0U) |
+      ((raw_mask & 1U) ? 4U : 0U) | ((raw_mask & 4U) ? 2U : 0U) |
+      ((raw_mask & 8U) ? 1U : 0U));
+  update_line_history(display, sample_ms);
+}
+uint8_t LineObstacleBypass_GetCapturedLineMask(void) { return capture_mask; }
 
 static uint8_t acquire_turn_limit_reached(void)
 {
@@ -650,7 +687,11 @@ static void start_return_alignment(void)
 
 static void begin_return_to_line(void)
 {
+  return_phase_active = 1U;
   return_target_mdeg = configured_return_target();
+  /* Give the live >45-deg gate room to fire before the old angle owner's
+     braking lead/tolerance. This is not the new straight-leg endpoint. */
+  if (return_yaw_valid) return_target_mdeg = bypass_direction > 0 ? 60000L : -60000L;
   return_travel_mm = 0U;
   return_aligned = 0U;
   return_alignment_pending = 0U;
@@ -915,6 +956,9 @@ void LineObstacleBypass_Init(const LineObstacleBypassConfig *config)
   }
 
   bypass_state = LINE_BYPASS_IDLE;
+  capture_mask = capture_window_open = line_sample_valid = 0U;
+  return_phase_active = return_cruise = return_yaw_valid = 0U;
+  return_yaw_mdeg = 0L;
   active_drive_intent = BYPASS_INTENT_NONE;
   after_turn_drive_intent = BYPASS_INTENT_NONE;
   bypass_direction = 1;
@@ -961,6 +1005,18 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   {
     return 0U;
   }
+  capture_mask = capture_window_open = line_sample_valid = 0U;
+  bypass_started_ms = HAL_GetTick();
+  return_phase_active = return_cruise = return_yaw_valid = 0U;
+  return_yaw_mdeg = 0L;
+#if MPU6050_BYPASS_ENABLED
+  {
+    MpuYawReading imu;
+    MpuYaw_Refresh(HAL_GetTick()); MpuYaw_GetReading(&imu);
+    bypass_yaw_reference_valid = MpuYaw_IsReady(HAL_GetTick());
+    bypass_start_yaw = imu.yaw_mdeg; bypass_yaw_generation = imu.generation;
+  }
+#endif
 
   /* Do not issue an unconditional coast-stop here: that would cancel the
      unified drive layer's non-blocking emergency brake just after detection. */
@@ -1005,7 +1061,23 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   return 1U;
 }
 
-void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
+static uint8_t both_ir_clear(const LineObstacleBypassInput *input)
+{
+  return input->infrared_valid && !input->front_obstacle &&
+      (uint32_t)input->left_ir_adc > (uint32_t)input->left_ir_threshold + input->left_ir_hysteresis &&
+      (uint32_t)input->right_ir_adc > (uint32_t)input->right_ir_threshold + input->right_ir_hysteresis;
+}
+
+static void drive_return_continuously(void)
+{
+  int32_t cps = bypass_config.return_cps;
+  if (cps < 1412L) cps = 1412L;
+  if (cps > 1800L) cps = 1800L;
+  DriveBase_SetLineFaultObservation(1U, latest_line_mask, 254U);
+  DriveBase_SetSideCps(cps, cps);
+}
+
+static void bypass_task(const LineObstacleBypassInput *input)
 {
   uint32_t now = HAL_GetTick();
 
@@ -1027,16 +1099,47 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
 
   update_inside_ir(input);
   sample_relation(now);
-  update_line_history(input->line_mask);
+  update_line_history(input->line_mask, now);
+  if (line_reacquired() != 0U)
+  {
+    finish_done();
+    return;
+  }
   if (input->infrared_valid == 0U)
   {
     /* Side collision cannot be made safe without a valid inside IR channel. */
     enter_fault(BYPASS_FAULT_INFRARED_INVALID);
     return;
   }
-  if (line_reacquired() != 0U)
+  if (return_phase_active && !return_cruise && return_yaw_valid &&
+      return_yaw_mdeg > 45000L && both_ir_clear(input))
   {
-    finish_done();
+    stop_motion_controllers();
+    return_cruise = 1U;
+    net_turn_mdeg = return_yaw_mdeg * bypass_direction;
+    return_aligned = 1U; return_alignment_pending = 0U;
+    active_drive_intent = BYPASS_INTENT_RETURN_TO_LINE;
+    bypass_state = LINE_BYPASS_DRIVING;
+    drive_return_continuously();
+    return;
+  }
+  if (return_cruise)
+  {
+    DriveBaseTelemetry drive;
+    DriveBase_GetTelemetry(&drive);
+    if (drive.fault_mask || drive.mode != DRIVE_BASE_SPEED)
+    { enter_fault(drive.fault_mask); return; }
+    if (input->front_obstacle || input->left_ir_adc < input->left_ir_threshold ||
+        input->right_ir_adc < input->right_ir_threshold)
+    {
+      return_cruise = 0U;
+      if (return_yaw_valid) net_turn_mdeg = return_yaw_mdeg * bypass_direction;
+      stop_motion_controllers();
+      start_return_safety_correction();
+      return;
+    }
+    /* No 20-mm segment ends, angle quota or periodic re-turn on a clear leg. */
+    drive_return_continuously();
     return;
   }
 
@@ -1245,8 +1348,36 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
   }
 }
 
+void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (bypass_state != LINE_BYPASS_IDLE && bypass_state != LINE_BYPASS_DONE && bypass_state != LINE_BYPASS_FAULT)
+  {
+    MpuYawReading imu;
+    MpuYaw_Refresh(HAL_GetTick()); MpuYaw_GetReading(&imu);
+    return_yaw_valid = bypass_yaw_reference_valid && MpuYaw_IsReady(HAL_GetTick()) &&
+        imu.generation == bypass_yaw_generation;
+    if (return_yaw_valid)
+    {
+      int64_t delta = (imu.yaw_mdeg - bypass_start_yaw) * bypass_direction;
+      if (delta > 720000 || delta < -720000) return_yaw_valid = 0U;
+      else return_yaw_mdeg = (int32_t)delta;
+    }
+  }
+#endif
+  bypass_task(input);
+  if (state_allows_line_reacquire() && line_reacquire_is_armed())
+  {
+    if (!capture_window_open) capture_window_ms = HAL_GetTick();
+    capture_window_open = 1U;
+  }
+  else capture_window_open = 0U;
+}
+
 void LineObstacleBypass_Stop(void)
 {
+  capture_mask = capture_window_open = line_sample_valid = 0U;
+  return_phase_active = return_cruise = return_yaw_valid = 0U;
   stop_motion_controllers();
   bypass_state = LINE_BYPASS_IDLE;
   active_drive_intent = BYPASS_INTENT_NONE;
@@ -1280,6 +1411,10 @@ void LineObstacleBypass_GetTelemetry(LineObstacleBypassTelemetry *telemetry)
   telemetry->motion_intent = (uint8_t)active_drive_intent;
   telemetry->fault_mask = fault_mask;
   telemetry->line_mask = latest_line_mask;
+  telemetry->captured_line_mask = capture_mask;
+  telemetry->return_cruise = return_cruise;
+  telemetry->return_yaw_valid = return_yaw_valid;
+  telemetry->return_yaw_mdeg = return_yaw_mdeg;
   telemetry->original_line_cleared = original_line_cleared;
   telemetry->flank_acquired = flank_acquired;
   telemetry->acquire_escape_committed = acquire_escape_committed;

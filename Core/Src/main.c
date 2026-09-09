@@ -139,6 +139,8 @@ static uint32_t last_oled_update_ms;
 static uint32_t last_sign_uart_ms;
 static uint32_t last_vision_line_v4_uart_ms;
 static uint32_t last_bypass_uart_ms;
+static uint32_t bypass_front_trigger_ms, bypass_front_sample_ms;
+static uint8_t bypass_front_obstacle;
 static uint32_t last_battery_uart_ms;
 static uint32_t last_drive_base_uart_ms;
 static uint32_t last_fast_speed_cps;
@@ -383,6 +385,10 @@ static void bypass_telemetry_task(void)
   DiagnosticUart_WriteUnsigned(telemetry.return_aligned);
   DiagnosticUart_WriteString(" RT=");
   DiagnosticUart_WriteSigned(telemetry.return_target_mdeg / 1000L);
+  DiagnosticUart_WriteString(" RYAW="); DiagnosticUart_WriteSigned(telemetry.return_yaw_mdeg);
+  DiagnosticUart_WriteString(" RV="); DiagnosticUart_WriteUnsigned(telemetry.return_yaw_valid);
+  DiagnosticUart_WriteString(" RC="); DiagnosticUart_WriteUnsigned(telemetry.return_cruise);
+  DiagnosticUart_WriteString(" CAP="); DiagnosticUart_WriteUnsigned(telemetry.captured_line_mask);
   DiagnosticUart_WriteString(" RM=");
   DiagnosticUart_WriteUnsigned(telemetry.return_travel_mm);
   DiagnosticUart_WriteString(" V=");
@@ -1972,11 +1978,35 @@ int main(void)
        the line on the far side, faults, or the user changes mode/stops. */
     if (LineObstacleBypass_GetState() != LINE_BYPASS_IDLE)
     {
-      LineTrackingReading bypass_line = line_tracking_read();
+      LineTrackingReading bypass_line;
       LineObstacleBypassInput bypass_input;
       LineObstacleBypassState bypass_state;
+      LineSensorSample sample;
+      uint32_t through_ms = HAL_GetTick();
 
+      while (LineSensorSample_PopThrough(&sample, through_ms))
+        LineObstacleBypass_ObserveRawSensors(sample.mask, sample.time_ms);
+
+      /* Service the front sensor without invoking the old ultrasonic motor
+         callbacks while bypass owns the drive. Missing data expires normally. */
+      {
+        uint16_t cm;
+        uint8_t result;
+        Ultrasonic_Task();
+        result = Ultrasonic_GetResult(&cm);
+        if (result == ULTRASONIC_RESULT_OK)
+        {
+          bypass_front_sample_ms = HAL_GetTick();
+          bypass_front_obstacle = cm <= EXP7_ULTRASONIC_STOP_CM;
+        }
+        if (HAL_GetTick() - bypass_front_sample_ms > 250U) bypass_front_obstacle = 0U;
+        if (!Ultrasonic_IsBusy() && HAL_GetTick() - bypass_front_trigger_ms >= 60U && Ultrasonic_Start())
+          bypass_front_trigger_ms = HAL_GetTick();
+      }
+
+      bypass_line = line_tracking_read();
       make_bypass_input(&bypass_input, &bypass_line, &ir_status);
+      bypass_input.front_obstacle = bypass_front_obstacle;
       LineObstacleBypass_Task(&bypass_input);
       bypass_state = LineObstacleBypass_GetState();
 
@@ -1997,17 +2027,17 @@ int main(void)
       {
         app_buzzer_safety_write(GPIO_PIN_RESET, 1U);
       }
-      bypass_telemetry_task();
-
       if (bypass_state == LINE_BYPASS_DONE)
       {
+        uint8_t contact = LineObstacleBypass_GetCapturedLineMask();
         LineObstacleBypass_Stop();
-        line_tracking_reset();
+        line_tracking_rejoin_from_bypass(contact);
         bypass_rearm_pending = 1U;
         bypass_ir_clear_samples = 0U;
         bypass_rearm_not_before_ms = HAL_GetTick() +
                                      BYPASS_REARM_DELAY_MS;
-        configure_ultrasonic_avoid();
+        UltrasonicAvoid_ResumeFollowing();
+        (void)line_tracking_follow_once(EXP7_LINE_SPEED, ultrasonic_forward_speed_limit);
         WheelSpeedObserver_Start();
         last_fast_speed_cps = 0U;
         last_fast_speed_ms = HAL_GetTick();
@@ -2016,6 +2046,7 @@ int main(void)
       {
         HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_SET);
       }
+      bypass_telemetry_task();
       motion_telemetry_task();
       HAL_Delay(1U);
       continue;

@@ -1238,12 +1238,36 @@ static void test_mode12_shared_following(void)
   puts("PASS: 3600 shared-cycle samples match current MODE2 including initial white, persistent edge, center, gaps, loss, caps and bypass-reset reentry");
 }
 
+static void test_bypass_contact_handoff(void)
+{
+  unsigned i;
+  DriveBaseTelemetry d;
+  const uint8_t masks[2]={8,1};
+  for(i=0;i<2;++i)
+  {
+    int32_t side=i ? 1 : -1;
+    reset(); line_tracking_rejoin_from_bypass(masks[i]);
+    /* The LED pulse is already over at application handoff. */
+    line_gpio_mask=0; ++tick; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&d);
+    assert(d.requested_cps[0]==side*LINE_SEARCH_TARGET_CPS);
+    assert(d.requested_cps[2]==-side*LINE_SEARCH_TARGET_CPS);
+    line_tracking_rejoin_from_bypass(masks[i]);
+    line_gpio_mask=i ? 8U : 2U; ++tick; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+    DriveBase_GetTelemetry(&d);
+    assert(d.requested_cps[i ? 0 : 2]==2200);
+    assert(d.requested_cps[i ? 2 : 0]==0);
+    line_tracking_reset(); line_gpio_mask=0;
+  }
+  puts("PASS: bypass outer contact preserves mirrored direction through white handoff and starts controlled visible correction");
+}
 int main(void)
 {
   LineTurnLoadState s={0};
   DriveBaseTelemetry t, baseline;
   int32_t creep[4]={1,50,-50,-50}, stopped[4]={0}, wrong[4]={-20,50,-50,-50};
   unsigned i;
+  test_bypass_contact_handoff();
   /* A single bad sample gets no assistance; the ramp and cap are finite. */
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==0);
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==100);

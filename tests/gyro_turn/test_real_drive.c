@@ -215,6 +215,48 @@ static void test_automatic_recovery(void)
   LineBypassTurn_Stop();
   puts("PASS: angle failure -> bounded recovery -> encoder fallback -> fresh gyro restoration; STOP cancels recovery");
 }
+static void test_return_cruise(int direction)
+{
+  unsigned i;
+  LineObstacleBypassInput input={0};
+  LineObstacleBypassTelemetry b;
+  reset(); input.infrared_valid=1;
+  input.left_ir_adc=input.right_ir_adc=1700;
+  input.left_ir_threshold=input.right_ir_threshold=1700;
+  input.left_ir_hysteresis=input.right_ir_hysteresis=20;
+  assert(LineObstacleBypass_Start((int8_t)direction));
+  for(i=0;i<4000;++i)
+  {
+    plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
+    if(b.state==LINE_BYPASS_FAULT)
+      printf("return failed i=%u yaw=%ld gyro=%u net=%ld\n",i,(long)b.return_yaw_mdeg,GyroTurn_GetFault(),(long)b.net_turn_mdeg);
+    assert(b.state!=LINE_BYPASS_FAULT);
+    if(b.flank_acquired && b.flank_travel_mm>=120) input.left_ir_adc=input.right_ir_adc=3000;
+    if(b.return_cruise) break;
+  }
+  assert(i<4000 && b.return_yaw_valid && b.return_yaw_mdeg>45000);
+  for(i=0;i<500;++i)
+  {
+    DriveBaseTelemetry d;
+    plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
+    d=drive();
+    assert(b.return_cruise && b.state==LINE_BYPASS_DRIVING);
+    assert(d.mode==DRIVE_BASE_SPEED && d.requested_cps[0]==1700 && d.requested_cps[2]==1700);
+  }
+  /* A queued edge followed by a wide transverse mark is not a rejoin. */
+  ++tick; LineObstacleBypass_ObserveRawSensors(8,tick);
+  ++tick; LineObstacleBypass_ObserveRawSensors(15,tick);
+  ++tick; LineObstacleBypass_ObserveRawSensors(0,tick); LineObstacleBypass_Task(&input);
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_DRIVING);
+  /* An outer pulse between loop iterations survives the following white. */
+  ++tick; LineObstacleBypass_ObserveRawSensors(direction>0 ? 8U : 2U,tick);
+  ++tick; LineObstacleBypass_ObserveRawSensors(0,tick);
+  LineObstacleBypass_Task(&input);
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_DONE);
+  assert(LineObstacleBypass_GetCapturedLineMask()==(direction>0 ? 1U : 8U));
+  LineObstacleBypass_Stop();
+  puts("PASS: full mirrored bypass reaches measured inward >45, drives continuously 5s and captures one-sample outer rejoin");
+}
 int main(void)
 {
   setvbuf(stdout,0,_IONBF,0);
@@ -222,6 +264,7 @@ int main(void)
   test_bypass(1,0); test_bypass(-1,0); test_bypass(1,1); test_bypass(-1,1);
   test_faults();
   test_automatic_recovery();
+  test_return_cruise(1); test_return_cruise(-1);
   puts("PASS: real DriveBase/FIFO/gyro/bypass chain, mirror turns, yaw gain, brake/travel ownership, IR interruption, stall and STOP");
   return 0;
 }

@@ -84,6 +84,13 @@ static void test_continuity(void)
 }
 int main(void)
 {
+  start_clear();
+  send(ULTRASONIC_RESULT_OK,3,60);
+  stop_count=0;
+  UltrasonicAvoid_ResumeFollowing();
+  assert(!stop_count && output==1800 && UltrasonicAvoid_GetState()==ULTRASONIC_AVOID_FORWARD);
+  send(ULTRASONIC_RESULT_OK,3,60);
+  assert(stop_count && UltrasonicAvoid_GetState()==ULTRASONIC_AVOID_STOPPING);
   check(ULTRASONIC_RESULT_NONE,100);
   check(ULTRASONIC_RESULT_OUT_RANGE,100);
   check(ULTRASONIC_RESULT_TIMEOUT,UINT32_MAX-100);
