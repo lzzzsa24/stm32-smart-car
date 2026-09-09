@@ -19,4 +19,8 @@ if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\gyro_turn\test_return_gate.c /Fomanual-build-gyro-host-test\ /Femanual-build-gyro-host-test\test_return_gate.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-gyro-host-test\test_return_gate.exe
+if not "%errorlevel%"=="0" exit /b 1
+cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\gyro_turn\test_bypass_range.c Core\Src\line_bypass_range.c /Fomanual-build-gyro-host-test\ /Femanual-build-gyro-host-test\test_bypass_range.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-gyro-host-test\test_bypass_range.exe
 exit /b %errorlevel%

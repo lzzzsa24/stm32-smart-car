@@ -37,6 +37,7 @@
 #include "ir_avoid.h"
 #include "ir_remote.h"
 #include "line_obstacle_bypass.h"
+#include "line_bypass_range.h"
 #include "line_tracking.h"
 #include "line_recovery.h"
 #include "line_wait_guard.h"
@@ -75,11 +76,13 @@
    controller itself limits straight travel to EXP7_LINE_SPEED. */
 #define EXP7_ULTRASONIC_CRUISE_SPEED   3599
 #define EXP7_ULTRASONIC_SLOW_SPEED     2600
-/* Half-distance profile; 35 / 2 cm rounds up on the integer-cm interface. */
-#define EXP7_ULTRASONIC_STOP_CM          10U
-#define EXP7_ULTRASONIC_CLEAR_CM         18U
-#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 16U
-#define EXP7_ULTRASONIC_LOOKAHEAD_MS     70U
+/* Earlier approach trigger; keep the close guard within an active detour
+   separate from the approach threshold to avoid clipping every corner. */
+#define EXP7_ULTRASONIC_STOP_CM          20U
+#define EXP7_ULTRASONIC_CLEAR_CM         35U
+#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 30U
+#define EXP7_ULTRASONIC_LOOKAHEAD_MS    160U
+#define EXP7_ULTRASONIC_BYPASS_STOP_CM   15U
 #define EXP7_ASSUMED_FAST_SPEED_CPS    5300U
 #define EXP7_EMERGENCY_BRAKE_SPEED_CPS 3500U
 #define EXP7_FAST_SPEED_HOLD_MS          220U
@@ -143,8 +146,6 @@ static uint32_t last_oled_update_ms;
 static uint32_t last_sign_uart_ms;
 static uint32_t last_vision_line_v4_uart_ms;
 static uint32_t last_bypass_uart_ms;
-static uint32_t bypass_front_trigger_ms, bypass_front_sample_ms;
-static uint8_t bypass_front_obstacle;
 static uint32_t last_battery_uart_ms;
 static uint32_t last_drive_base_uart_ms;
 static uint32_t last_fast_speed_cps;
@@ -1758,6 +1759,7 @@ int main(void)
       LineWaitGuard_Reset(&line_wait_guard);
       WheelSpeedObserver_Stop();
       LineObstacleBypass_Stop();
+      LineBypassRange_Reset();
       bypass_rearm_pending = 0U;
       bypass_ir_clear_samples = 0U;
       bypass_rearm_not_before_ms = 0U;
@@ -2016,28 +2018,18 @@ int main(void)
       LineTrackingReading bypass_line;
       LineObstacleBypassInput bypass_input;
       LineObstacleBypassState bypass_state;
+      uint8_t bypass_front_obstacle;
       LineSensorSample sample;
       uint32_t through_ms = HAL_GetTick();
 
       while (LineSensorSample_PopThrough(&sample, through_ms))
         LineObstacleBypass_ObserveRawSensors(sample.mask, sample.time_ms);
 
-      /* Service the front sensor without invoking the old ultrasonic motor
-         callbacks while bypass owns the drive. Missing data expires normally. */
-      {
-        uint16_t cm;
-        uint8_t result;
-        Ultrasonic_Task();
-        result = Ultrasonic_GetResult(&cm);
-        if (result == ULTRASONIC_RESULT_OK)
-        {
-          bypass_front_sample_ms = HAL_GetTick();
-          bypass_front_obstacle = cm <= EXP7_ULTRASONIC_STOP_CM;
-        }
-        if (HAL_GetTick() - bypass_front_sample_ms > 250U) bypass_front_obstacle = 0U;
-        if (!Ultrasonic_IsBusy() && HAL_GetTick() - bypass_front_trigger_ms >= 60U && Ultrasonic_Start())
-          bypass_front_trigger_ms = HAL_GetTick();
-      }
+      /* Only a shot started on this forward leg may interrupt it. Echoes
+         collected while turning still face the original obstacle. */
+      bypass_front_obstacle = LineBypassRange_Task(
+          LineObstacleBypass_GetState() == LINE_BYPASS_DRIVING,
+          EXP7_ULTRASONIC_BYPASS_STOP_CM);
 
       bypass_line = line_tracking_read();
       make_bypass_input(&bypass_input, &bypass_line, &ir_status);
@@ -2097,6 +2089,7 @@ int main(void)
       {
         line_tracking_reset();
         WheelSpeedObserver_Stop();
+        LineBypassRange_Reset();
         (void)LineObstacleBypass_StartWithSpeed(confirmed_direction,
                                                 approach_speed_cps);
         last_bypass_uart_ms = HAL_GetTick() - 200U;
@@ -2127,6 +2120,7 @@ int main(void)
     {
       line_tracking_reset();
       WheelSpeedObserver_Stop();
+      LineBypassRange_Reset();
       (void)LineObstacleBypass_StartWithSpeed(
           choose_bypass_direction(&ir_status), approach_speed_cps);
       last_bypass_uart_ms = HAL_GetTick() - 200U;

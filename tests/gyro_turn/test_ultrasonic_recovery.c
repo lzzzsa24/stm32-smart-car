@@ -95,6 +95,17 @@ int main(void)
   check(ULTRASONIC_RESULT_OUT_RANGE,100);
   check(ULTRASONIC_RESULT_TIMEOUT,UINT32_MAX-100);
   test_continuity();
+  start_clear(); UltrasonicAvoid_SetThresholds(20,35); UltrasonicAvoid_SetEmergencyDistance(30);
+  send(ULTRASONIC_RESULT_OK,31,60); assert(!stop_count);
+  send(ULTRASONIC_RESULT_OK,30,60); assert(!stop_count && output==1800);
+  send(ULTRASONIC_RESULT_OK,29,60);
+  assert(stop_count && UltrasonicAvoid_GetState()==ULTRASONIC_AVOID_STOPPING);
+  start_clear(); UltrasonicAvoid_SetThresholds(20,35); UltrasonicAvoid_SetEmergencyDistance(30);
+  send(ULTRASONIC_RESULT_OK,11,60); assert(!stop_count);
+  start_clear(); UltrasonicAvoid_SetThresholds(20,35); UltrasonicAvoid_SetEmergencyDistance(30);
+  send(ULTRASONIC_RESULT_OK,10,60);
+  assert(stop_count && UltrasonicAvoid_GetState()==ULTRASONIC_AVOID_STOPPING);
+  puts("PASS: 20/35-cm approach profile, two fresh echoes at 30 cm and immediate raw 10-cm stop");
   puts("PASS: no-result/out-of-range/timeout bounded slow fallback, wrap and immediate fresh close-obstacle priority");
   return 0;
 }
