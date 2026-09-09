@@ -1697,6 +1697,12 @@ int main(void)
         DiagnosticUart_WriteString(" REJECT="); DiagnosticUart_WriteUnsigned(imu.cal_reject);
         DiagnosticUart_WriteString(" LAST_REJECT="); DiagnosticUart_WriteUnsigned(imu.cal_last_reject);
         DiagnosticUart_WriteString(" REJECTS="); DiagnosticUart_WriteUnsigned(imu.cal_rejections);
+        DiagnosticUart_WriteString(" ACC_WARN="); DiagnosticUart_WriteUnsigned(imu.accel_reference_warning);
+        DiagnosticUart_WriteString(" ACC_REF=");
+        for (unsigned axis=0; axis<3; ++axis) {
+          if (axis) DiagnosticUart_WriteString(",");
+          DiagnosticUart_WriteSigned(imu.cal_accel_mean[axis]);
+        }
         DiagnosticUart_WriteString(" ACC=");
         for (unsigned axis=0; axis<3; ++axis) {
           if (axis) DiagnosticUart_WriteString(",");

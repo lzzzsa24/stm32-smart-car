@@ -63,5 +63,44 @@ int main(void)
   az=16384; MpuYaw_Task(3240,0); MpuYaw_GetReading(&r);
   assert(r.state==MPU_YAW_WAIT_STATIONARY && !MpuYaw_IsReady(3240));
   puts("PASS: signed DC bias over old limit calibrates, corrected yaw, unstable/tilted/inverted/outlier rejection and STOP requirement");
+  /* Replay all five measured stationary V12 tuples, not ideal 1g samples. */
+  {
+    static const int16_t x[]={1548,1548,1508,1518,1552};
+    static const int16_t z[]={21856,21940,21806,21834,21822};
+    static const int16_t rx[]={-194,-194,-194,-194,-197};
+    static const int16_t ry[]={-221,-217,-222,-217,-217};
+    static const int16_t rz[]={-14,-15,-15,-16,-15};
+    MpuYaw_Init(0); MpuYaw_Task(100,1); MpuYaw_Task(200,1);
+    for(t=210;t<=2200;t+=10) {
+      unsigned j=(t/10)%5;
+      ax=x[j]; az=z[j]; gx=rx[j]; gy=ry[j]; gz=rz[j];
+      MpuYaw_Task(t,1);
+    }
+    MpuYaw_GetReading(&r);
+    assert(MpuYaw_IsReady(2200) && r.calibration_samples==200);
+    assert(r.bias_milliraw==-15000 && r.accel_reference_warning==1);
+    assert(r.cal_accel_mean[2]==21851 && r.cal_rejections==0);
+    gz=-15;
+    for(t=2210;t<=12200;t+=10) MpuYaw_Task(t,1);
+    MpuYaw_GetReading(&r); assert(r.rate_mdeg_s==0 && r.yaw_mdeg==0);
+    gz=6535;
+    for(t=12210;t<=13200;t+=10) MpuYaw_Task(t,0);
+    MpuYaw_GetReading(&r); assert(r.yaw_mdeg==100000);
+  }
+  gx=gy=gz=ax=0; az=21850;
+  MpuYaw_Init(0); MpuYaw_Task(100,1); MpuYaw_Task(200,1);
+  for(t=210;t<=3200;t+=10) { az=(t/10)%2 ? 21000:22000; MpuYaw_Task(t,1); }
+  MpuYaw_GetReading(&r);
+  assert(!MpuYaw_IsReady(3200) && r.cal_last_reject==MPU_CAL_ACCEL_UNSTABLE);
+  az=24577; MpuYaw_Task(3210,1); MpuYaw_GetReading(&r); assert(r.cal_reject==MPU_CAL_Z);
+  az=12287; MpuYaw_Task(3220,1); MpuYaw_GetReading(&r); assert(r.cal_reject==MPU_CAL_Z);
+  az=-21850; MpuYaw_Task(3230,1); MpuYaw_GetReading(&r); assert(r.cal_reject==MPU_CAL_Z);
+  az=21850; ax=4501; MpuYaw_Task(3240,1); MpuYaw_GetReading(&r); assert(r.cal_reject==MPU_CAL_TILT);
+  ax=0; az=16384;
+  MpuYaw_Init(0); MpuYaw_Task(100,1); MpuYaw_Task(200,1);
+  for(t=210;t<=2200;t+=10) MpuYaw_Task(t,1);
+  MpuYaw_GetReading(&r); assert(MpuYaw_IsReady(2200) && !r.accel_reference_warning);
+  assert(r.cal_accel_mean[2]==16384 && r.bias_milliraw==0);
+  puts("PASS: measured biased-gravity replay, zero drift and yaw integration, warning, acceleration-change/pose/bounds rejection and reset");
   return 0;
 }

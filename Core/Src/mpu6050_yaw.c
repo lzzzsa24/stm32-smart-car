@@ -10,11 +10,19 @@
    not be treated as motion. Stability still requires <=65 raw span on ALL
    axes for 200 consecutive samples and a stopped, upright platform. */
 #define CAL_RAW_LIMIT 1310
+/* Yaw uses gyro Z, not acceleration magnitude. Allow a bounded stable gravity
+   reference (0.75..1.5 nominal g), but do not label a biased accelerometer
+   calibrated. Reject changing acceleration throughout the same 2 s window. */
+#define CAL_Z_MIN 12288
+#define CAL_Z_MAX 24576
+#define CAL_ACCEL_SPAN 800
 static MpuYawReading reading;
 static uint32_t stage_ms, last_poll_ms, calibration_ms;
 static uint8_t init_stage;
 static int64_t bias_sum, yaw_udeg;
 static int16_t cal_min[3], cal_max[3];
+static int16_t accel_min[3], accel_max[3];
+static int32_t accel_sum[3];
 static uint8_t bias_valid, restore_bias, ready_sample;
 static uint32_t service_ms, fault_ms;
 
@@ -36,6 +44,7 @@ static void clear_calibration(void)
 {
   reading.calibration_samples = 0;
   bias_sum = 0;
+  memset(accel_sum, 0, sizeof(accel_sum));
 }
 void MpuYaw_Init(uint32_t now_ms)
 {
@@ -43,6 +52,7 @@ void MpuYaw_Init(uint32_t now_ms)
   bias_valid = restore_bias = ready_sample = 0U;
   service_ms = now_ms;
   yaw_udeg = bias_sum = 0;
+  clear_calibration();
   stage_ms = last_poll_ms = calibration_ms = now_ms;
   init_stage = 0;
   if (!MpuBus_Init() || !MpuBus_Write(0x6bU, 0x80U)) fault(MPU_FAULT_BUS);
@@ -67,7 +77,7 @@ static void sample(const uint8_t *p, uint8_t stationary)
     uint8_t reject = 0U;
     if (!stationary) reject |= MPU_CAL_NOT_STOPPED;
     if (magnitude(ax) > 4500 || magnitude(ay) > 4500) reject |= MPU_CAL_TILT;
-    if (az * MPU6050_YAW_SIGN < 14000 || az * MPU6050_YAW_SIGN > 18500)
+    if (az * MPU6050_YAW_SIGN < CAL_Z_MIN || az * MPU6050_YAW_SIGN > CAL_Z_MAX)
       reject |= MPU_CAL_Z;
     if (magnitude(gyro[0]) > CAL_RAW_LIMIT || magnitude(gyro[1]) > CAL_RAW_LIMIT ||
         magnitude(gyro[2]) > CAL_RAW_LIMIT) reject |= MPU_CAL_RAW_LIMIT;
@@ -79,6 +89,15 @@ static void sample(const uint8_t *p, uint8_t stationary)
     }
     for (i = 0; i < 3; ++i)
     {
+      int16_t a = reading.raw_accel[i];
+      if (!reading.calibration_samples) accel_min[i] = accel_max[i] = a;
+      if (a < accel_min[i]) accel_min[i] = a;
+      if (a > accel_max[i]) accel_max[i] = a;
+      if ((int32_t)accel_max[i] - accel_min[i] > CAL_ACCEL_SPAN)
+      {
+        reading.cal_reject = reading.cal_last_reject = MPU_CAL_ACCEL_UNSTABLE;
+        ++reading.cal_rejections; clear_calibration(); return;
+      }
       if (!reading.calibration_samples) cal_min[i] = cal_max[i] = gyro[i];
       if (gyro[i] < cal_min[i]) cal_min[i] = gyro[i];
       if (gyro[i] > cal_max[i]) cal_max[i] = gyro[i];
@@ -89,9 +108,15 @@ static void sample(const uint8_t *p, uint8_t stationary)
       }
     }
     bias_sum += gyro[2];
+    for (i = 0; i < 3; ++i) accel_sum[i] += reading.raw_accel[i];
     if (++reading.calibration_samples == CAL_SAMPLES)
     {
       reading.bias_milliraw = (int32_t)(bias_sum * 1000 / CAL_SAMPLES);
+      for (i = 0; i < 3; ++i)
+        reading.cal_accel_mean[i] = (int16_t)(accel_sum[i] / (int32_t)CAL_SAMPLES);
+      reading.accel_reference_warning =
+          reading.cal_accel_mean[2] * MPU6050_YAW_SIGN < 14000 ||
+          reading.cal_accel_mean[2] * MPU6050_YAW_SIGN > 18500;
       reading.state = MPU_YAW_READY;
       bias_valid = ready_sample = 1U;
     }
@@ -135,6 +160,8 @@ void MpuYaw_Task(uint32_t now_ms, uint8_t stationary)
       reading.samples = previous.samples;
       reading.cal_last_reject = previous.cal_last_reject;
       reading.cal_rejections = previous.cal_rejections;
+      memcpy(reading.cal_accel_mean, previous.cal_accel_mean, sizeof(reading.cal_accel_mean));
+      reading.accel_reference_warning = previous.accel_reference_warning;
       reading.peak_fifo_bytes = previous.peak_fifo_bytes;
       reading.max_service_gap_ms = previous.max_service_gap_ms;
       reading.backlog_events = previous.backlog_events;
