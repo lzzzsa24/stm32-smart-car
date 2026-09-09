@@ -23,10 +23,10 @@ flashed_bin_sha256: 8D35B9376F602C68DD8B05BF62D7360DB7DD3973C89F9EB30CAF131EEBD5
 flashed_hex_sha256: FFD47049FE1210E9B0ED9521EBB25B0F08A530C33407A3ACB7FEAB2F1331E0E8
 ground_test_status: not_tested_after_a6c61d3_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: a6c61d30f4936aabf25ecc70ff9ae2bd304c088a
-candidate_bin_size_bytes: 108800
-candidate_bin_sha256: 8D35B9376F602C68DD8B05BF62D7360DB7DD3973C89F9EB30CAF131EEBD500CB
-candidate_hex_sha256: FFD47049FE1210E9B0ED9521EBB25B0F08A530C33407A3ACB7FEAB2F1331E0E8
+candidate_source_commit: 58c3744de08796edba355ef3becf8453819aa546
+candidate_bin_size_bytes: 109708
+candidate_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01
+candidate_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
 user_reported_flash: tool_verified_a6c61d3_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed candidate: 58c3744
+
+Comprehensive branch fast-forwarded from a6c61d3. Adds mode4 gyro-tangent
+trajectory while retaining mode3 live line feedback and latest mode1 bypass.
+Digital4 is a driving mode in this candidate, not STOP; board remains a6c61d3.
+Build and full sign/line/gyro suites passed. No serial/flash/physical test/push.
+K210 and main code unchanged. Side IR remains disabled. See
+docs/history/candidates/COMPREHENSIVE_58C3744_20260909.md.
+Supersedes older candidate statements only.
 
 ### Latest comprehensive deployment: a6c61d3
 
