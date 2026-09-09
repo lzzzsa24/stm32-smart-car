@@ -23,10 +23,10 @@ flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572
 flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
 ground_test_status: not_tested_after_v14_8a46fd6_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
-candidate_source_commit: 9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5
-candidate_bin_size_bytes: 104200
-candidate_bin_sha256: 997E54D55F3F279EB27FBBBE0F32D93FCF6AFD68A768F485E4D4D2F01441F461
-candidate_hex_sha256: 3D82C83C4BD1B0F8004947ED040FE19E72ECF54B14F1961FAAC49C34E381F970
+candidate_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
+candidate_bin_size_bytes: 104232
+candidate_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
+candidate_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
 user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
@@ -48,6 +48,13 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 ## Canonical repository layout
 
 ### Latest unflashed comprehensive candidate: V15
+
+Latest source is now `c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821`, merging
+`6908938` RGB-off in modes 3/4 while retaining five-repeat horn and gyro/trace.
+Full sign-line host suite and ARM build passed. Flash requested but blocked:
+live enumeration found Bluetooth ports only, no STM32 USB serial device.
+No erase/write/GO attempted; both boards unchanged. Prepared artifact hashes
+above supersede the older V15 hashes. See `PREPARED_C50D3C8_RGB_OFF.md`.
 
 Source `9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5`, branch
 `test/comprehensive-v15-sign-horn-20260909`, worktree
