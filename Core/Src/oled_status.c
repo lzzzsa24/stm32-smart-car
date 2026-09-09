@@ -635,7 +635,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   else
   {
     index = append_char(line, index,
-        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : '-'));
+        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : (vision_class == 2 ? 'H' : '-')));
     index = append_char(line, index, ' ');
     index = append_unsigned(line, index, vision_score);
   }

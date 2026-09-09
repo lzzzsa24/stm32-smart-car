@@ -19,6 +19,7 @@
 #include "main.h"
 #include "line_fault_log.h"
 #include "sign_trace.h"
+#include "sign_horn.h"
 #include "gpio.h"
 
 #include <stdint.h>
@@ -1008,6 +1009,8 @@ static void sign_line_slowdown_task(AppMode mode)
   {
     SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
     SignRoute_ObserveDetection(&detection);
+    if (SignHorn_Observe(&detection, HAL_GetTick()))
+      (void)BuzzerPhrase400_Start(1U);
   }
   sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
 }
@@ -1590,6 +1593,7 @@ int main(void)
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
   SignTrace_Init();
+  SignHorn_Reset();
   SignSlowdown_Reset();
   VisionLineV4Control_Init();
   vision_uart_init();
@@ -1746,6 +1750,7 @@ int main(void)
       uint32_t discarded_black_ms;
       (void)LineSensorSample_TakeAllBlack(&discarded_black_ms);
       SignSlowdown_Reset();
+      SignHorn_Reset();
       sign_slow_reasons = 0U;
       sign_speed_limit_cps = 0L;
       DriveBase_SetSpeedLimitCps(0L);
