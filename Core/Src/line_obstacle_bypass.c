@@ -1072,7 +1072,9 @@ static void drive_return_continuously(void)
 {
   int32_t cps = bypass_config.return_cps;
   if (cps < 1412L) cps = 1412L;
-  if (cps > 1800L) cps = 1800L;
+  /* Clear, gyro-aligned continuous return can run faster than the bounded
+     short obstacle-probing segments, whose 1800-CPS cap remains separate. */
+  if (cps > 2100L) cps = 2100L;
   DriveBase_SetLineFaultObservation(1U, latest_line_mask, 254U);
   DriveBase_SetSideCps(cps, cps);
 }

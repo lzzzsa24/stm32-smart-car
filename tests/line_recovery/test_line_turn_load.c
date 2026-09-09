@@ -1238,6 +1238,36 @@ static void test_mode12_shared_following(void)
   puts("PASS: 3600 shared-cycle samples match current MODE2 including initial white, persistent edge, center, gaps, loss, caps and bypass-reset reentry");
 }
 
+static void test_mode1_boost_real_drive(void)
+{
+  unsigned ms,w;
+  DriveBaseTelemetry d;
+  reset(); line_tracking_start_following(); line_gpio_mask=5;
+  for(ms=0;ms<1000;ms+=10)
+  {
+    tick+=10; line_tracking_set_straight_boost(1);
+    line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+  }
+  DriveBase_GetTelemetry(&d);
+  assert(DriveBase_EquivalentCpsFromPwm(2700)==3815);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==4544);
+  line_tracking_follow_once(3000,2600); DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==DriveBase_EquivalentCpsFromPwm(2600));
+  line_gpio_mask=8; ++tick; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+  DriveBase_GetTelemetry(&d);
+  assert(d.requested_cps[0]==2200 && d.requested_cps[1]==2200);
+  assert(d.requested_cps[2]==0 && d.requested_cps[3]==0);
+  line_tracking_follow_once(3000,0); DriveBase_GetTelemetry(&d);
+  assert(d.mode==DRIVE_BASE_STOPPED);
+  for(w=0;w<4;++w) assert(!d.requested_cps[w] && !pins[w]);
+  line_tracking_start_following(); line_gpio_mask=5;
+  for(ms=0;ms<1000;ms+=10) { tick+=10; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD); }
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==3815);
+  line_tracking_reset();
+  puts("PASS: real four-wheel mode-1 target 3815->4544 CPS, ultrasonic cap, immediate outer pivot, STOP and mode-2 rollback");
+}
+
 static void test_bypass_contact_handoff(void)
 {
   unsigned i;
@@ -1268,6 +1298,7 @@ int main(void)
   int32_t creep[4]={1,50,-50,-50}, stopped[4]={0}, wrong[4]={-20,50,-50,-50};
   unsigned i;
   test_bypass_contact_handoff();
+  test_mode1_boost_real_drive();
   /* A single bad sample gets no assistance; the ramp and cap are finite. */
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==0);
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==100);

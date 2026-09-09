@@ -67,6 +67,12 @@ int main(void)
     angle(&input,dir,45000); assert(!return_cruise);
     angle(&input,dir,45001); assert(return_cruise);
     assert(test_drive.requested_cps[0]==1700 && test_drive.requested_cps[2]==1700);
+    bypass_config.return_cps=2300; angle(&input,dir,46000);
+    assert(test_drive.requested_cps[0]==2100 && test_drive.requested_cps[2]==2100);
+    bypass_config.return_cps=1900; angle(&input,dir,46000);
+    assert(test_drive.requested_cps[0]==1900 && test_drive.requested_cps[2]==1900);
+    bypass_config.return_cps=900; angle(&input,dir,46000);
+    assert(test_drive.requested_cps[0]==1412 && test_drive.requested_cps[2]==1412);
     for(obstacle=1;obstacle<=3;++obstacle)
     {
       input=setup(dir);

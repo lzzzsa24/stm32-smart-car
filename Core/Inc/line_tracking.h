@@ -53,6 +53,9 @@ void line_tracking_reset(void);
 /* Shared KEY1/KEY2 entry: fresh history, smooth tracking, normal gain,
    and search rather than blind forward travel before the first line. */
 void line_tracking_start_following(void);
+/* Mode-1 opt-in for stable-centre acceleration only. Reset clears the opt-in;
+   callers reapply it while owning normal line following. Caps still apply. */
+void line_tracking_set_straight_boost(uint8_t enable);
 /* Bypass contact, display order: outer-left/inner-left/inner-right/outer-right
    =8/4/2/1. Retain its side through white gaps and start low-speed centring. */
 void line_tracking_rejoin_from_bypass(uint8_t contact_mask);

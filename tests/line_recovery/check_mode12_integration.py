@@ -21,6 +21,9 @@ for mode in ("APP_MODE_INTEGRATED", "APP_MODE_LINE_ONLY"):
 
 integrated = block(main, "static void experiment7_integrated_once(void)\n{")
 assert "line_tracking_follow_once(line_speed," in integrated
+assert "line_tracking_set_straight_boost(1U);" in integrated
+assert integrated.index("line_tracking_set_straight_boost(1U);") < integrated.index("line_tracking_follow_once(")
+assert main.count("line_tracking_set_straight_boost(") == 1, "boost must be mode-1-only"
 assert "ultrasonic_forward_speed_limit" in integrated
 assert "line_tracking_compute(" not in integrated
 runtime = main[main.index("sign_line_slowdown_task(app_mode);"):]
@@ -49,4 +52,4 @@ assert "ULTRASONIC_AVOID_STOPPING" in audio and "ULTRASONIC_AVOID_TURNING" in au
 assert "UltrasonicAvoid_IsNoEchoFallbackActive" not in audio
 assert "UltrasonicAvoid_GetLastDistanceCm" not in audio
 assert "app_buzzer_safety_write(buzzer, safety_override);" in audio
-print("PASS: KEY1/KEY2 share profile and cycle; bypass/ultrasonic gates retain ownership; rejoin clears stale history")
+print("PASS: KEY1/KEY2 share tracking cycle; only KEY1 opts into straight boost; bypass/ultrasonic ownership and rejoin retained")

@@ -218,9 +218,12 @@ static void test_automatic_recovery(void)
 static void test_return_cruise(int direction)
 {
   unsigned i;
+  LineObstacleBypassConfig config;
   LineObstacleBypassInput input={0};
   LineObstacleBypassTelemetry b;
-  reset(); input.infrared_valid=1;
+  reset(); LineObstacleBypass_GetDefaultConfig(&config);
+  config.return_cps=2300; LineObstacleBypass_Init(&config);
+  input.infrared_valid=1;
   input.left_ir_adc=input.right_ir_adc=1700;
   input.left_ir_threshold=input.right_ir_threshold=1700;
   input.left_ir_hysteresis=input.right_ir_hysteresis=20;
@@ -241,7 +244,7 @@ static void test_return_cruise(int direction)
     plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
     d=drive();
     assert(b.return_cruise && b.state==LINE_BYPASS_DRIVING);
-    assert(d.mode==DRIVE_BASE_SPEED && d.requested_cps[0]==1700 && d.requested_cps[2]==1700);
+    assert(d.mode==DRIVE_BASE_SPEED && d.requested_cps[0]==2100 && d.requested_cps[2]==2100);
   }
   /* A queued edge followed by a wide transverse mark is not a rejoin. */
   ++tick; LineObstacleBypass_ObserveRawSensors(8,tick);

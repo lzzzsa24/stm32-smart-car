@@ -1448,6 +1448,7 @@ static void experiment7_integrated_once(void)
   }
 
   /* 优先级 3：无视觉动作时进行四路黑线闭环循迹。 */
+  line_tracking_set_straight_boost(1U);
   {
     LineTrackingAction action = line_tracking_follow_once(line_speed,
                                                         ultrasonic_forward_speed_limit);
