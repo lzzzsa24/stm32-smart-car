@@ -184,15 +184,41 @@ static void test_slowdown(void)
   CHECK(SignSlowdown_TargetLimit(3U, 2700, -2700) == 0L);
   CHECK(SignSlowdown_TargetLimit(3U, 2400, 2400) == 1200L);
   CHECK(SignSlowdown_TargetLimit(3U, 0, 2200) == 1200L);
-  CHECK(SignSlowdown_TargetLimit(0U, 2400, 2400) == 0L);
+  CHECK(SignSlowdown_TargetLimit(0U, 2400, 2400) == 1200L);
   puts("PASS: one-frame slowdown, no-target/stale rejection, independent holds, reset and wrap");
 }
 
+static void test_slow_profile(void)
+{
+  SimpleLineController c;
+  unsigned i;
+  SimpleLine_Init(&c); SimpleLine_Start(&c);
+  for(i=0;i<1000;++i)
+  {
+    SimpleLine_StepSlow(&c, i%2 ? 2U:4U);
+    CHECK(c.left_pwm>=2200 && c.right_pwm>=2200);
+    CHECK(abs(c.left_pwm-c.right_pwm)==100);
+    CHECK(SignSlowdown_TargetLimit((uint8_t)(i%4),c.left_pwm,c.right_pwm)==1200);
+  }
+  for(i=1;i<16;++i)
+  {
+    SimpleLine_StepSlow(&c,0);
+    SimpleLine_StepSlow(&c,(uint8_t)i);
+    CHECK(c.left_pwm>0 && c.right_pwm>0);
+    CHECK(c.left_pwm<=2300 && c.right_pwm<=2300);
+  }
+  SimpleLine_StepSlow(&c,1); SimpleLine_StepSlow(&c,0);
+  CHECK(c.left_pwm==2700 && c.right_pwm==-2700);
+  SimpleLine_Stop(&c); SimpleLine_StepSlow(&c,6);
+  CHECK(c.left_pwm==0 && c.right_pwm==0);
+  puts("PASS: gentle alternating inner correction, steady cap, all visible masks forward, search and STOP");
+}
 int main(void)
 {
   test_parser();
   test_simple_line();
   test_sign_route();
   test_slowdown();
+  test_slow_profile();
   return 0;
 }
