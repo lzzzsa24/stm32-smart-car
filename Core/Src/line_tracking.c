@@ -439,6 +439,23 @@ void line_tracking_set_turn_gain_percent(uint16_t percent)
   smooth_turn_gain_percent = percent;
 }
 
+void line_tracking_start_following(void)
+{
+  line_tracking_reset();
+  line_tracking_set_no_line_forward(0U);
+  line_tracking_set_smooth_mode(1U);
+  line_tracking_set_turn_gain_percent(100U);
+}
+
+LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward_limit_pwm)
+{
+  LineTrackingReading reading = line_tracking_read();
+  LineTrackingCommand command;
+  LineTrackingAction action = line_tracking_compute(&reading, base_speed, &command);
+  line_tracking_apply_command(&command, forward_limit_pwm);
+  return action;
+}
+
 LineTrackingReading line_tracking_read(void)
 {
   LineTrackingReading reading = {0};
