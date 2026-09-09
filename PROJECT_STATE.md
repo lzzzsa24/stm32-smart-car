@@ -23,7 +23,7 @@ flashed_bin_sha256: 3A0AF2618594AF6F88D8C94F73D81989F06D8A91EA1B2A84E5972ADBE38C
 flashed_hex_sha256: D76A3CCA24947183C4F99E367643AC34F39A6554DD844925A028129B20D0742F
 ground_test_status: not_tested_after_917df47_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 917df4763fdfd0a669b3f5366cc2eae2ed508048
+candidate_source_commit: 426dedd31459a117256d70299733cf2c249a693f
 candidate_bin_size_bytes: 105612
 candidate_bin_sha256: 3A0AF2618594AF6F88D8C94F73D81989F06D8A91EA1B2A84E5972ADBE38C53DD
 candidate_hex_sha256: D76A3CCA24947183C4F99E367643AC34F39A6554DD844925A028129B20D0742F
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Comprehensive branch synchronized with deployed 917df47
+
+Merge 426dedd31459a117256d70299733cf2c249a693f on
+test/comprehensive-v15-sign-horn-20260909 includes 917df47. Core, K210, tests,
+Drivers, build script and linker script match that previously tested source.
+Formal rebuild passed; BIN and HEX SHA256 exactly match the deployed 917df47
+hashes above. Worktree is clean. No new flash, physical test or GitHub push.
+This supersedes the older statement that this branch still points to 6bd0c89.
+Main firmware code is unchanged; only the comprehensive test branch was merged.
 
 ### Latest exact test deployment: 917df47
 
