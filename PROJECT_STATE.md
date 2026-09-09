@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: 37a04b053b69e8c35aa3bec46767be9711820c9e
-flash_record_commit: 9aa61fa
-deployed_tag: deployed/2026-09-09-37a04b0
+flashed_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
+flash_record_commit: cfc0e7d
+deployed_tag: deployed/2026-09-09-20e8c72
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 104956
-flashed_bin_sha256: E0DD396D4631078820EC8F6A884535EC7BEEDE00A498676EACFC08F2A46E3B34
-flashed_hex_sha256: A12B04B8CDF89D5F971AD7AC75AF4237DF8E68EAD6555CB5780A0F07B4D9F027
-ground_test_status: not_tested_after_37a04b0_deployment
-k210_status: COM14_0987233_SIGN34_7334_bytes_readback_model_hash_startup_verified
-candidate_source_commit: 37a04b053b69e8c35aa3bec46767be9711820c9e
-candidate_bin_size_bytes: 104956
-candidate_bin_sha256: E0DD396D4631078820EC8F6A884535EC7BEEDE00A498676EACFC08F2A46E3B34
-candidate_hex_sha256: A12B04B8CDF89D5F971AD7AC75AF4237DF8E68EAD6555CB5780A0F07B4D9F027
-user_reported_flash: tool_verified_37a04b0_readback_GO
-k210_candidate_source_commit: 37a04b053b69e8c35aa3bec46767be9711820c9e
-k210_candidate_status: threshold_0_15_NOT_DEPLOYED_port_absent_old_0987233_threshold_0_20
+formal_bin_size_bytes: 105472
+flashed_bin_sha256: 7B9C4EEB33D07BE3D49D64E171C24260ABF588A7D580BC2B1A8B7D14AAFFA0EA
+flashed_hex_sha256: B24C8E48588369604596E9732FA3300DBAF5CA209ACA8FC10A42875FE49F32C6
+ground_test_status: not_tested_after_20e8c72_deployment
+k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
+candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
+candidate_bin_size_bytes: 105472
+candidate_bin_sha256: 7B9C4EEB33D07BE3D49D64E171C24260ABF588A7D580BC2B1A8B7D14AAFFA0EA
+candidate_hex_sha256: B24C8E48588369604596E9732FA3300DBAF5CA209ACA8FC10A42875FE49F32C6
+user_reported_flash: tool_verified_20e8c72_readback_GO
+k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
+k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_37a04b0_readback_GO_no_post_GO_query
-k210_requested_deployment: SIGN34_modes3_4_complete_20260909_0987233
-temporary_flash_selector_commit: 37a04b0_comprehensive_first_frame_crawl_flashed
+stm32_runtime_status: COM11_20e8c72_readback_GO_no_post_GO_query
+k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
+temporary_flash_selector_commit: 20e8c72_comprehensive_observation_pause_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest paired deployment: 20e8c72
+
+2c3abe0 integrated into comprehensive 37a04b0. Full sign suite/build passed.
+STM32 COM11 full 105472-byte readback and GO passed; reserved pages preserved.
+K210 COM14 paired 7527-byte script readback and model hash verified, startup
+SIGN34 ready with threshold 0.15 observed. First direction observation pause
+is 2 seconds, OLED OBSERVE; gyro/RGB-off/five-repeat horn retained.
+No wheel/ground/sign-response test. Main code unchanged. Details and backup:
+docs/history/deployments/DEPLOYMENT_20E8C72_20260909.md.
+This supersedes older board/K210 deployment and pending-threshold notes below.
 
 ### Latest STM32 deployment: 37a04b0
 
