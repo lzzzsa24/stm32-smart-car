@@ -20,6 +20,10 @@ if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_probe_hold.exe
 if not "%errorlevel%"=="0" exit /b 1
 set CL=
+cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_entry_handoff.c Core\Src\sign_route.c Core\Src\simple_line_mode.c Core\Src\sign_slowdown.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_entry_handoff.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-sign-line-host-test\test_entry_handoff.exe
+if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_mpu_service.c Core\Src\mpu6050_yaw.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_mpu_service.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_mpu_service.exe

@@ -1041,6 +1041,7 @@ static void sign_rgb_off(void)
 static void sign_line_task(AppMode mode)
 {
   SignRouteCommand route_command;
+  int16_t left_request, right_request;
   MpuYawReading yaw;
   SignRouteStatus route_status;
   WheelEncoderCounts counts;
@@ -1063,28 +1064,10 @@ static void sign_line_task(AppMode mode)
   SignRoute_GetStatus(now, &route_status);
   SimpleLine_StepRoute(&simple_line_controller, sign_line_mask, &route_status, &route_command);
 
-  if (SignSlowdown_Paused(now))
-  {
-    sign_line_action = 6U; /* finite recognition observation, not manual STOP */
-    apply_sign_line_pwm(0, 0, sign_line_mask, sign_line_action);
-  }
-  else if (route_command.active != 0U)
-  {
-    sign_line_action = 5U; /* route-select turn */
-    apply_sign_line_pwm(route_command.left_pwm,
-                        route_command.right_pwm,
-                        sign_line_mask,
-                        sign_line_action);
-    UltrasonicMotion_Reset();
-  }
-  else
-  {
-    sign_line_action = (uint8_t)simple_line_controller.mode;
-    apply_sign_line_pwm(simple_line_controller.left_pwm,
-                        simple_line_controller.right_pwm,
-                        sign_line_mask,
-                        sign_line_action);
-  }
+  sign_line_action = SimpleLine_ResolveRouteOutput(&simple_line_controller,
+      &route_command, SignSlowdown_Paused(now), &left_request, &right_request);
+  apply_sign_line_pwm(left_request, right_request, sign_line_mask, sign_line_action);
+  if (sign_line_action == 5U) UltrasonicMotion_Reset();
 
   SignRoute_GetStatus(now, &route_status);
   app_buzzer_safety_write(GPIO_PIN_RESET, 0U);

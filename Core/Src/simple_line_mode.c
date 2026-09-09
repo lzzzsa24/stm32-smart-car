@@ -114,7 +114,15 @@ void SimpleLine_UpdateYaw(SimpleLineController *controller, int64_t yaw_mdeg,
 void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
                           const SignRouteStatus *route, const SignRouteCommand *command)
 {
+  uint8_t tracking_mask = raw_mask & 15U;
+  uint8_t entry_guard;
+  int64_t lower, upper;
   if (!controller || !route || !command || controller->mode == SIMPLE_LINE_STOP) return;
+  entry_guard = controller->yaw_configured && route->yaw_valid && route->direction &&
+      !route->entry_line_ready &&
+      (route->state == SIGN_ROUTE_PROBE || route->state == SIGN_ROUTE_SELECTING);
+  if (entry_guard && !controller->entry_guard_active) controller->sector_active=0U;
+  controller->entry_guard_active=entry_guard;
   if (controller->route_state != (uint8_t)route->state)
     controller->route_hint = 0;
   if (route->state == SIGN_ROUTE_PROBE && route->direction && !controller->route_hint)
@@ -129,11 +137,21 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
            command->just_started && route->direction)
     SimpleLine_SetDirection(controller, route->direction);
   controller->route_state = (uint8_t)route->state;
+  if (entry_guard)
+  {
+    uint8_t opposite = route->direction < 0 ?
+        (tracking_mask == 1U || tracking_mask == 2U || tracking_mask == 3U) :
+        (tracking_mask == 8U || tracking_mask == 4U || tracking_mask == 12U);
+    /* Wrong-branch contact is not a capture and cannot move the yaw anchor.
+       Search from the last trusted line towards the requested branch. */
+    if (opposite) tracking_mask=0U;
+    SimpleLine_SetDirection(controller, route->direction);
+  }
   /* Current line wins even on the same cycle as a route transition. Never
      write last_direction after this calculation: that poisons the next loss. */
-  SimpleLine_StepSlow(controller, raw_mask);
+  SimpleLine_StepSlow(controller, tracking_mask);
   if (!controller->yaw_configured) return; /* legacy standalone callers */
-  if (raw_mask & 15U)
+  if (tracking_mask)
   {
     controller->sector_active=0U;
     if (controller->yaw_valid)
@@ -160,12 +178,35 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
     controller->sector_active=1U;
     controller->sector_direction=controller->last_direction;
   }
-  if (controller->yaw_mdeg-controller->line_yaw_mdeg >= SIMPLE_LINE_SEARCH_SECTOR_MDEG)
+  lower = -SIMPLE_LINE_SEARCH_SECTOR_MDEG;
+  upper = SIMPLE_LINE_SEARCH_SECTOR_MDEG;
+  if (entry_guard)
+  {
+    if (route->direction < 0) lower=0;
+    else upper=0;
+  }
+  if (controller->yaw_mdeg-controller->line_yaw_mdeg >= upper)
     controller->sector_direction=1; /* positive yaw is left; steer back right */
-  else if (controller->yaw_mdeg-controller->line_yaw_mdeg <= -SIMPLE_LINE_SEARCH_SECTOR_MDEG)
+  else if (controller->yaw_mdeg-controller->line_yaw_mdeg <= lower)
     controller->sector_direction=-1;
   set_turn(controller,controller->sector_direction);
   controller->mode=SIMPLE_LINE_SEARCH;
+}
+
+uint8_t SimpleLine_ResolveRouteOutput(const SimpleLineController *controller,
+                                    const SignRouteCommand *command, uint8_t paused,
+                                    int16_t *left, int16_t *right)
+{
+  *left = *right = 0;
+  if (controller->mode == SIMPLE_LINE_STOP) return SIMPLE_LINE_STOP;
+  if (paused) return 6U;
+  if (command->active)
+  {
+    *left=command->left_pwm; *right=command->right_pwm;
+    return 5U;
+  }
+  *left=controller->left_pwm; *right=controller->right_pwm;
+  return (uint8_t)controller->mode;
 }
 
 void SimpleLine_SetDirection(SimpleLineController *controller,

@@ -41,6 +41,7 @@ typedef struct
   uint32_t last_sequence;
   uint8_t searching;
   uint8_t yaw_valid;
+  uint8_t entry_line_ready; /* selected outer -> stable center, releases entry preference */
   uint8_t fault;          /* navigation warnings only; line loss never owns STOP */
   int32_t travel_mm;
   int32_t yaw_mdeg;       /* phase-relative MPU yaw; mdeg, positive left */

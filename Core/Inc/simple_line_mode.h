@@ -33,6 +33,7 @@ typedef struct
   int64_t yaw_mdeg, line_yaw_mdeg;
   uint32_t yaw_generation;
   uint8_t yaw_configured, yaw_valid, line_yaw_valid, sector_active;
+  uint8_t entry_guard_active;
   int8_t sector_direction;
   int16_t left_pwm;
   int16_t right_pwm;
@@ -48,10 +49,14 @@ void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask);
 void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask);
 /* Mode 3/4 slow visible-line profile; white retains powered search. */
 void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask);
-/* One route hint per entry, followed by authoritative live line evidence. */
+/* Protect uncompleted branch selection; follow live line after selected capture. */
 void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
                           const SignRouteStatus *route, const SignRouteCommand *command);
 void SimpleLine_UpdateYaw(SimpleLineController *controller, int64_t yaw_mdeg,
                           uint8_t valid, uint32_t generation);
+/* Actual sign-mode output ownership: manual STOP, observation, route, follower. */
+uint8_t SimpleLine_ResolveRouteOutput(const SimpleLineController *controller,
+                                    const SignRouteCommand *command, uint8_t paused,
+                                    int16_t *left, int16_t *right);
 
 #endif

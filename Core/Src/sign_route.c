@@ -39,6 +39,8 @@ typedef struct
   uint32_t none_since_ms;
   uint8_t junction_active;
   uint8_t departed;
+  uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
+  uint32_t entry_center_ms;
   uint8_t capture_active;
   int32_t previous_counts[4];
   int64_t left_counts, right_counts;
@@ -269,6 +271,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
   route.origin_right = route.right_counts;
   route.imu_origin = route.imu_yaw;
   route.capture_active = route.departed = 0U;
+  route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
   route.travel_mm = route.yaw_mdeg = 0L;
 }
@@ -317,6 +320,26 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
   memset(command, 0, sizeof(*command)); /* withdraw, never replace SL2 with STOP */
 }
 
+static void observe_entry_line(uint8_t mask, uint32_t now)
+{
+  uint8_t selected = route.direction < 0 ? 8U : 1U;
+  uint8_t adjacent = route.direction < 0 ? 12U : 3U;
+  if (!route.direction || route.entry_line_ready) return;
+  if (mask == selected || mask == adjacent) route.entry_edge_seen = 1U;
+  /* Full middle capture is stronger than a lone inner hit on either branch.
+     Small measured progress rejects a crossbar tail; 60 degrees is NOT a
+     prerequisite for returning current line control to the follower. */
+  if (route.entry_edge_seen && mask == 6U && route.imu_valid &&
+      -route.direction * route.yaw_mdeg >= 15000L)
+  {
+    if (!route.entry_center_active)
+    { route.entry_center_active=1U; route.entry_center_ms=now; }
+    else if (now-route.entry_center_ms >= SIGN_CAPTURE_MS)
+      route.entry_line_ready=1U;
+  }
+  else route.entry_center_active=0U;
+}
+
 static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
@@ -332,6 +355,8 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
     return;
   }
 #endif
+  if ((route.state == SIGN_ROUTE_PROBE || route.state == SIGN_ROUTE_SELECTING) &&
+      route.entry_line_ready) return;
   /* A sign is only a branch preference. It cannot drive off the black line,
      override a current centre line, or steer across an all-black bar. */
   if (route.direction == 0 || !(mask & selected_edge) || mask == 15U)
@@ -357,6 +382,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   if (route.step_valid && now - route.last_step_ms > SIGN_SAMPLE_MAX_GAP_MS)
   {
     route.capture_active = 0U;
+    route.entry_center_active = 0U;
     route.junction_active = 0U;
   }
   route.step_valid = 1U;
@@ -418,6 +444,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_PROBE)
   {
+    observe_entry_line(line_mask, now);
 #if SIGN_PROBE_HOLD_MS > 0
     if (route.direction != 0)
     {
@@ -514,6 +541,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   if (route.state == SIGN_ROUTE_SELECTING || route.state == SIGN_ROUTE_EXIT_SELECT)
   {
     int32_t turn_yaw = -route.direction * route.yaw_mdeg;
+    if (route.state == SIGN_ROUTE_SELECTING) observe_entry_line(line_mask, now);
     select_command(command, line_mask);
     if (now - route.phase_ms > SIGN_SELECT_TIMEOUT_MS ||
         turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
@@ -624,6 +652,7 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   if (status == NULL) return;
   status->state = route.state;
   status->yaw_valid = route.imu_valid;
+  status->entry_line_ready = route.entry_line_ready;
   status->direction = route.direction;
   status->last_class = route.last_class;
   status->last_score = route.last_score;
