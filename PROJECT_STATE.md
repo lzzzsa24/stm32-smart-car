@@ -23,10 +23,10 @@ flashed_bin_sha256: 1A7CD793AFB5A3830088F7F205A79B14095B66B6CCDC79DA567868C9843E
 flashed_hex_sha256: 6972730831968C5965CB186DAF1CDEE6F3F52A67C96D29D0FFB565EE2E672130
 ground_test_status: not_tested_after_6894af1_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 6894af16280d5780b3ba5ddda7b983a529b46425
-candidate_bin_size_bytes: 108364
-candidate_bin_sha256: 1A7CD793AFB5A3830088F7F205A79B14095B66B6CCDC79DA567868C9843E6062
-candidate_hex_sha256: 6972730831968C5965CB186DAF1CDEE6F3F52A67C96D29D0FFB565EE2E672130
+candidate_source_commit: bd87633eb645344f9dde85ec4b2700ea65e3e5e7
+candidate_bin_size_bytes: 108748
+candidate_bin_sha256: 9171595BC74C4E27310EC337A43E83D653857169C545775BD1E7A30367221116
+candidate_hex_sha256: EB1C11773655FF8BD6C57FDA9F16C5EC85F24B2981D853D31582047AC151430C
 user_reported_flash: tool_verified_6894af1_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest candidate bd87633; flash blocked before port open
+
+c133918 and bc40f79 integrated onto 6894af1: 360/600-mm bypass and modes3/4
+shared KEY2 tracking with retained route constraints. Full sign/line/gyro
+tests and build passed. COM11 Open failed with device-not-functioning error
+before erase/write; reconnect required. Board Flash remains 6894af1.
+K210 unchanged, side IR still disabled. No physical test or push.
+See docs/history/candidates/COMPREHENSIVE_BD87633_20260909.md.
+Supersedes older candidate statements, not successful deployment records.
 
 ### Latest comprehensive deployment: 6894af1
 
