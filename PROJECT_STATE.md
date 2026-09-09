@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: 8a46fd6696870efa98a97b6a1524fdf5901ad4ab
-flash_record_commit: 068db96
-deployed_tag: deployed/2026-09-09-v14-8a46fd6
+flashed_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
+flash_record_commit: 5f5836e
+deployed_tag: deployed/2026-09-09-c50d3c8
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 103688
-flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572C3F1
-flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
-ground_test_status: not_tested_after_v14_8a46fd6_deployment
+formal_bin_size_bytes: 104232
+flashed_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
+flashed_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
+ground_test_status: not_tested_after_c50d3c8_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
 candidate_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
 candidate_bin_size_bytes: 104232
 candidate_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
 candidate_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
-user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
+user_reported_flash: tool_verified_c50d3c8_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
 remote_sync_status: requested_sync_blocked_by_approval_specific_public_repo_confirmation_required
 remote_sync_branch: main
-stm32_runtime_status: COM11_8a46fd6_readback_GO_no_post_GO_query_IMU_prior_V13_pass
+stm32_runtime_status: COM11_c50d3c8_readback_GO_no_post_GO_query_IMU_prior_V13_pass
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
-temporary_flash_selector_commit: 8a46fd6_comprehensive_v14_flashed
+temporary_flash_selector_commit: c50d3c8_comprehensive_v15_rgb_off_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: c50d3c8 after reconnect
+
+COM11 reappeared in fresh serial enumeration after user replug. Exact
+104232-byte candidate passed write, full readback and GO at 57600 baud;
+51 application pages erased, audio and calibration pages excluded.
+No post-GO zero-output query or physical test. K210 unchanged, new horn
+recognition script not yet deployed. See `DEPLOYMENT_C50D3C8_20260909.md`.
+This supersedes all disconnected/V14-board statements below. Main code
+remains mode1-only promotion; comprehensive test source is c50d3c8.
 
 ### Latest unflashed comprehensive candidate: V15
 
