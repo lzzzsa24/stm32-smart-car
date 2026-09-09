@@ -321,14 +321,10 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
 #if SIGN_ROUTE_REQUIRE_IMU
-  if (route.direction && route.imu_valid &&
-      (route.state == SIGN_ROUTE_EXIT_SELECT ||
-       ((route.state == SIGN_ROUTE_PROBE || route.state == SIGN_ROUTE_SELECTING) &&
-        -route.direction * route.yaw_mdeg < SIGN_ENTRY_MIN_MDEG && mask != 15U &&
-        (route.departed || (mask & 9U) || mask == 0U))))
+  if (route.direction && route.imu_valid && route.state == SIGN_ROUTE_EXIT_SELECT)
   {
-    /* Finite entry/exit ownership: opposite branch contact or white must not
-       replace the confirmed choice. Both phases have angle/time withdrawal. */
+    /* Only the angle-qualified EXIT phase may align without visible line.
+       Entry must never cut across white while waiting for a nominal angle. */
     command->active = 1U;
     route.departed = 1U;
     command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
@@ -451,8 +447,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
           command->just_finished = 1U;
           return;
         }
-        /* Before capture the confirmed branch owns a bounded forward pivot.
-           Do not initiate a turn on an ordinary centered approach line. */
+        /* Remember the branch, but grant motor ownership only while its
+           selected edge is actually visible. Center/white releases it. */
         select_command(command, line_mask);
         return;
       }

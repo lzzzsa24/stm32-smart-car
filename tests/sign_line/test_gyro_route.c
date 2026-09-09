@@ -23,12 +23,15 @@ static void start(int side)
   for(i=0;i<3;++i) step(15,0,1);
   assert(s.state==SIGN_ROUTE_PROBE);
   step(6,0,1); assert(!c.active); /* crossbar on straight approach is not a fork */
-  step(side<0?1:8,0,1); /* opposite fork must not reverse the confirmed choice */
-  assert(c.active && (side<0 ? c.left_pwm==0 && c.right_pwm>0 : c.right_pwm==0 && c.left_pwm>0));
+  step(side<0?1:8,0,1); /* opposite-only cannot authorize driving across white */
+  assert(!c.active && s.direction==side);
   step(0,-side*10000,1);
-  assert(c.active && (side<0 ? c.left_pwm==0 : c.right_pwm==0));
+  assert(!c.active && s.direction==side);
   step(side<0?8:1,-side*20000,1);
-  for(i=0;i<4;++i) step(6,-side*20000,1);
+  assert(c.active);
+  step(0,-side*20000,1); assert(!c.active);
+  for(i=0;i<4;++i)
+  { step(6,-side*20000,1); assert(!c.active && s.direction==side); }
   assert(s.state==SIGN_ROUTE_PROBE); /* line capture alone cannot finish */
   for(i=0;i<4;++i) step(6,-side*80000,1);
   assert(s.state==SIGN_ROUTE_ARC);
