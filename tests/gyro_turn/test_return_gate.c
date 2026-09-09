@@ -105,11 +105,11 @@ static void test_fixed_route(void)
     test_ms+=119; LineObstacleBypass_Task(&input); assert(turn_calls==0);
     ++test_ms; LineObstacleBypass_Task(&input);
     assert(turn_request==-90000*direction && turn_calls==1);
-    fixed_step(&input); assert(travel_request==300 && travel_calls==1);
+    fixed_step(&input); assert(travel_request==250 && travel_calls==1);
     /* Simulate real yaw drift during the first straight. */
     test_imu.yaw_mdeg+=3000*direction;
     fixed_step(&input); assert(turn_request==87000*direction);
-    fixed_step(&input); assert(travel_request==360 && travel_calls==2);
+    fixed_step(&input); assert(travel_request==300 && travel_calls==2);
     test_imu.yaw_mdeg-=2000*direction;
     fixed_step(&input); assert(turn_request==47000*direction && turn_calls==3);
     fixed_step(&input); assert(fixed_phase==LINE_FIXED_RETURN && return_cruise);
@@ -180,7 +180,7 @@ static void test_fixed_route(void)
     assert(bypass_state==LINE_BYPASS_FAULT);
     LineObstacleBypass_Stop(); test_drive.fault_mask=0;
   }
-  puts("PASS: fixed 300/360/45 geometry, absolute-heading drift correction, all-phase STOP, obstacle fallback, generation/encoder fallback, capture gate and timer wrap");
+  puts("PASS: fixed 250/300/45 geometry, absolute-heading drift correction, all-phase STOP, obstacle fallback, generation/encoder fallback, capture gate and timer wrap");
 }
 
 static void test_ir_disabled(void)
