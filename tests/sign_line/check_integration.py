@@ -25,12 +25,13 @@ sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.
 assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_Step(" in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
-assert sign_task.index("SimpleLine_Step(") < sign_task.index("SignRoute_Step(")
+assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_Step(")
+assert sign_task.index("SimpleLine_SetDirection(") < sign_task.index("SimpleLine_Step(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
 assert "SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm)" in main
-assert "route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING" in main
+assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "SIGN_LINE" not in enable

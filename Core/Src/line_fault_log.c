@@ -106,6 +106,7 @@ void LineFaultLog_Task(uint8_t stopped)
     u(" queue_overwritten=", decision.queue_overwritten);
     u(" pause=", decision.pause_reason); u(" drive_fault=", decision.drive_fault);
     u(" bypass_fault=", decision.bypass_fault);
+    u(" gyro_fault=", decision.gyro_fault); u(" imu_fault=", decision.imu_fault);
     u(" hint_mask=", decision.hint_mask); u(" hint_age=", decision.hint_age_ms);
     DiagnosticUart_WriteString("\r\n"); ++dump_index; return;
   }

@@ -13,6 +13,10 @@ assert "return APP_MODE_VISION_LINE_V4;" in main
 assert "case '5': return IR_REMOTE_VIRTUAL_KEY5;" in main
 assert "vision_line_v4_task();" in main
 assert "VisionLineV4Control_Step" in main
+assert "vision_line_v4_command.state == VISION_LINE_V4_WAITING ||" in main
+assert "vision_line_v4_command.state == VISION_LINE_V4_LINK_STOP" in main
+assert "line_tracking_follow_once(2200, (int16_t)MOTOR_PWM_PERIOD)" in main
+assert "vision_line_fallback = 0U;" in main
 assert '"VLINE5 CURVE V4 START\\r\\n"' in main
 assert "vision_line_v4_diagnostic_dump();" in main
 assert 'DiagnosticUart_WriteString("VLINK V4=");' in main

@@ -64,8 +64,9 @@ void UltrasonicAvoid_SetEscapeManeuver(
     uint32_t reverse_time_ms,
     uint32_t guard_time_ms);
 
-/* 开阔区降级策略：连续若干次“无回波超时”后以 slow_speed 前进。
-   仅对明确启用该策略的整体工程生效；收到有效/越界回波会退出降级。 */
+/* 显式启用的低速降级：连续无回波，或700ms无有效结果（含越界/驱动
+   卡住）后以slow_speed运行；已前进时坏回波直接低速保持而不刹车。
+   连续三次新有效测量恢复正常限速；有效近障回波始终优先处理。 */
 void UltrasonicAvoid_SetNoEchoFallback(uint8_t enable,
                                        uint8_t timeout_count);
 

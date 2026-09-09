@@ -32,9 +32,10 @@ static uint32_t tick;
 static int32_t counts[4];
 static int16_t pins[4];
 static GPIO_PinState buzzer;
+static unsigned line_gpio_mask;
 static WheelEncoderDiagnostics diagnostics;
 uint32_t HAL_GetTick(void) { return tick; }
-int HAL_GPIO_ReadPin(GPIO_TypeDef *p,uint16_t n) { (void)p; (void)n; return 1; }
+int HAL_GPIO_ReadPin(GPIO_TypeDef *p,uint16_t n) { (void)p; return (line_gpio_mask & n)?0:1; }
 void HAL_GPIO_Init(GPIO_TypeDef *p,GPIO_InitTypeDef *g) { (void)p; (void)g; }
 void HAL_GPIO_WritePin(GPIO_TypeDef *p,uint16_t n,GPIO_PinState s)
 { assert(p==Buzzer_GPIO_Port && n==Buzzer_Pin); buzzer=s; }
@@ -54,6 +55,7 @@ PWM_STUB(4,3)
 static int32_t absolute(int32_t x) { return x<0?-x:x; }
 static void reset(void)
 {
+  line_gpio_mask=0;
   memset(counts,0,sizeof counts);
   memset(&diagnostics,0,sizeof diagnostics);
   DriveBase_Init();
@@ -1178,6 +1180,64 @@ static void test_bypass_state_machine(int8_t direction, uint8_t early_ir)
       (int)direction,(unsigned)early_ir);
 }
 
+static void test_mode12_shared_following(void)
+{
+  /* Reference is the previously deployed MODE2 call sequence. The candidate
+     uses the shared production entry and GPIO/compute/apply wrapper. */
+  static int32_t reference[1800][2];
+  static LineTrackingAction actions[1800];
+  unsigned capped, shared, ms, w;
+  for(capped=0;capped<2;++capped) for(shared=0;shared<2;++shared)
+  {
+    int16_t cap=capped?2200:MOTOR_PWM_PERIOD;
+    LineTrackingCommand out={0}; DriveBaseTelemetry drive;
+    line_tracking_reset(); reset(); tick=1000;
+    line_tracking_set_no_line_forward(1); line_tracking_set_smooth_mode(0);
+    line_tracking_set_turn_gain_percent(200); /* stale old KEY1 profile */
+    if(shared) line_tracking_start_following();
+    else
+    {
+      line_tracking_reset(); line_tracking_set_no_line_forward(0);
+      line_tracking_set_smooth_mode(1); line_tracking_set_turn_gain_percent(100);
+    }
+    for(ms=0;ms<1800;++ms)
+    {
+      LineTrackingAction action;
+      unsigned mask=ms<50?0:(ms<350?8:(ms<500?12:(ms<800?5:
+          (ms<950?1:(ms<1150?0:(ms<1270?15:(ms<1450?2:5)))))));
+      for(w=0;w<4;++w) counts[w]+=pins[w]>0?2:(pins[w]<0?-2:0);
+      ++tick; DriveBase_Task(tick); line_gpio_mask=mask;
+      if(shared) action=line_tracking_follow_once(3000,cap);
+      else
+      {
+        LineTrackingReading r=line_tracking_read();
+        action=line_tracking_compute(&r,3000,&out);
+        line_tracking_apply_command(&out,cap);
+      }
+      DriveBase_GetTelemetry(&drive);
+      assert(!drive.fault_mask && !BuzzerPhrase400_IsPlaying() && !buzzer);
+      if(!shared)
+      { reference[ms][0]=drive.requested_cps[0]; reference[ms][1]=drive.requested_cps[2]; actions[ms]=action; }
+      else
+      {
+        assert(reference[ms][0]==drive.requested_cps[0] && reference[ms][1]==drive.requested_cps[2]);
+        assert(actions[ms]==action);
+      }
+      if(ms<50) assert(drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS && drive.requested_cps[2]==LINE_SEARCH_TARGET_CPS);
+      if(ms>=200 && ms<350) assert(drive.requested_cps[0]==2200 && drive.requested_cps[2]==-2200);
+      if(capped && drive.requested_cps[0]>=0 && drive.requested_cps[2]>=0)
+        for(w=0;w<4;++w) assert(drive.requested_cps[w]<=DriveBase_EquivalentCpsFromPwm(cap));
+    }
+    /* Same reset used on bypass return; it cannot restore blind forward or
+       old 200% gain. A fresh white input resumes MODE2-style silent search. */
+    line_tracking_reset(); line_gpio_mask=0; ++tick;
+    line_tracking_follow_once(3000,cap); DriveBase_GetTelemetry(&drive);
+    assert(drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS && drive.requested_cps[2]==LINE_SEARCH_TARGET_CPS);
+    line_tracking_reset(); for(w=0;w<4;++w) assert(!pins[w]);
+  }
+  puts("PASS: 3600 shared-cycle samples match current MODE2 including initial white, persistent edge, center, gaps, loss, caps and bypass-reset reentry");
+}
+
 int main(void)
 {
   LineTurnLoadState s={0};
@@ -1304,6 +1364,7 @@ int main(void)
   test_bypass_state_machine(-1,1);
   test_bypass_state_machine(1,0);
   test_bypass_state_machine(-1,0);
+  test_mode12_shared_following();
   (void)trace(2500,-2500,0,1);
   for(i=0;i<4;++i) sample(creep);
   assert(pins[0]<3000);

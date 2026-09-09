@@ -134,7 +134,17 @@ static void test_control(void)
   reading.obstacle_right = 240U;
   VisionLineV4Control_Step(&reading, 1000U, &command);
   CHECK(command.state == VISION_LINE_V4_OBSTACLE_STOP);
-  CHECK(command.left_pwm == 0 && command.right_pwm == 0);
+  CHECK(command.left_pwm < 0 && command.right_pwm > 0);
+  reading.obstacle_left = 10; reading.obstacle_right = 100;
+  VisionLineV4Control_Step(&reading, 1000U, &command);
+  CHECK(command.left_pwm > 0 && command.right_pwm < 0);
+  reading.obstacle_found = 0;
+  reading.sequence++; reading.received_ms = 1050;
+  VisionLineV4Control_Step(&reading, 1050U, &command);
+  CHECK(command.state == VISION_LINE_V4_LOST_SEARCH);
+  reading.sequence++; reading.received_ms = 1100;
+  VisionLineV4Control_Step(&reading, 1100U, &command);
+  CHECK(command.state == VISION_LINE_V4_FOLLOW);
 }
 
 int main(void)
