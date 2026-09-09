@@ -13,6 +13,7 @@ static uint32_t tick;
 static int32_t counts[4], velocity[4], fraction[4];
 static int16_t pins[4];
 static uint8_t reverse_feedback;
+static uint8_t loaded;
 uint32_t HAL_GetTick(void) { return tick; }
 void WheelEncoder_Start(void) {}
 void WheelEncoder_GetCounts(WheelEncoderCounts *c)
@@ -33,6 +34,15 @@ static void sample(void)
   for(m=0;m<4;++m)
   {
     int32_t driven=pins[m]>0?2000:(pins[m]<0?-2000:0);
+    if (loaded)
+    {
+      /* Synthetic static friction: turning needs more breakaway power than
+         straight travel; smaller holding power is enough once moving. */
+      int32_t power=pins[m]<0?-(int32_t)pins[m]:pins[m];
+      int32_t speed=velocity[m]<0?-velocity[m]:velocity[m];
+      int32_t start_power=loaded==2?3100:2800;
+      if (power<2500 || (speed<100 && power<start_power)) driven=0;
+    }
     velocity[m]=(velocity[m]*3+driven)/4;
     fraction[m]+=velocity[m]*20;
     counts[m]+=(reverse_feedback && m==0 ? -1 : 1)*(fraction[m]/1000);
@@ -59,7 +69,7 @@ static void run(uint8_t enabled, int l, int r)
     for(m=0;m<4;++m) if(!pins[m]) ++off[m];
   }
   DriveBase_GetTelemetry(&d);
-  printf("low=%u requested=%d/%d measured-average=%ld/%ld PWM-off=%u/%u\n",enabled,l,r,
+  printf("low=%u load=%u requested=%d/%d measured-average=%ld/%ld PWM-off=%u/%u\n",enabled,loaded,l,r,
       (long)(counts[0]-start[0])/2,(long)(counts[2]-start[2])/2,off[0],off[2]);
   fflush(stdout);
   if(enabled)
@@ -73,7 +83,7 @@ static void run(uint8_t enabled, int l, int r)
     }
   }
   else assert(pins[0]==2200 && pins[2]==2200); /* reproduce old collapsed steering */
-  if(enabled)
+  if(enabled && !loaded)
   {
     DriveBase_SetSignLowSpeedMode(0);
     DriveBase_SetSideCps(400,1200);
@@ -84,6 +94,28 @@ static void run(uint8_t enabled, int l, int r)
   for(i=0;i<5;++i) sample();
   for(m=0;m<4;++m) assert(pins[m]==0);
   assert(d.fault_mask==0);
+}
+
+static void loaded_start(void)
+{
+  unsigned i,m;
+  /* Real lower-output baseline cannot break away in this model. */
+  memset(counts,0,sizeof(counts)); memset(velocity,0,sizeof(velocity));
+  memset(fraction,0,sizeof(fraction)); memset(pins,0,sizeof(pins)); tick=0;
+  loaded=2;
+  DriveBase_Init(); DriveBase_SetSignLowSpeedMode(1);
+  DriveBase_SetLineFaultObservation(1,6,1);
+  DriveBase_SetSideCps(-500,500);
+  for(i=0;i<50;++i) sample();
+  for(m=0;m<4;++m)
+    assert((m<2?-counts[m]:counts[m])>100); /* all wheels start within 1 second */
+  DriveBase_Stop(DRIVE_STOP_COAST);
+  for(m=0;m<4;++m) assert(pins[m]==0);
+
+  loaded=1; run(1,500,500);
+  loaded=2; run(1,400,1200); run(1,1200,400);
+  run(1,-500,500); run(1,500,-500); run(1,1147,0);
+  loaded=0;
 }
 
 static void position_unchanged(void)
@@ -129,6 +161,7 @@ int main(void)
   run(1,-500,500); run(1,1147,0); run(0,400,1200);
   position_unchanged();
   degraded_feedback();
+  loaded_start();
   puts("PASS: real PWM low-speed feedback, mirrored wheel signs, zero side, STOP and opt-out");
   return 0;
 }

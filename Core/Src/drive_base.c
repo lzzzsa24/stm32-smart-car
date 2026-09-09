@@ -11,6 +11,8 @@
 #define DRIVE_TARGET_RAMP_CPS_PER_PERIOD       700L
 #define DRIVE_MAX_CPS                         9000L
 #define DRIVE_CONTINUOUS_MIN_CPS              1412L
+#define DRIVE_SIGN_POWERED_STRAIGHT_PWM       3000L
+#define DRIVE_SIGN_POWERED_MAX_PWM            3400L
 #define DRIVE_MAX_CORRECTION_PWM               500L
 #define DRIVE_INTEGRAL_LIMIT               2000000L
 #define DRIVE_STALL_TIMEOUT_MS                 1600U
@@ -445,6 +447,19 @@ static int16_t speed_control_output(uint8_t motor,
       if (budget<=0L) return 0;
     }
     low_speed_budget[motor]=(int32_t)budget;
+    /* Low average speed must not mean weak powered intervals. At these
+       targets the legacy PI cannot overcome loaded breakaway friction and
+       the continuous-speed boost/load helpers are deliberately inactive.
+       Keep encoder-accounted coast timing, but use a stronger powered phase;
+       turning reuses the existing per-wheel recovery power profile. */
+    feedforward = (requested_cps[0] != requested_cps[2] ||
+                   requested_cps[1] != requested_cps[3]) ?
+        recovery_boost_pwm[direction_index][motor] : DRIVE_SIGN_POWERED_STRAIGHT_PWM;
+    feedforward = (feedforward * voltage_compensation_permille + 500L) / 1000L;
+    feedforward = clamp_i32(feedforward,
+        minimum_continuous_pwm[direction_index][motor], DRIVE_SIGN_POWERED_MAX_PWM);
+    integral_error[motor] = 0L;
+    return (int16_t)((int32_t)direction * feedforward);
   }
   else low_speed_budget[motor]=0L;
 
