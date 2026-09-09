@@ -71,6 +71,8 @@ void line_tracking_apply_command(const LineTrackingCommand *command, int16_t for
    三路相邻识黑只更新方向提示，不立即原地转向；双外侧/非相邻组合不产生新提示。
    近期侧向提示可跨越短多黑区域保留至原采样后 400 ms；中心/反侧证据可使其失效。
    窄中间线重复确认后直接滚动接线。STOP/reset 取消；驱动观察策略见 DriveBase。 */
+/* Opt-in for mode5 only; Reset clears this flag. */
+void line_tracking_set_straight_boost(uint8_t enable);
 void line_tracking_set_no_line_forward(uint8_t enable);
 /* enable=1: use filtered PD differential steering as the line-position outer
    loop. Wheel-speed feedback remains in DriveBase. */

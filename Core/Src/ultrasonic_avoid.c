@@ -18,6 +18,7 @@
 #define AVOID_CONFIRM_COUNT          2U
 #define AVOID_EMERGENCY_CONFIRM_COUNT 2U
 #define AVOID_CRITICAL_RAW_CM         5U
+static uint16_t critical_raw_cm = AVOID_CRITICAL_RAW_CM;
 #define AVOID_FILTER_SAMPLES         3U
 #define AVOID_DEFAULT_STOP_CM        25U
 #define AVOID_DEFAULT_CLEAR_CM       35U
@@ -162,6 +163,7 @@ void UltrasonicAvoid_Init(UltrasonicAvoidDriveCallback drive,
                           UltrasonicAvoidTurnCallback turn_left,
                           UltrasonicAvoidTurnCallback turn_right)
 {
+  critical_raw_cm = AVOID_CRITICAL_RAW_CM;
   drive_callback = drive;
   reverse_callback = NULL;
   stop_callback = stop;
@@ -179,6 +181,11 @@ void UltrasonicAvoid_Init(UltrasonicAvoidDriveCallback drive,
   clear_filter();
   UltrasonicMotion_Init();
   stop_motors();
+}
+
+void UltrasonicAvoid_SetCriticalDistance(uint16_t cm)
+{
+  critical_raw_cm = cm >= 1U && cm <= 25U ? cm : AVOID_CRITICAL_RAW_CM;
 }
 
 void UltrasonicAvoid_SetThresholds(uint16_t stop_cm, uint16_t clear_cm)
@@ -417,7 +424,7 @@ void UltrasonicAvoid_Task(void)
          avoid_state == ULTRASONIC_AVOID_FORWARD) &&
         measured_distance_cm <= emergency_distance_cm)
     {
-      if (measured_distance_cm <= AVOID_CRITICAL_RAW_CM)
+      if (measured_distance_cm <= critical_raw_cm)
       {
         emergency_count = AVOID_EMERGENCY_CONFIRM_COUNT;
       }

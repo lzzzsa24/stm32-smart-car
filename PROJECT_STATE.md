@@ -11,30 +11,30 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-09
 integration_branch: main
-repository_head_at_update: 2ebf64e
-latest_code_commit: 2ebf64e
-flashed_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
-flash_record_commit: 5f5836e
-deployed_tag: deployed/2026-09-09-c50d3c8
+repository_head_at_update: cd44bb0
+latest_code_commit: cd44bb0
+flashed_source_commit: 58c3744de08796edba355ef3becf8453819aa546
+flash_record_commit: 575b120
+deployed_tag: deployed/2026-09-09-58c3744
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 104232
-flashed_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
-flashed_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
-ground_test_status: not_tested_after_c50d3c8_deployment
-k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
-candidate_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
-candidate_bin_size_bytes: 104232
-candidate_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
-candidate_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
-user_reported_flash: tool_verified_c50d3c8_STM32_flash_readback_and_GO
-k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
-k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
-remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_c50d3c8_readback_GO_no_post_GO_query_IMU_prior_V13_pass
-k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
-temporary_flash_selector_commit: c50d3c8_comprehensive_v15_rgb_off_flashed
+formal_bin_size_bytes: 109708
+flashed_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01
+flashed_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
+ground_test_status: not_tested_after_58c3744_deployment
+k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
+candidate_source_commit: cd44bb0ea4f94a90511652cc80672d04f9359f93
+candidate_bin_size_bytes: 102264
+candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
+candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
+user_reported_flash: tool_verified_58c3744_readback_GO
+k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
+k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
+remote_sync_status: mode5_fixed_bypass_PR_preparing
+remote_sync_branch: integration/mode5-fixed-bypass-rc5
+stm32_runtime_status: COM11_58c3744_readback_GO_no_post_GO_query
+k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
+temporary_flash_selector_commit: 58c3744_mode4_gyro_tangent_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,293 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current main: mode5 fixed bypass promotion (cd44bb0)
+
+Main mode5 now uses composite58c3744 mode1 behavior, replacing visual-line
+dispatch. Fixed250/300-mm route,4000-CPS travel,16/22-cm sonar, side IR off.
+Main modes1-4 retained; profile switching restores legacy parameters/IR state.
+Main mode1 adaptive return remains1800 CPS; mode5 fallback is2100 CPS.
+Build and sign/line/gyro/audio/archived-vision/new-mode5 host tests passed.
+No serial access or flash: board remains58c3744, K210 unchanged. Preparing
+v1.2.0-rc.5 through protected-main PR. Rollback tag:
+rollback/2026-09-09-before-mode5-fixed-bypass. Source main is no longer the
+older mode1-only2ebf64e described below. Historical mode5 visual docs are not
+current instructions. Release guide: docs/releases/RELEASE_V1.2.0_RC5.md.
+
+### Latest comprehensive deployment: 58c3744
+
+COM11 full109708-byte readback and GO passed, reserved pages preserved.
+Mode4 now gyro-tangent trajectory, not STOP; digital0 remains STOP. Mode3
+live-line behavior retained. Side IR disabled. K210 and main code unchanged.
+No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_58C3744_20260909.md.
+Supersedes older unflashed-candidate and STM32 deployment statements below.
+
+### Latest unflashed candidate: 58c3744
+
+Comprehensive branch fast-forwarded from a6c61d3. Adds mode4 gyro-tangent
+trajectory while retaining mode3 live line feedback and latest mode1 bypass.
+Digital4 is a driving mode in this candidate, not STOP; board remains a6c61d3.
+Build and full sign/line/gyro suites passed. No serial/flash/physical test/push.
+K210 and main code unchanged. Side IR remains disabled. See
+docs/history/candidates/COMPREHENSIVE_58C3744_20260909.md.
+Supersedes older candidate statements only.
+
+### Latest comprehensive deployment: a6c61d3
+
+Requested candidate now flashed: COM11 full108800-byte readback and GO
+passed; reserved pages preserved. Mode3 consolidated sign control,4=STOP;
+side IR remains disabled. K210/main code unchanged. No post-GO/physical test.
+See docs/history/deployments/DEPLOYMENT_A6C61D3_20260909.md.
+Supersedes older unflashed-candidate and STM32 deployment statements below.
+
+### Latest unflashed candidate: a6c61d3
+
+b67ca7b integrated onto5cb1bd3. Sign control now mode3 only,4=STOP/reserved;
+ARC live feedback and phase-anchored110-degree entry search updated. Mode1
+250/300-mm fast bypass retained; side IR disabled. Full sign/line/gyro suites
+and build passed. No serial/flash/physical test/push. Board remains533e355;
+K210 and main code unchanged. See
+docs/history/candidates/COMPREHENSIVE_A6C61D3_20260909.md.
+Supersedes older candidate statements only.
+
+### Latest unflashed candidate: 5cb1bd3
+
+948c3db integrated onto533e355. Active fixed bypass constants now250/300 mm;
+4000-CPS fixed travel and slow sign modes retained. Formal build and complete
+gyro/line suites passed. No serial/flash/physical test/push. Board remains
+533e355, K210 and main code unchanged. Side IR remains disabled. See
+docs/history/candidates/COMPREHENSIVE_5CB1BD3_20260909.md.
+Supersedes older candidate statements only.
+
+### Latest comprehensive deployment: 533e355
+
+3b3cab4 and 2de30bb integrated onto16b5092. Modes3/4 use KEY2 slow settle
+profile; mode1 fixed bypass4000 CPS, approach16 cm/dynamic22 cm. Geometry
+300/360 mm and side-IR-disabled policy retained. Full sign/line/gyro suites
+and build passed. COM11 full108608-byte readback and GO passed; reserved
+pages preserved. K210 and main code unchanged. No post-GO/physical test.
+See docs/history/deployments/DEPLOYMENT_533E355_20260909.md.
+Supersedes older candidate and STM32 deployment statements below.
+
+### Latest comprehensive deployment: 16b5092
+
+7b56dad integrated onto e8f6fbe. Sign modes remove moving-speed caps but
+retain two-second observation stop. Includes 30/36-cm bypass; side IR remains
+disabled. Full sign/line/gyro suites and build passed. COM11 full 108344-byte
+readback and GO passed, reserved pages preserved. K210 and main code unchanged.
+No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_16B5092_20260909.md.
+Supersedes older candidate and STM32 deployment statements below.
+
+### Latest unflashed candidate: e8f6fbe
+
+078cfdb integrated onto bd87633; fixed bypass now 300/360 mm. Other controls
+retained, including disabled side IR. Formal build and full gyro/line suites
+passed. No serial, flash, physical test or push; board remains bd87633,
+K210 unchanged. Main code unchanged. See
+docs/history/candidates/COMPREHENSIVE_E8F6FBE_20260909.md.
+Supersedes older candidate statements only.
+
+### Latest comprehensive deployment: bd87633
+
+After USB reconnect, COM11 wrote and read back all 108748 bytes and GO passed.
+Exact candidate hash verified before deployment; reserved pages preserved.
+Includes c133918 and bc40f79, with side obstacle IR still disabled. K210 and
+main code unchanged. No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_BD87633_20260909.md.
+Supersedes previous USB blocker and older STM32 deployment statements below.
+
+### Latest candidate bd87633; flash blocked before port open
+
+c133918 and bc40f79 integrated onto 6894af1: 360/600-mm bypass and modes3/4
+shared KEY2 tracking with retained route constraints. Full sign/line/gyro
+tests and build passed. COM11 Open failed with device-not-functioning error
+before erase/write; reconnect required. Board Flash remains 6894af1.
+K210 unchanged, side IR still disabled. No physical test or push.
+See docs/history/candidates/COMPREHENSIVE_BD87633_20260909.md.
+Supersedes older candidate statements, not successful deployment records.
+
+### Latest comprehensive deployment: 6894af1
+
+2c182e3 integrated onto 0cdf8ee. Approach threshold 20 cm, dynamic maximum
+30 cm, raw critical 10 cm; active bypass 15-cm guard discards old-heading
+echoes. Original encoder speed controller and disabled side IR retained.
+Full sign/line/gyro suites and build passed. COM11 full 108364-byte readback
+and GO passed; reserved pages preserved. K210 and main code unchanged.
+No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_6894AF1_20260909.md.
+Supersedes older candidate and STM32 deployment statements below.
+
+### Latest comprehensive deployment: 0cdf8ee
+
+a90ce13 integrated onto 9ba87c3. Original encoder speed controller restored;
+experimental low-speed powered/coast path and 500-CPS search cap removed.
+Independent ARC-direction fix and disabled side-IR policy retained. Side IR
+protection remains absent. Build and full sign/line/gyro suites passed.
+COM11 full 108164-byte readback and GO passed; reserved pages preserved.
+K210 and main code unchanged. No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_0CDF8EE_20260909.md.
+Supersedes older candidate and STM32 deployment statements below.
+
+### Latest comprehensive deployment: 9ba87c3
+
+5bb2abd integrated onto a5b618d. Obstacle IR disabled for fixed-route
+isolation; ultrasonic, tracking, remote and low-speed sign power retained.
+Side IR protection is absent in this test image. Full sign/line/gyro suites
+and build passed. COM11 full 109208-byte readback and GO passed; audio and
+calibration pages preserved. K210 and main firmware code unchanged.
+No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_9BA87C3_20260909.md.
+Supersedes older unflashed-candidate and STM32 deployment statements below.
+
+### Latest unflashed comprehensive candidate: a5b618d
+
+2e9a38e integrated onto ec2dd2f. Sign-only low-speed powered phases retain
+breakaway power while encoder-accounted coasting preserves target speed.
+Sign, line and gyro regression suites and formal build passed. Synthetic
+friction tests are not physical validation. Board remains ec2dd2f; K210 and
+main code unchanged. No serial access, flashing or push in this merge task.
+See docs/history/candidates/COMPREHENSIVE_A5B618D_20260909.md.
+This supersedes older candidate statements below, not deployment evidence.
+
+### Latest comprehensive deployment: ec2dd2f
+
+11a243f integrated onto 8b91f49, retaining 24-cm bypass. Sign-only low-speed
+feedback regulation and 500-CPS search enabled. Full sign/line/gyro suites
+and build passed. COM11 109740-byte full readback and GO passed, reserved
+pages preserved. K210 unchanged; no post-GO/physical test. Main code unchanged.
+See docs/history/deployments/DEPLOYMENT_EC2DD2F_20260909.md.
+Supersedes older unflashed-24cm and STM32 deployment notes below.
+
+### Latest unflashed candidate: 8b91f49
+
+c7f68e6 integrated onto 5fdb84a, fixed offset now 240 mm; parallel 120 mm,
+return 45 degrees and latest sign behavior retained. Build, gyro and line
+regressions passed. No serial/flash/physical test/push; board stays 5fdb84a.
+See docs/history/candidates/COMPREHENSIVE_8B91F49_20260909.md.
+
+### Latest comprehensive deployment: 5fdb84a
+
+0768639 integrated onto a773196, including mode1 fixed rectangle and current
+sign handoff. Sign suite/build passed. COM11 full 108908-byte readback and GO
+passed; reserved pages preserved. K210 unchanged, no post-GO/physical test.
+See docs/history/deployments/DEPLOYMENT_5FDB84A_20260909.md.
+This supersedes unflashed-rectangle and older board statements below.
+
+### Latest unflashed comprehensive candidate: a773196
+
+74c0d66 integrated onto 3a00fa8. Mode1 fixed right 180/120-mm bypass and
+45-degree diagonal return, with adaptive fallback; latest sign modes retained.
+Formal build, line (both speeds), gyro and sign suites passed. No flash,
+serial access, physical test or push; board remains 3a00fa8 and K210 unchanged.
+See docs/history/candidates/COMPREHENSIVE_A773196_20260909.md for hashes.
+
+### Latest deployment: 3a00fa8
+
+Requested combined speed/handoff candidate is now flashed: COM11 full
+106384-byte readback and GO passed; reserved pages preserved. K210 unchanged.
+No post-GO or physical test. See docs/history/deployments/DEPLOYMENT_3A00FA8_20260909.md.
+This supersedes the unflashed/a56f6c7 board notes below. Main code unchanged.
+
+### Latest unflashed comprehensive candidate: 3a00fa8
+
+93b408b and bf3e8e1 integrated onto a56f6c7 in comprehensive-v15-sign-horn.
+Mode1 stable straight/clear return speed increase and modes3/4 verified
+entry-line handoff coexist. Line (both speeds), sign and gyro suites passed,
+formal build passed. Obsolete gyro test assertion corrected, not controller.
+No serial/flash/push/physical test; board stays a56f6c7, K210 stays 20e8c72.
+Hashes above identify candidate; see docs/history/candidates/COMPREHENSIVE_3A00FA8_20260909.md.
+
+### Latest comprehensive deployment: a56f6c7
+
+12fd7f2 final delta integrated onto 426dedd; sign suite/build passed.
+COM11 full 105536-byte readback and GO passed; reserved pages preserved.
+Entry releases route motor ownership on loss/center/opposite-only contact;
+exit gyro alignment and other features retained. K210 unchanged at .15.
+No post-GO/physical test or push; main code unchanged. See
+docs/history/deployments/DEPLOYMENT_A56F6C7_20260909.md.
+Supersedes older STM32 deployment notes below.
+
+### Comprehensive branch synchronized with deployed 917df47
+
+Merge 426dedd31459a117256d70299733cf2c249a693f on
+test/comprehensive-v15-sign-horn-20260909 includes 917df47. Core, K210, tests,
+Drivers, build script and linker script match that previously tested source.
+Formal rebuild passed; BIN and HEX SHA256 exactly match the deployed 917df47
+hashes above. Worktree is clean. No new flash, physical test or GitHub push.
+This supersedes the older statement that this branch still points to 6bd0c89.
+Main firmware code is unchanged; only the comprehensive test branch was merged.
+
+### Latest exact test deployment: 917df47
+
+Requested source 917df4763fdfd0a669b3f5366cc2eae2ed508048 rebuilt in
+worktrees/sign-gyro-exit-straight; full sign suite passed. COM11 full
+105612-byte readback and GO passed, reserved pages preserved. No source merge.
+K210 unchanged at 20e8c72 threshold .15; no post-GO or physical test.
+Docs: docs/history/deployments/DEPLOYMENT_917DF47_20260909.md.
+Supersedes older STM32 deployment entries. Comprehensive-v15 branch still
+points to 6bd0c89; do not mistake that checkout's older BIN for this board image.
+
+### Latest STM32 deployment: 6bd0c89
+
+6bc7d28 integrated onto comprehensive 20e8c72. Sign suite/build passed.
+COM11 write/full readback 105728 bytes and GO passed; reserved pages preserved.
+Confirmed entry choice and gyro-aligned bounded exit travel updated. Pause,
+horn and RGB-off retained; K210 unchanged at paired 20e8c72 threshold .15.
+No post-GO or physical test. See docs/history/deployments/DEPLOYMENT_6BD0C89_20260909.md.
+This supersedes older STM32 deployment statements; main code unchanged.
+
+### Latest paired deployment: 20e8c72
+
+2c3abe0 integrated into comprehensive 37a04b0. Full sign suite/build passed.
+STM32 COM11 full 105472-byte readback and GO passed; reserved pages preserved.
+K210 COM14 paired 7527-byte script readback and model hash verified, startup
+SIGN34 ready with threshold 0.15 observed. First direction observation pause
+is 2 seconds, OLED OBSERVE; gyro/RGB-off/five-repeat horn retained.
+No wheel/ground/sign-response test. Main code unchanged. Details and backup:
+docs/history/deployments/DEPLOYMENT_20E8C72_20260909.md.
+This supersedes older board/K210 deployment and pending-threshold notes below.
+
+### Latest STM32 deployment: 37a04b0
+
+4c81dce integrated into comprehensive 771586e; sign suite/build passed.
+COM11 write/full readback 104956 bytes and GO passed; reserved pages preserved.
+First positive recognition applies 500-CPS forward peak for 1500 ms.
+K210 port absent, hardware unchanged at 0987233 threshold 0.20. Candidate
+0.15 script still needs deployment. No post-GO or physical test.
+See docs/history/deployments/DEPLOYMENT_37A04B0_20260909.md.
+Supersedes older STM32 deployment statements below; main code unchanged.
+
+### Latest deployment: 771586e after reconnect
+
+COM11 replug retry succeeded: 104940-byte write/full readback and GO passed,
+52 application pages erased with audio/calibration pages excluded. K210
+unchanged (paired 0987233 SIGN34 script). No post-GO query or physical test.
+See docs/history/deployments/DEPLOYMENT_771586E_20260909.md. This supersedes
+the pending/failed bootloader notes below. Main firmware code remains unchanged.
+
+### Latest candidate 771586e; deployment blocked
+
+b357a4d final delta integrated into comprehensive 0987233: proportional
+forward steering weights and 700-CPS all-black cap. Build and relevant checks
+passed. Two COM11 bootloader-sync attempts failed before erase/write; old
+0987233 Flash remains, but execution after reset probing is unconfirmed.
+K210 unchanged. Replug required; see
+docs/history/candidates/PREPARED_771586E_20260909.md for artifacts/evidence.
+
+### Latest paired deployment: 0987233
+
+Comprehensive test includes 5f2de2d live hint/gyro +/-25-degree search and
+excludes sign modes from forced wait-recovery, preserving RGB-off, five-repeat
+horn, trace and other modes. Full sign_line suite and ARM build passed.
+STM32 COM11: 104804-byte full readback and GO passed; reserved pages preserved.
+K210 COM14: paired 7334-byte sign_mode34.py written/read back, model hash
+verified unchanged, SIGN34 single-best left/right/horn startup observed.
+No wheel/ground/sign-response or board-link test. Main code is not promoted.
+See docs/history/deployments/DEPLOYMENT_0987233_20260909.md for hashes/backup.
+This supersedes all older board/K210 deployment statements below.
 
 ### Latest deployment: c50d3c8 after reconnect
 

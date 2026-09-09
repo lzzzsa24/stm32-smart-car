@@ -10,6 +10,7 @@
 #define TRAVEL_SETTLE_LIMIT_MS 300U
 #define TRAVEL_CONTROLLER_FAULT 0x10U
 #define TRAVEL_CONTINUOUS_MAX_CPS 1800L
+#define TRAVEL_FIXED_MAX_CPS 4000L
 
 static LineBypassTravelState state;
 static WheelEncoderCounts start;
@@ -52,18 +53,19 @@ static void fail(uint8_t drive_fault)
   state = LINE_BYPASS_TRAVEL_FAULT;
 }
 
-uint8_t LineBypassTravel_Start(int32_t distance_mm, int32_t cps)
+static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cps)
 {
   DriveBaseTelemetry drive;
   int64_t distance = distance_mm;
   if(distance < 0) distance = -distance;
-  if(!distance || distance > 65535 || cps < 1400 || cps > 3600 ||
+  if(!distance || distance > 65535 || cps < 1400 ||
+      cps > (maximum_cps > 3600L ? maximum_cps : 3600L) ||
       state == LINE_BYPASS_TRAVEL_RUNNING) return 0U;
   DriveBase_GetTelemetry(&drive);
   if(drive.fault_mask || drive.mode != DRIVE_BASE_STOPPED) return 0U;
   /* Short bypass legs should creep continuously, not accelerate toward a
      fast cruise then enter endpoint pulses. Keep the ordinary speed PI. */
-  if(cps > TRAVEL_CONTINUOUS_MAX_CPS) cps = TRAVEL_CONTINUOUS_MAX_CPS;
+  if(cps > maximum_cps) cps = maximum_cps;
   target_counts = (int32_t)((distance * TRAVEL_COUNTS_PER_REV * 10000 +
       TRAVEL_PI_X10000 * VEHICLE_WHEEL_DIAMETER_MM / 2) /
       (TRAVEL_PI_X10000 * VEHICLE_WHEEL_DIAMETER_MM));
@@ -81,6 +83,17 @@ uint8_t LineBypassTravel_Start(int32_t distance_mm, int32_t cps)
   state = LINE_BYPASS_TRAVEL_RUNNING;
   DriveBase_SetSideCps(signed_cps, signed_cps);
   return 1U;
+}
+
+uint8_t LineBypassTravel_Start(int32_t distance_mm, int32_t cps)
+{
+  return start_travel(distance_mm, cps, TRAVEL_CONTINUOUS_MAX_CPS);
+}
+
+uint8_t LineBypassTravel_StartFixed(int32_t distance_mm, int32_t cps)
+{
+  if(distance_mm <= 0) return 0U;
+  return start_travel(distance_mm, cps, TRAVEL_FIXED_MAX_CPS);
 }
 
 void LineBypassTravel_Task(void)

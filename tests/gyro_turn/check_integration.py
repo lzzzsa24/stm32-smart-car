@@ -20,8 +20,8 @@ assert runtime.index("MpuYaw_Task(HAL_GetTick(), stationary);") < runtime.index(
 )
 assert "requested_mode = APP_MODE_STOPPED;" not in runtime
 assert "imu_generation" not in runtime
-assert "uint8_t enabled = mode == APP_MODE_INTEGRATED;" in main
-assert "if (mode != APP_MODE_INTEGRATED) return service_legacy_line_wait(mode);" in main
+assert "uint8_t enabled = mode == APP_MODE_INTEGRATED || mode == APP_MODE_FIXED_BYPASS;" in main
+assert "if (mode != APP_MODE_INTEGRATED && mode != APP_MODE_FIXED_BYPASS) return service_legacy_line_wait(mode);" in main
 assert "LineBypassTurn_Recover();" in main
 assert main.index("if (service_bounded_line_wait(app_mode))") < main.index("if (DriveBase_GetFaultMask() != 0U &&")
 

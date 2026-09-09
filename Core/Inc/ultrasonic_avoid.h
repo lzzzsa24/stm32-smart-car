@@ -47,6 +47,7 @@ void UltrasonicAvoid_Task(void);
    Keep configured callbacks/thresholds; fresh near echoes still take priority. */
 void UltrasonicAvoid_ResumeFollowing(void);
 
+void UltrasonicAvoid_SetCriticalDistance(uint16_t cm);
 void UltrasonicAvoid_SetThresholds(uint16_t stop_cm, uint16_t clear_cm);
 /* Fast path used while approaching at speed.  Two consecutive raw readings
  * at/below this distance trigger immediately without waiting for the
