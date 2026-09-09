@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: 0987233fc291cc77e93ec4d077dde4d6078225e3
-flash_record_commit: bc601c0
-deployed_tag: deployed/2026-09-09-0987233
+flashed_source_commit: 771586e768dbf8659ebba3648b39f8780e59b18a
+flash_record_commit: 4bdfb56
+deployed_tag: deployed/2026-09-09-771586e
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 104804
-flashed_bin_sha256: 104AE011959E5D1A18757D0829EAB9621D6B3745A4B97B9E378A6B5902133E9E
-flashed_hex_sha256: 59972A5DD4C109E975ADE467D2B963AF7158BE00EBCBB0DAB22EF76223EC7EBA
-ground_test_status: not_tested_after_0987233_deployment
+formal_bin_size_bytes: 104940
+flashed_bin_sha256: D740EB4E8BBA4E9189D74A95669E824C5918B6511F30D07EDBF4AC03FE03E89A
+flashed_hex_sha256: F14F6617956ABAFE1ABDEAB31E054571647588CC8214D6EC00F4A8381BD8D19B
+ground_test_status: not_tested_after_771586e_deployment
 k210_status: COM14_0987233_SIGN34_7334_bytes_readback_model_hash_startup_verified
 candidate_source_commit: 771586e768dbf8659ebba3648b39f8780e59b18a
 candidate_bin_size_bytes: 104940
 candidate_bin_sha256: D740EB4E8BBA4E9189D74A95669E824C5918B6511F30D07EDBF4AC03FE03E89A
 candidate_hex_sha256: F14F6617956ABAFE1ABDEAB31E054571647588CC8214D6EC00F4A8381BD8D19B
-user_reported_flash: tool_verified_0987233_STM32_flash_readback_and_GO
+user_reported_flash: tool_verified_771586e_STM32_flash_readback_and_GO
 k210_candidate_source_commit: 0987233fc291cc77e93ec4d077dde4d6078225e3
 k210_candidate_status: deployed_7334_bytes_E2C6B101_readback_model_verified_SIGN34_startup
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: 771586e_flash_bootloader_sync_failed_before_erase_old_0987233_flash_execution_unconfirmed
+stm32_runtime_status: COM11_771586e_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20260909_0987233
-temporary_flash_selector_commit: 0987233_comprehensive_sign_entry_recovery_flashed
+temporary_flash_selector_commit: 771586e_comprehensive_forward_ratio_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,14 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: 771586e after reconnect
+
+COM11 replug retry succeeded: 104940-byte write/full readback and GO passed,
+52 application pages erased with audio/calibration pages excluded. K210
+unchanged (paired 0987233 SIGN34 script). No post-GO query or physical test.
+See docs/history/deployments/DEPLOYMENT_771586E_20260909.md. This supersedes
+the pending/failed bootloader notes below. Main firmware code remains unchanged.
 
 ### Latest candidate 771586e; deployment blocked
 
