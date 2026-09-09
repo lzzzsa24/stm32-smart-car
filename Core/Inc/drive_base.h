@@ -90,6 +90,9 @@ void DriveBase_Task(uint32_t now_ms);
    together; does not start motion or alter brake/position/fault ownership.
    The mode owner must clear it when leaving the capped mode. */
 void DriveBase_SetSpeedLimitCps(int32_t maximum_cps);
+/* Modes 3/4 opt-in: regulate sub-continuous speeds with encoder-accounted
+   powered/coast intervals. Default off; position control is unaffected. */
+void DriveBase_SetSignLowSpeedMode(uint8_t enabled);
 
 void DriveBase_SetWheelCps(int32_t motor1_cps,
                            int32_t motor2_cps,

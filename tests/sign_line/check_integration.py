@@ -35,6 +35,9 @@ assert "SignRoute_UpdateEncoders(" in sign_task
 assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
+assert "DriveBase_SetSignLowSpeedMode(0U);" in slow_task
+assert "DriveBase_SetSignLowSpeedMode(1U);" in slow_task
+assert slow_task.index("DriveBase_SetSignLowSpeedMode(0U);") < slow_task.index("return;") < slow_task.index("DriveBase_SetSignLowSpeedMode(1U);")
 assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in slow_task
 assert "SignHorn_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]

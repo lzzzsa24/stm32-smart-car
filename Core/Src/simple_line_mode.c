@@ -130,9 +130,6 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
     SimpleLine_SetDirection(controller, route->direction);
     controller->route_hint = route->direction;
   }
-  else if (route->state == SIGN_ROUTE_ARC &&
-           controller->route_state != (uint8_t)SIGN_ROUTE_ARC && route->direction)
-    SimpleLine_SetDirection(controller, (int8_t)-route->direction);
   else if (route->state != SIGN_ROUTE_PROBE && route->state != SIGN_ROUTE_ARC &&
            command->just_started && route->direction)
     SimpleLine_SetDirection(controller, route->direction);

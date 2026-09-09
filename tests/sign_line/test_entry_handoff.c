@@ -141,6 +141,8 @@ static void check_early_arc(int side)
   assert(status.state==SIGN_ROUTE_ARC);
   /* 20-degree line capture, entry keeps turning to its 80-degree apex.
      The opposite semicircle must be measured from that apex, not capture. */
+  step(0,-side*20000,1,0);
+  expect_search(side); /* entering ARC alone must not invent opposite curvature */
   for(angle=21;angle<=80;++angle)
   {
     counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);

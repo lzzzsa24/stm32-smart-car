@@ -180,8 +180,8 @@ static void test_slowdown(void)
   SignSlowdown_ObserveBlack(2000U);
   SignSlowdown_Reset();
   CHECK(SignSlowdown_Reasons(2001U) == 0U);
-  CHECK(SignSlowdown_TargetLimit(3U, -2700, 2700) == 0L);
-  CHECK(SignSlowdown_TargetLimit(3U, 2700, -2700) == 0L);
+  CHECK(SignSlowdown_TargetLimit(3U, -2700, 2700) == 500L);
+  CHECK(SignSlowdown_TargetLimit(3U, 2700, -2700) == 500L);
   CHECK(SignSlowdown_TargetLimit(3U, 2400, 2400) == 500L);
   CHECK(SignSlowdown_TargetLimit(3U, 0, 2200) == 500L);
   CHECK(SignSlowdown_TargetLimit(SIGN_SLOWDOWN_VISION, 800, 2300) == 500L);

@@ -80,6 +80,8 @@ static uint32_t position_settle_deadline_ms;
 static uint32_t sync_fault_since_ms;
 static uint32_t brake_deadline_ms;
 static int32_t requested_cps[DRIVE_BASE_WHEEL_COUNT];
+static uint8_t sign_low_speed_mode;
+static int32_t low_speed_budget[DRIVE_BASE_WHEEL_COUNT];
 static int32_t speed_limit_cps;
 static int32_t controlled_cps[DRIVE_BASE_WHEEL_COUNT];
 static int32_t measured_cps[DRIVE_BASE_WHEEL_COUNT];
@@ -269,6 +271,7 @@ static void reset_controller_state(uint32_t now)
   last_control_ms = now;
   for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
   {
+    low_speed_budget[motor] = 0L;
     integral_error[motor] = 0L;
     previous_command_sign[motor] = 0;
     direction_mismatch_streak[motor] = 0U;
@@ -412,11 +415,38 @@ static int16_t speed_control_output(uint8_t motor,
 
   if (target_cps == 0L || elapsed_ms == 0U)
   {
+    low_speed_budget[motor] = 0L;
     integral_error[motor] = 0L;
     recovery_boost_remaining_ms[motor] = 0U;
     recovery_boost_used[motor] = 0U;
     return 0;
   }
+
+  if (sign_low_speed_mode && drive_mode == DRIVE_BASE_SPEED &&
+      abs_i32(target_cps) < DRIVE_CONTINUOUS_MIN_CPS)
+  {
+    uint32_t budget_ms = elapsed_ms > 100U ? 100U : elapsed_ms;
+    int64_t budget = low_speed_budget[motor] + (int64_t)abs_i32(target_cps)*budget_ms;
+    recovery_boost_remaining_ms[motor] = 0U;
+    if (line_fault_observe && (line_degraded_mask & (uint8_t)(1U << motor)))
+    {
+      /* Suspect encoder: use bounded calibrated pulse density, never its
+         wrong-sign deltas to demand continuous power. */
+      int32_t quantum = DRIVE_CONTINUOUS_MIN_CPS*(int32_t)budget_ms;
+      if (budget < quantum) { low_speed_budget[motor]=(int32_t)budget; return 0; }
+      budget-=quantum;
+    }
+    else
+    {
+      budget-=(int64_t)direction*delta_counts*1000L;
+      if (budget < -DRIVE_CONTINUOUS_MIN_CPS*80L) budget=-DRIVE_CONTINUOUS_MIN_CPS*80L;
+      if (budget > DRIVE_CONTINUOUS_MIN_CPS*20L) budget=DRIVE_CONTINUOUS_MIN_CPS*20L;
+      low_speed_budget[motor]=(int32_t)budget;
+      if (budget<=0L) return 0;
+    }
+    low_speed_budget[motor]=(int32_t)budget;
+  }
+  else low_speed_budget[motor]=0L;
 
   if (line_fault_observe && (line_degraded_mask & (uint8_t)(1U << motor)))
   {
@@ -508,6 +538,7 @@ static void clear_motion_targets(void)
 
   for (motor = 0U; motor < DRIVE_BASE_WHEEL_COUNT; ++motor)
   {
+    low_speed_budget[motor] = 0L;
     requested_cps[motor] = 0L;
     controlled_cps[motor] = 0L;
     integral_error[motor] = 0L;
@@ -715,6 +746,7 @@ static void update_command_direction_guard(uint8_t motor,
 
   if (next_sign != previous_command_sign[motor])
   {
+    low_speed_budget[motor] = 0L;
     previous_command_sign[motor] = next_sign;
     direction_guard_until_ms[motor] = now + DRIVE_DIRECTION_GUARD_MS;
     direction_mismatch_streak[motor] = 0U;
@@ -1217,6 +1249,15 @@ static void control_position_mode(const WheelEncoderCounts *current,
   }
 }
 
+void DriveBase_SetSignLowSpeedMode(uint8_t enabled)
+{
+  uint8_t motor;
+  enabled = enabled ? 1U : 0U;
+  if (sign_low_speed_mode == enabled) return;
+  sign_low_speed_mode = enabled;
+  for (motor=0U; motor<DRIVE_BASE_WHEEL_COUNT; ++motor) low_speed_budget[motor]=0L;
+}
+
 void DriveBase_Init(void)
 {
   WheelEncoderDiagnostics diagnostics;
@@ -1225,6 +1266,7 @@ void DriveBase_Init(void)
 
   drive_mode = DRIVE_BASE_STOPPED;
   speed_limit_cps = 0L;
+  sign_low_speed_mode = 0U;
   line_fault_observe = line_degraded_mask = 0U;
   LineFaultLog_Init();
   position_state = DRIVE_POSITION_IDLE;
