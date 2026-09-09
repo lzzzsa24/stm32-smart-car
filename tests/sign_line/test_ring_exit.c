@@ -261,6 +261,8 @@ static void test_exit_recovery(int8_t side)
   for(i=0;i<4;++i) step(side<0?12:3,0,0);
   assert(status.state==SIGN_ROUTE_EXIT_SELECT);
   for(i=0;i<260;++i) { observe(side<0?0:1); step(15,0,0); }
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT); /* low-speed alignment gets >2.5 s */
+  for(i=0;i<350;++i) { observe(side<0?0:1); step(15,0,0); }
   assert(status.state==SIGN_ROUTE_CANCELLED && !cmd.active && status.direction==0);
   assert(motor_left>0 && motor_right>0);
   for(i=0;i<200;++i) { observe(side<0?0:1); step(side<0?12:3,0,0); }

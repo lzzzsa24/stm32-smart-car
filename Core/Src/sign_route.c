@@ -30,6 +30,8 @@ typedef struct
   uint32_t last_sequence;
   uint32_t armed_ms;
   int64_t imu_yaw, imu_origin, approach_yaw;
+  int64_t entry_extreme_yaw, exit_previous_error;
+  uint8_t arc_origin_locked;
   uint8_t imu_valid;
   uint32_t probe_hold_since_ms;
   uint8_t probe_hold_started;
@@ -270,6 +272,15 @@ static void enter_phase(SignRouteState state, uint32_t now)
   route.origin_left = route.left_counts;
   route.origin_right = route.right_counts;
   route.imu_origin = route.imu_yaw;
+  if (state == SIGN_ROUTE_PROBE || state == SIGN_ROUTE_SELECTING)
+    route.entry_extreme_yaw = route.imu_yaw;
+  if (state == SIGN_ROUTE_ARC)
+  {
+    route.imu_origin = route.entry_extreme_yaw;
+    route.arc_origin_locked = 0U;
+  }
+  if (state == SIGN_ROUTE_EXIT_SELECT)
+    route.exit_previous_error = route.direction * (route.imu_yaw-route.approach_yaw);
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -287,7 +298,25 @@ static void update_geometry(void)
       (VEHICLE_TRACK_WIDTH_MM * 31416LL));
 #if SIGN_ROUTE_REQUIRE_IMU
   {
-    int64_t yaw = route.imu_yaw - route.imu_origin;
+    int64_t yaw;
+    if (route.imu_valid && route.direction)
+    {
+      if ((route.state == SIGN_ROUTE_PROBE || route.state == SIGN_ROUTE_SELECTING) &&
+          -route.direction * (route.imu_yaw-route.entry_extreme_yaw) > 0)
+        route.entry_extreme_yaw=route.imu_yaw;
+      if (route.state == SIGN_ROUTE_ARC && !route.arc_origin_locked)
+      {
+        /* Early line capture can precede the entry turn's apex. Track that
+           apex only until actual opposite arc curvature is established. */
+        if (route.direction * (route.imu_yaw-route.imu_origin) < 0 &&
+            -route.direction * (route.imu_yaw-route.approach_yaw) <= SIGN_ENTRY_MAX_MDEG)
+          route.imu_origin=route.imu_yaw;
+        if (route.travel_mm >= SIGN_ARC_MIN_MM &&
+            route.direction * (route.imu_yaw-route.imu_origin) >= SIGN_ARC_ORIGIN_LOCK_MDEG)
+          route.arc_origin_locked=1U;
+      }
+    }
+    yaw = route.imu_yaw - route.imu_origin;
     route.yaw_mdeg = yaw > 1000000 ? 1000000 :
         (yaw < -1000000 ? -1000000 : (int32_t)yaw);
   }
@@ -320,6 +349,16 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
   memset(command, 0, sizeof(*command)); /* withdraw, never replace SL2 with STOP */
 }
 
+static void capture_arc(uint32_t now, SignRouteCommand *command)
+{
+  enter_phase(SIGN_ROUTE_ARC, now);
+  route.entry_line_ready=1U;
+  update_geometry();
+  memset(command,0,sizeof(*command));
+  command->direction=route.direction;
+  command->just_finished=1U;
+}
+
 static void observe_entry_line(uint8_t mask, uint32_t now)
 {
   uint8_t selected = route.direction < 0 ? 8U : 1U;
@@ -346,12 +385,15 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
 #if SIGN_ROUTE_REQUIRE_IMU
   if (route.direction && route.imu_valid && route.state == SIGN_ROUTE_EXIT_SELECT)
   {
+    int8_t steer = route.direction;
+    if (route.direction * (route.imu_yaw-route.approach_yaw) < 0)
+      steer = (int8_t)-steer; /* correct overshoot instead of continuing around */
     /* Only the angle-qualified EXIT phase may align without visible line.
        Entry must never cut across white while waiting for a nominal angle. */
     command->active = 1U;
     route.departed = 1U;
-    command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
-    command->right_pwm = route.direction < 0 ? SIGN_ROUTE_PWM : 0;
+    command->left_pwm = steer < 0 ? 0 : SIGN_ROUTE_PWM;
+    command->right_pwm = steer < 0 ? SIGN_ROUTE_PWM : 0;
     return;
   }
 #endif
@@ -468,6 +510,11 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         angle_ready = entry_angle >= SIGN_ENTRY_MIN_MDEG;
         if (angle_ready) route.departed = 1U;
 #endif
+        if (route.entry_line_ready)
+        {
+          capture_arc(now, command);
+          return;
+        }
         if (stable(route.departed && center && angle_ready, now))
         {
           enter_phase(SIGN_ROUTE_ARC, now);
@@ -541,24 +588,37 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   if (route.state == SIGN_ROUTE_SELECTING || route.state == SIGN_ROUTE_EXIT_SELECT)
   {
     int32_t turn_yaw = -route.direction * route.yaw_mdeg;
+    uint32_t timeout = route.state == SIGN_ROUTE_EXIT_SELECT ?
+        SIGN_EXIT_ALIGN_TIMEOUT_MS : SIGN_SELECT_TIMEOUT_MS;
     if (route.state == SIGN_ROUTE_SELECTING) observe_entry_line(line_mask, now);
     select_command(command, line_mask);
-    if (now - route.phase_ms > SIGN_SELECT_TIMEOUT_MS ||
+    if (now - route.phase_ms > timeout ||
         turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
     {
       cancel_route(2U, now, command);
       return;
     }
-#if SIGN_ROUTE_REQUIRE_IMU
-    if (route.state == SIGN_ROUTE_EXIT_SELECT &&
-        turn_yaw >= SIGN_EXIT_MIN_MDEG &&
-        route.imu_yaw-route.approach_yaw >= -10000 &&
-        route.imu_yaw-route.approach_yaw <= 10000)
+    if (route.state == SIGN_ROUTE_SELECTING && route.entry_line_ready)
     {
-      enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
-      command->active=1U;
-      command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+      capture_arc(now, command);
       return;
+    }
+#if SIGN_ROUTE_REQUIRE_IMU
+    if (route.state == SIGN_ROUTE_EXIT_SELECT)
+    {
+      int64_t error = route.direction * (route.imu_yaw-route.approach_yaw);
+      uint8_t aligned = (error >= -10000 && error <= 10000) ||
+          (((route.exit_previous_error > 0 && error <= 0) ||
+            (route.exit_previous_error < 0 && error >= 0)) &&
+           error >= -15000 && error <= 15000);
+      route.exit_previous_error=error;
+      if (turn_yaw >= SIGN_EXIT_MIN_MDEG && aligned)
+      {
+        enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
+        command->active=1U;
+        command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+        return;
+      }
     }
 #endif
     if (!junction && !center) route.departed = 1U;
@@ -591,6 +651,14 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     uint8_t exit_side = route.direction < 0 ? 8U : 1U;
 #endif
     directed_arc_yaw = route.direction * route.yaw_mdeg;
+#if SIGN_ROUTE_REQUIRE_IMU
+    if (!route.arc_origin_locked &&
+        -route.direction * (route.imu_yaw-route.approach_yaw) > SIGN_ENTRY_MAX_MDEG)
+    {
+      cancel_route(3U, now, command);
+      return;
+    }
+#endif
     if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
         route.travel_mm > SIGN_ARC_MAX_MM ||
         directed_arc_yaw >

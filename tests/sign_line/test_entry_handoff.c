@@ -89,7 +89,7 @@ static void check_handoff(int side, uint32_t origin)
   now+=60; step(6,-side*20000,1,0);
   assert(!status.entry_line_ready); /* sampling gap cannot complete capture */
   for(i=0;i<3;++i) step(6,-side*20000,1,0);
-  assert(status.entry_line_ready && status.state==SIGN_ROUTE_PROBE);
+  assert(status.entry_line_ready && status.state==SIGN_ROUTE_ARC);
   assert(left>0 && right>0 && !command.active); /* release before fixed 60 degrees */
   step(opposite,-side*20000,1,0);
   assert(left>0 && right>0 && !command.active);
@@ -128,8 +128,56 @@ static void check_late_selection(int side)
   step(0,0,1,0); expect_search(side);
 }
 
+static void check_early_arc(int side)
+{
+  unsigned i;
+  int angle;
+  int32_t counts=0;
+  init(side,100);
+  step(side<0?8U:1U,-side*20000,1,0);
+  for(i=0;i<4;++i) step(6,-side*20000,1,0);
+  /* The line handoff is already verified; leaving navigation in PROBE
+     makes a smooth early capture miss every subsequent exit decision. */
+  assert(status.state==SIGN_ROUTE_ARC);
+  /* 20-degree line capture, entry keeps turning to its 80-degree apex.
+     The opposite semicircle must be measured from that apex, not capture. */
+  for(angle=21;angle<=80;++angle)
+  {
+    counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);
+    now+=40; step(side<0?8U:1U,-side*angle*1000,1,0);
+    assert(status.state==SIGN_ROUTE_ARC && status.yaw_mdeg==0);
+    assert(left>0 && right>0 && !command.active);
+  }
+  for(angle=1;angle<=171;++angle)
+  {
+    counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);
+    now+=40; step(6,side*(angle-80)*1000,1,0);
+    if(angle<171) assert(status.state==SIGN_ROUTE_ARC);
+  }
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT);
+  /* Low-speed alignment takes four seconds; the former 2.5s timer cancelled
+     it before a target heading could be reached. */
+  for(angle=90;angle>=12;--angle)
+  {
+    now+=40; step(0,side*angle*1000,1,0);
+    assert(status.state==SIGN_ROUTE_EXIT_SELECT);
+    assert(command.active && (side<0 ? left==0 && right>0 : right==0 && left>0));
+  }
+  now+=90; step(0,-side*12000,1,0); /* crosses over the entire +/-10-degree band */
+  assert(status.state==SIGN_ROUTE_EXIT_CLEAR && left==right && left>0);
+  for(i=0;i<20;++i)
+  {
+    counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);
+    now+=40; step(0,-side*12000,1,0);
+    assert(status.state==SIGN_ROUTE_EXIT_CLEAR && left==right && left>0);
+  }
+  for(i=0;i<2;++i) { now+=40; step(6,-side*12000,1,0); }
+  assert(status.state==SIGN_ROUTE_LOCKED);
+}
+
 int main(void)
 {
+  check_early_arc(-1); check_early_arc(1);
   check_handoff(-1,100); check_handoff(1,100);
   check_handoff(-1,UINT32_MAX-120U); check_handoff(1,UINT32_MAX-120U);
   check_late_selection(-1); check_late_selection(1);
