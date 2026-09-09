@@ -447,8 +447,8 @@ static void build_screen(uint8_t app_mode,
   {
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
-    case 2U: draw_battery_header("M3 ADV"); break;
-    case 3U: draw_battery_header("M4 SIMPLE"); break;
+    case 2U: draw_battery_header("M3 LINE"); break;
+    case 3U: draw_battery_header("M4 LINE"); break;
     case 4U: draw_battery_header("M5 VISION"); break;
     case 5U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
@@ -618,7 +618,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 ADV" : "M4 SIMPLE");
+  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 LINE");
 
   index = append_string(line, 0U, "LINE:");
   index = append_line_mask(line, index, line_mask);
@@ -635,7 +635,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   else
   {
     index = append_char(line, index,
-        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : '-'));
+        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : (vision_class == 2 ? 'H' : '-')));
     index = append_char(line, index, ' ');
     index = append_unsigned(line, index, vision_score);
   }
@@ -643,7 +643,9 @@ static void build_sign_line_screen(uint8_t mode_number,
   draw_text(2U, 0U, line);
 
   index = append_string(line, 0U, "ROUTE:");
-  switch (route_state)
+  if (line_action == 6U)
+    index = append_string(line, index, "OBSERVE");
+  else switch (route_state)
   {
     case 1U: index = append_string(line, index, "ARM"); break;
     case 2U: index = append_string(line, index, "TURN"); break;

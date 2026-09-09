@@ -21,9 +21,12 @@ for mode in ("APP_MODE_INTEGRATED", "APP_MODE_LINE_ONLY"):
 
 integrated = block(main, "static void experiment7_integrated_once(void)\n{")
 assert "line_tracking_follow_once(line_speed," in integrated
+assert "line_tracking_set_straight_boost(1U);" in integrated
+assert integrated.index("line_tracking_set_straight_boost(1U);") < integrated.index("line_tracking_follow_once(")
+assert main.count("line_tracking_set_straight_boost(") == 1, "boost must be mode-1-only"
 assert "ultrasonic_forward_speed_limit" in integrated
 assert "line_tracking_compute(" not in integrated
-runtime = main[main.index("sign_line_slowdown_task(app_mode);"):]
+runtime = main[main.index("sign_line_detection_task(app_mode);"):]
 pure = block(runtime, "if (app_mode == APP_MODE_LINE_ONLY)")
 assert "line_tracking_follow_once(EXP7_LINE_SPEED," in pure
 assert "MOTOR_PWM_PERIOD" in pure
@@ -49,4 +52,31 @@ assert "ULTRASONIC_AVOID_STOPPING" in audio and "ULTRASONIC_AVOID_TURNING" in au
 assert "UltrasonicAvoid_IsNoEchoFallbackActive" not in audio
 assert "UltrasonicAvoid_GetLastDistanceCm" not in audio
 assert "app_buzzer_safety_write(buzzer, safety_override);" in audio
-print("PASS: KEY1/KEY2 share profile and cycle; bypass/ultrasonic gates retain ownership; rejoin clears stale history")
+print("PASS: KEY1/KEY2 share tracking cycle; only KEY1 opts into straight boost; bypass/ultrasonic ownership and rejoin retained")
+assert main.count("bypass_config.fixed_route_direction = 1;") == 1
+assert 'DiagnosticUart_WriteUnsigned(telemetry.fixed_route_phase)' in main
+print("PASS: only mode-1 bypass enables the fixed right-hand rectangle and exposes phase telemetry")
+assert "#define EXP7_IR_AVOID_ENABLED              0U" in main
+assert "bypass_config.infrared_enabled = EXP7_IR_AVOID_ENABLED;" in main
+assert "if (EXP7_IR_AVOID_ENABLED && !ir_avoid_calibrate())" in main
+assert "if (EXP7_IR_AVOID_ENABLED && confirmed_ir_bypass_direction" in main
+ir_off = block(main, "if (!EXP7_IR_AVOID_ENABLED)")
+assert "ir_avoid_set_enabled(false);" in ir_off
+for side in ("LEFT", "RIGHT"):
+    assert f"HAL_GPIO_WritePin(IR_{side}_ENABLE_GPIO_Port, IR_{side}_ENABLE_Pin, GPIO_PIN_SET);" in ir_off
+assert "ir_avoid_init();" in main and "BatteryMonitor_Init();" in main
+assert "IrRemote_Init();" in main and "IrRemote_EXTI_Callback(GPIO_Pin);" in main
+status = main[main.index("/* KEY1/KEY2 保留红外状态灯") - 180:]
+assert "EXP7_IR_AVOID_ENABLED" in status[:180]
+print("PASS: obstacle IR disabled at emitters/calibration/trigger/display; shared battery ADC and remote STOP retained")
+import re
+for name,value in (("STOP_CM",16),("CLEAR_CM",28),("EMERGENCY_MAX_CM",22),("LOOKAHEAD_MS",100),("BYPASS_STOP_CM",15)):
+    assert re.search(r"#define EXP7_ULTRASONIC_"+name+r"\s+"+str(value)+r"U\b",main)
+assert "LineBypassRange_Task(" in bypass
+assert "LineObstacleBypass_GetState() == LINE_BYPASS_DRIVING" in bypass
+assert "EXP7_ULTRASONIC_BYPASS_STOP_CM" in bypass
+assert "LineBypassRange_Reset();" in transition
+assert main.count("LineBypassRange_Reset();") == 3
+print("PASS: earlier approach thresholds and reset/forward-only bypass range ownership")
+assert re.search(r"#define EXP7_BYPASS_FORWARD_CPS\s+4000U\b", main)
+assert re.search(r"#define EXP7_BYPASS_RETURN_CPS\s+4000U\b", main)

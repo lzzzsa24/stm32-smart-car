@@ -218,9 +218,12 @@ static void test_automatic_recovery(void)
 static void test_return_cruise(int direction)
 {
   unsigned i;
+  LineObstacleBypassConfig config;
   LineObstacleBypassInput input={0};
   LineObstacleBypassTelemetry b;
-  reset(); input.infrared_valid=1;
+  reset(); LineObstacleBypass_GetDefaultConfig(&config);
+  config.return_cps=2300; LineObstacleBypass_Init(&config);
+  input.infrared_valid=1;
   input.left_ir_adc=input.right_ir_adc=1700;
   input.left_ir_threshold=input.right_ir_threshold=1700;
   input.left_ir_hysteresis=input.right_ir_hysteresis=20;
@@ -241,7 +244,7 @@ static void test_return_cruise(int direction)
     plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
     d=drive();
     assert(b.return_cruise && b.state==LINE_BYPASS_DRIVING);
-    assert(d.mode==DRIVE_BASE_SPEED && d.requested_cps[0]==1700 && d.requested_cps[2]==1700);
+    assert(d.mode==DRIVE_BASE_SPEED && d.requested_cps[0]==2100 && d.requested_cps[2]==2100);
   }
   /* A queued edge followed by a wide transverse mark is not a rejoin. */
   ++tick; LineObstacleBypass_ObserveRawSensors(8,tick);
@@ -257,6 +260,77 @@ static void test_return_cruise(int direction)
   LineObstacleBypass_Stop();
   puts("PASS: full mirrored bypass reaches measured inward >45, drives continuously 5s and captures one-sample outer rejoin");
 }
+static void test_fixed_rectangle(int direction,uint8_t infrared)
+{
+  LineObstacleBypassConfig config;
+  LineObstacleBypassInput input={0};
+  LineObstacleBypassTelemetry b;
+  unsigned i,phase=LINE_FIXED_ENTRY,changes=0;
+  reset(); LineObstacleBypass_GetDefaultConfig(&config);
+  config.fixed_route_direction=(int8_t)direction;
+  config.infrared_enabled=infrared;
+  config.forward_cps=4000; config.return_cps=4000; config.turn_cps=2500;
+  LineObstacleBypass_Init(&config);
+  input.infrared_valid=1;
+  input.left_ir_adc=input.right_ir_adc=3000;
+  input.left_ir_threshold=input.right_ir_threshold=1700;
+  input.left_ir_hysteresis=input.right_ir_hysteresis=20;
+  /* An old sensor-side preference cannot reverse the configured rectangle. */
+  assert(LineObstacleBypass_Start((int8_t)-direction));
+  for(i=0;i<2500;++i)
+  {
+    plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
+    if(b.state==LINE_BYPASS_FAULT)
+      printf("fixed failed phase=%u yaw=%ld gyro=%u\n",phase,(long)b.return_yaw_mdeg,GyroTurn_GetFault());
+    assert(b.state!=LINE_BYPASS_FAULT && b.state!=LINE_BYPASS_DONE);
+    assert(b.bypass_direction==direction && !b.fixed_route_fallback);
+    if(b.fixed_route_phase==LINE_FIXED_OFFSET || b.fixed_route_phase==LINE_FIXED_PARALLEL)
+    {
+      DriveBaseTelemetry d=drive(); unsigned w;
+      if(d.mode==DRIVE_BASE_SPEED)
+        for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
+    }
+    if(b.fixed_route_phase!=phase)
+    {
+      assert(b.fixed_route_phase==phase+1); phase=b.fixed_route_phase; ++changes;
+      if(phase==LINE_FIXED_OFFSET) assert(b.return_yaw_mdeg>=-94000 && b.return_yaw_mdeg<=-86000);
+      if(phase==LINE_FIXED_PARALLEL_TURN) assert(b.acquire_travel_mm>=250 && b.acquire_travel_mm<290);
+      if(phase==LINE_FIXED_PARALLEL) assert(b.return_yaw_mdeg>=-4000 && b.return_yaw_mdeg<=4000);
+      if(phase==LINE_FIXED_RETURN_TURN) assert(b.flank_travel_mm>=300 && b.flank_travel_mm<340);
+      if(phase==LINE_FIXED_RETURN) break;
+    }
+    /* A line pulse during offset/parallel cannot hand back behind the box. */
+    input.line_mask=(phase==LINE_FIXED_OFFSET || phase==LINE_FIXED_PARALLEL)?1:0;
+    /* In-band/far readings must not create intermediate short probes. */
+    input.left_ir_adc=input.right_ir_adc=(phase==LINE_FIXED_PARALLEL && i%2)?1720:3000;
+    if(!infrared)
+    {
+      input.infrared_valid=(uint8_t)(i%2);
+      input.left_ir_adc=input.right_ir_adc=(uint16_t)(i%2?0:4095);
+    }
+  }
+  assert(i<2500 && changes==6 && b.return_cruise && b.original_line_cleared);
+  assert(b.return_yaw_valid && b.return_yaw_mdeg>=41000 && b.return_yaw_mdeg<=49000);
+  input.line_mask=0; input.left_ir_adc=input.right_ir_adc=3000;
+  if(!infrared) { input.infrared_valid=0; input.left_ir_adc=input.right_ir_adc=0; }
+  for(i=0;i<500;++i)
+  {
+    DriveBaseTelemetry d;
+    unsigned w;
+    plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
+    d=drive(); assert(b.fixed_route_phase==LINE_FIXED_RETURN && b.return_cruise);
+    for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
+  }
+  ++tick; LineObstacleBypass_ObserveRawSensors(direction>0?8U:2U,tick);
+  ++tick; LineObstacleBypass_ObserveRawSensors(0,tick); LineObstacleBypass_Task(&input);
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_DONE);
+  assert(LineObstacleBypass_GetCapturedLineMask()==(direction>0?1U:8U));
+  LineObstacleBypass_Stop();
+  for(i=0;i<100;++i) { plant(1); LineObstacleBypass_Task(&input); }
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_IDLE && drive().mode==DRIVE_BASE_STOPPED);
+  puts("PASS: real fixed rectangle: three absolute-heading turns, 250/300-mm continuous legs, 5s diagonal return and queued outer capture");
+}
+
 int main(void)
 {
   setvbuf(stdout,0,_IONBF,0);
@@ -265,6 +339,8 @@ int main(void)
   test_faults();
   test_automatic_recovery();
   test_return_cruise(1); test_return_cruise(-1);
+  test_fixed_rectangle(1,1); test_fixed_rectangle(-1,1);
+  test_fixed_rectangle(1,0); test_fixed_rectangle(-1,0);
   puts("PASS: real DriveBase/FIFO/gyro/bypass chain, mirror turns, yaw gain, brake/travel ownership, IR interruption, stall and STOP");
   return 0;
 }

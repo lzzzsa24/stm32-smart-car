@@ -53,6 +53,9 @@ void line_tracking_reset(void);
 /* Shared KEY1/KEY2 entry: fresh history, smooth tracking, normal gain,
    and search rather than blind forward travel before the first line. */
 void line_tracking_start_following(void);
+/* Mode-1 opt-in for stable-centre acceleration only. Reset clears the opt-in;
+   callers reapply it while owning normal line following. Caps still apply. */
+void line_tracking_set_straight_boost(uint8_t enable);
 /* Bypass contact, display order: outer-left/inner-left/inner-right/outer-right
    =8/4/2/1. Retain its side through white gaps and start low-speed centring. */
 void line_tracking_rejoin_from_bypass(uint8_t contact_mask);
@@ -64,6 +67,16 @@ LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward
    ownership. Nonzero commands respect drive faults, braking and position
    ownership; a zero forward cap remains an explicit stop request. */
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
+/* Same final owner, with an explicit CPS cap (0 requests STOP). This avoids
+   converting a recognition cap below the continuous PWM floor back to PWM. */
+void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t forward_limit_cps);
+/* Yield to a route/observation owner without issuing a stop or a motor command.
+   Clears stale recovery/history; the new owner must apply its command next. */
+void line_tracking_yield_to_route(void);
+/* Build a route command using KEY2's slow rejoin profile:
+   direction 0 = settle straight, -1/+1 = existing left/right outer pivot. */
+void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
+                                      LineTrackingCommand *command);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才静音搜索。
    仅外侧识黑时内侧停、外侧低速前进；相邻双探头正向差速；横线多点优先低速穿越。
    同一最外侧单独持续识黑 120 ms 后以两侧反向强修正；其他原始状态立即解除。
@@ -88,6 +101,12 @@ int8_t line_tracking_direction_evidence(const LineTrackingReading *reading);
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command);
+/* Sign-mode entry: retain KEY2's slow rejoin speeds on visible line instead
+   of accelerating to cruise. Search/history/STOP use the same implementation;
+   this per-call choice cannot leak into another driving mode. */
+LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command);
 
 #ifdef __cplusplus
 }

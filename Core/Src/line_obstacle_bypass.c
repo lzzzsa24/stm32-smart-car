@@ -13,6 +13,8 @@
 #define BYPASS_FAULT_INFRARED_INVALID       0x40U
 #define BYPASS_FAULT_INPUT_INVALID          0x80U
 #define BYPASS_ADC_MAX                      4095U
+#define FIXED_OFFSET_MM                      250U
+#define FIXED_PARALLEL_MM                    300U
 
 typedef enum
 {
@@ -49,6 +51,8 @@ static uint32_t phase_deadline_ms;
 static int32_t net_turn_mdeg;
 static uint32_t entry_speed_cps;
 static uint8_t emergency_brake_active;
+static LineFixedBypassPhase fixed_phase;
+static uint8_t fixed_fallback;
 
 static uint8_t original_line_cleared;
 static uint8_t line_clear_count;
@@ -308,6 +312,8 @@ static uint8_t state_allows_line_reacquire(void)
 
 static uint8_t line_reacquire_is_armed(void)
 {
+  if (fixed_phase != LINE_FIXED_NONE)
+    return fixed_phase == LINE_FIXED_RETURN_TURN || fixed_phase == LINE_FIXED_RETURN;
   return (return_alignment_pending || return_aligned ||
           active_drive_intent == BYPASS_INTENT_RETURN_TO_LINE ||
           (bypass_state == LINE_BYPASS_TURNING &&
@@ -432,10 +438,20 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
                                    int32_t distance_mm,
                                    uint16_t cps)
 {
+  uint8_t started;
   LineBypassTurn_Stop();
   LineBypassTravel_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
-  if (LineBypassTravel_Start(distance_mm, (int32_t)cps) == 0U)
+  if (fixed_phase == LINE_FIXED_OFFSET || fixed_phase == LINE_FIXED_PARALLEL)
+    started = LineBypassTravel_StartFixed(distance_mm, (int32_t)cps);
+  else
+  {
+    /* A fixed-route cruise request also reaches adaptive fallback. Keep its
+       short probes within the legacy travel API's accepted input range. */
+    if (cps > 3600U) cps = 3600U;
+    started = LineBypassTravel_Start(distance_mm, (int32_t)cps);
+  }
+  if (started == 0U)
   {
     enter_fault(BYPASS_FAULT_CONTROLLER);
     return 0U;
@@ -942,6 +958,8 @@ void LineObstacleBypass_GetDefaultConfig(LineObstacleBypassConfig *config)
   config->sensor_filter_samples = 3U;
   config->line_clear_samples = 3U;
   config->line_confirm_samples = 3U;
+  config->fixed_route_direction = 0;
+  config->infrared_enabled = 1U;
 }
 
 void LineObstacleBypass_Init(const LineObstacleBypassConfig *config)
@@ -956,6 +974,8 @@ void LineObstacleBypass_Init(const LineObstacleBypassConfig *config)
   }
 
   bypass_state = LINE_BYPASS_IDLE;
+  fixed_phase = LINE_FIXED_NONE;
+  fixed_fallback = 0U;
   capture_mask = capture_window_open = line_sample_valid = 0U;
   return_phase_active = return_cruise = return_yaw_valid = 0U;
   return_yaw_mdeg = 0L;
@@ -1005,6 +1025,9 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   {
     return 0U;
   }
+  fixed_phase = bypass_config.fixed_route_direction ? LINE_FIXED_ENTRY : LINE_FIXED_NONE;
+  fixed_fallback = 0U;
+  if (bypass_config.fixed_route_direction) direction = bypass_config.fixed_route_direction;
   capture_mask = capture_window_open = line_sample_valid = 0U;
   bypass_started_ms = HAL_GetTick();
   return_phase_active = return_cruise = return_yaw_valid = 0U;
@@ -1071,10 +1094,150 @@ static uint8_t both_ir_clear(const LineObstacleBypassInput *input)
 static void drive_return_continuously(void)
 {
   int32_t cps = bypass_config.return_cps;
+  int32_t maximum_cps = fixed_phase == LINE_FIXED_RETURN ? 4000L : 2100L;
   if (cps < 1412L) cps = 1412L;
-  if (cps > 1800L) cps = 1800L;
+  /* Clear, gyro-aligned continuous return can run faster than the bounded
+     short obstacle-probing segments, whose 1800-CPS cap remains separate. */
+  if (cps > maximum_cps) cps = maximum_cps;
   DriveBase_SetLineFaultObservation(1U, latest_line_mask, 254U);
   DriveBase_SetSideCps(cps, cps);
+}
+
+static void fixed_finish_turn(void)
+{
+  LineBypassTurn_Stop();
+  if (fixed_phase == LINE_FIXED_OUTWARD_TURN)
+  {
+    fixed_phase = LINE_FIXED_OFFSET;
+    (void)start_linear_motion(BYPASS_INTENT_ACQUIRE_FLANK, FIXED_OFFSET_MM,
+                              bypass_config.forward_cps);
+  }
+  else if (fixed_phase == LINE_FIXED_PARALLEL_TURN)
+  {
+    fixed_phase = LINE_FIXED_PARALLEL;
+    (void)start_linear_motion(BYPASS_INTENT_FOLLOW_FLANK, FIXED_PARALLEL_MM,
+                              bypass_config.forward_cps);
+  }
+  else
+  {
+    fixed_phase = LINE_FIXED_RETURN;
+    return_aligned = return_phase_active = return_cruise = 1U;
+    active_drive_intent = BYPASS_INTENT_RETURN_TO_LINE;
+    bypass_state = LINE_BYPASS_DRIVING;
+    drive_return_continuously();
+  }
+}
+
+static void fixed_begin_turn(LineFixedBypassPhase phase, int32_t heading_mdeg)
+{
+  int32_t correction;
+  LineBypassTravel_Stop();
+  LineBypassTurn_Stop();
+  fixed_phase = phase;
+  /* Absolute heading relative to entry avoids adding a fresh 90/45 degrees
+     to accumulated turn overshoot. Positive normalized heading is inward.
+     If entry yaw is unavailable/reset, keep the existing encoder estimate. */
+  if (return_yaw_valid) net_turn_mdeg = return_yaw_mdeg * bypass_direction;
+  correction = heading_mdeg * bypass_direction - net_turn_mdeg;
+  if (abs_i32(correction) <= 1000L) { fixed_finish_turn(); return; }
+  if (abs_i32(correction) > 180000L ||
+      !LineBypassTurn_Start(correction, bypass_config.turn_cps))
+  { enter_fault(BYPASS_FAULT_CONTROLLER); return; }
+  bypass_state = LINE_BYPASS_TURNING;
+}
+
+static void fixed_obstacle_fallback(void)
+{
+  /* Continue from this pose using the adaptive controller, rather than
+     replaying the rectangle from its start or waiting for a manual reset. */
+  if (bypass_state == LINE_BYPASS_DRIVING && fixed_phase != LINE_FIXED_RETURN)
+    account_drive_progress();
+  stop_motion_controllers();
+  fixed_phase = LINE_FIXED_NONE;
+  fixed_fallback = 1U;
+  return_cruise = 0U;
+  if (return_yaw_valid) net_turn_mdeg = return_yaw_mdeg * bypass_direction;
+  /* Fixed offset can already exceed the adaptive acquisition angle limit.
+     Do not let that old limit, or a far side reading beside a front hit,
+     turn this interrupt back into forward travel. One bounded escape turn
+     finishes before adaptive evaluation; it has no mandatory forward tail. */
+  if (active_drive_intent == BYPASS_INTENT_RETURN_TO_LINE)
+    return_aligned = return_alignment_pending = 0U;
+  (void)start_turn_sequence(bounded_alignment_turn(outward_turn_mdeg() * 2L),
+                            1U, active_drive_intent, 0U);
+}
+
+static void fixed_task(const LineObstacleBypassInput *input)
+{
+  DriveBaseTelemetry drive;
+  uint32_t now = HAL_GetTick();
+  if (bypass_state == LINE_BYPASS_IDLE || bypass_state == LINE_BYPASS_DONE ||
+      bypass_state == LINE_BYPASS_FAULT) return;
+  if (!input) { enter_fault(BYPASS_FAULT_INPUT_INVALID); return; }
+  update_inside_ir(input);
+  sample_relation(now);
+  update_line_history(input->line_mask, now);
+  if (line_reacquired()) { finish_done(); return; }
+  if (!input->infrared_valid) { enter_fault(BYPASS_FAULT_INFRARED_INVALID); return; }
+  DriveBase_GetTelemetry(&drive);
+  if (drive.fault_mask) { enter_fault(drive.fault_mask); return; }
+
+  if (fixed_phase == LINE_FIXED_ENTRY)
+  {
+    if (!tick_reached(now, phase_deadline_ms)) return;
+    if (drive.mode == DRIVE_BASE_BRAKING)
+    {
+      if (now - bypass_started_ms >= 1000U) enter_fault(BYPASS_FAULT_CONTROLLER);
+      return;
+    }
+    fixed_begin_turn(LINE_FIXED_OUTWARD_TURN, -90000L);
+    return;
+  }
+  if (bypass_state == LINE_BYPASS_TURNING)
+  {
+    /* The original obstacle is expected to remain visible while turning
+       away. It does not shorten a prescribed turn or create probe steps. */
+    LineBypassTurn_Task();
+    if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_FAULT)
+      enter_fault(LineBypassTurn_GetFaultMask());
+    else if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_DONE)
+    {
+      net_turn_mdeg += LineBypassTurn_GetAchievedAngleMdeg();
+      fixed_finish_turn();
+    }
+    return;
+  }
+  if (bypass_state != LINE_BYPASS_DRIVING)
+  { enter_fault(BYPASS_FAULT_CONTROLLER); return; }
+  /* The inside diagonal sensor normally sees the rectangle during the
+     parallel leg. Only a close boundary interrupts; far/in-band chatter
+     cannot split the 250/300-mm legs into old 20/40-mm probes. */
+  if (input->front_obstacle || raw_relation == BYPASS_RELATION_TOO_CLOSE ||
+      (fixed_phase == LINE_FIXED_RETURN &&
+       (input->left_ir_adc < input->left_ir_threshold ||
+        input->right_ir_adc < input->right_ir_threshold)))
+  { fixed_obstacle_fallback(); return; }
+  if (fixed_phase == LINE_FIXED_RETURN)
+  {
+    if (drive.mode != DRIVE_BASE_SPEED) { enter_fault(BYPASS_FAULT_CONTROLLER); return; }
+    drive_return_continuously();
+    return;
+  }
+  LineBypassTravel_Task();
+  account_drive_progress();
+  if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_FAULT)
+    enter_fault(LineBypassTravel_GetFaultMask());
+  else if (LineBypassTravel_GetState() == LINE_BYPASS_TRAVEL_DONE)
+  {
+    if (fixed_phase == LINE_FIXED_OFFSET)
+      fixed_begin_turn(LINE_FIXED_PARALLEL_TURN, 0L);
+    else
+    {
+      return_phase_active = 1U;
+      active_drive_intent = BYPASS_INTENT_RETURN_TO_LINE;
+      fixed_begin_turn(LINE_FIXED_RETURN_TURN, 45000L);
+    }
+  }
 }
 
 static void bypass_task(const LineObstacleBypassInput *input)
@@ -1111,6 +1274,9 @@ static void bypass_task(const LineObstacleBypassInput *input)
     enter_fault(BYPASS_FAULT_INFRARED_INVALID);
     return;
   }
+  if (fixed_fallback && input->front_obstacle &&
+      (bypass_state == LINE_BYPASS_DRIVING || bypass_state == LINE_BYPASS_EVALUATING))
+  { fixed_obstacle_fallback(); return; }
   if (return_phase_active && !return_cruise && return_yaw_valid &&
       return_yaw_mdeg > 45000L && both_ir_clear(input))
   {
@@ -1350,6 +1516,19 @@ static void bypass_task(const LineObstacleBypassInput *input)
 
 void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
 {
+  LineObstacleBypassInput without_ir;
+  if (input && !bypass_config.infrared_enabled)
+  {
+    /* Intentional IR bypass is not a sensor failure. Supply neutral side
+       evidence to both the fixed route and its adaptive ultrasonic fallback.
+       These values are policy placeholders, not measured clear-space data. */
+    without_ir = *input;
+    without_ir.infrared_valid = 1U;
+    without_ir.left_ir_adc = without_ir.right_ir_adc = BYPASS_ADC_MAX;
+    without_ir.left_ir_threshold = without_ir.right_ir_threshold = 0U;
+    without_ir.left_ir_hysteresis = without_ir.right_ir_hysteresis = 0U;
+    input = &without_ir;
+  }
 #if MPU6050_BYPASS_ENABLED
   if (bypass_state != LINE_BYPASS_IDLE && bypass_state != LINE_BYPASS_DONE && bypass_state != LINE_BYPASS_FAULT)
   {
@@ -1365,7 +1544,8 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
     }
   }
 #endif
-  bypass_task(input);
+  if (fixed_phase != LINE_FIXED_NONE) fixed_task(input);
+  else bypass_task(input);
   if (state_allows_line_reacquire() && line_reacquire_is_armed())
   {
     if (!capture_window_open) capture_window_ms = HAL_GetTick();
@@ -1376,6 +1556,8 @@ void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
 
 void LineObstacleBypass_Stop(void)
 {
+  fixed_phase = LINE_FIXED_NONE;
+  fixed_fallback = 0U;
   capture_mask = capture_window_open = line_sample_valid = 0U;
   return_phase_active = return_cruise = return_yaw_valid = 0U;
   stop_motion_controllers();
@@ -1433,4 +1615,7 @@ void LineObstacleBypass_GetTelemetry(LineObstacleBypassTelemetry *telemetry)
   telemetry->emergency_brake_active = emergency_brake_active;
   telemetry->guided_turn_active =
       guided_turn_mode != BYPASS_GUIDED_TURN_NONE ? 1U : 0U;
+  telemetry->fixed_route_phase = (uint8_t)fixed_phase;
+  telemetry->fixed_route_fallback = fixed_fallback;
+  telemetry->infrared_enabled = bypass_config.infrared_enabled;
 }

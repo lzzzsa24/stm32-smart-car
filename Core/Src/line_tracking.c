@@ -38,6 +38,7 @@ static uint8_t smooth_centered_active;
 static uint32_t smooth_centered_since_ms;
 static uint32_t smooth_ramp_update_ms;
 static int16_t smooth_straight_pwm;
+static uint8_t smooth_straight_boost;
 static uint16_t smooth_turn_gain_percent = 100U;
 
 typedef enum
@@ -93,6 +94,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
 #define TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM     100
 #define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2600
 #define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       2700
+#define TRACKING_SMOOTH_BOOST_MAX_PWM          2850
 #define TRACKING_SMOOTH_CENTER_HOLD_MS          350U
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
@@ -162,6 +164,26 @@ static void command_stop(LineTrackingCommand *command)
   command_set_pwm(command, 0, 0, LINE_ACTION_STOP);
 }
 
+void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
+                                      LineTrackingCommand *command)
+{
+  if (!command) return;
+  if (base_speed <= 0) { command_stop(command); return; }
+  if (!direction)
+  {
+    int16_t cruise = base_speed > TRACKING_SETTLE_CENTER_PWM ?
+        TRACKING_SETTLE_CENTER_PWM : base_speed;
+    command_set_pwm(command, cruise, cruise, LINE_ACTION_FORWARD);
+  }
+  else
+  {
+    command->left_cps = direction < 0 ? 0L : TRACKING_EDGE_OUTER_CPS;
+    command->right_cps = direction < 0 ? TRACKING_EDGE_OUTER_CPS : 0L;
+    command->action = direction < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST;
+    command->valid = 1U;
+  }
+}
+
 static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
 {
   int16_t left = TRACKING_SETTLE_CENTER_PWM, right = TRACKING_SETTLE_CENTER_PWM;
@@ -206,15 +228,21 @@ static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCom
 }
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
 {
+  line_tracking_apply_command_cps(command,
+      DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm)));
+}
+
+void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t forward_limit_cps)
+{
   int32_t left, right, maximum, limit;
   if (!command || !command->valid) return;
   /* Persistent visible-edge correction can now counter-rotate too. A caller
      explicitly stopping must still win even when one target is negative. */
-  if (forward_limit_pwm <= 0) { DriveBase_Stop(DRIVE_STOP_COAST); return; }
+  if (forward_limit_cps <= 0) { DriveBase_Stop(DRIVE_STOP_COAST); return; }
   left = command->left_cps; right = command->right_cps;
   if (left >= 0L && right >= 0L)
   {
-    limit = DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm));
+    limit = forward_limit_cps;
     maximum = left > right ? left : right;
     if (maximum > limit && maximum > 0L)
     {
@@ -404,8 +432,17 @@ void line_tracking_reset(void)
   smooth_centered_since_ms = HAL_GetTick();
   smooth_ramp_update_ms = HAL_GetTick();
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  smooth_straight_boost = 0U;
   recovery_state = LINE_RECOVERY_NORMAL;
   recovery_state_started_ms = HAL_GetTick();
+}
+
+void line_tracking_set_straight_boost(uint8_t enable)
+{
+  smooth_straight_boost = enable != 0U ? 1U : 0U;
+  if (!smooth_straight_boost &&
+      smooth_straight_pwm > TRACKING_SMOOTH_STRAIGHT_MAX_PWM)
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
 }
 
 void line_tracking_set_no_line_forward(uint8_t enable)
@@ -445,6 +482,14 @@ void line_tracking_start_following(void)
   line_tracking_set_no_line_forward(0U);
   line_tracking_set_smooth_mode(1U);
   line_tracking_set_turn_gain_percent(100U);
+}
+
+void line_tracking_yield_to_route(void)
+{
+  /* Commit releases recovery ownership without the STOP performed by Reset
+     on an active search. This does not claim a successful route completion. */
+  LineRecovery_Commit();
+  line_tracking_reset();
 }
 
 LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward_limit_pwm)
@@ -628,9 +673,10 @@ static void consume_sampled_evidence(uint32_t through_ms)
       LineRecovery_ObserveDirection(&r, sample.time_ms);
   }
 }
-LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
+static LineTrackingAction line_tracking_compute_profile(const LineTrackingReading *reading,
                                          int16_t base_speed,
-                                         LineTrackingCommand *command)
+                                         LineTrackingCommand *command,
+                                         uint8_t hold_slow_profile)
 {
   int16_t turn_inner_speed;
   int16_t turn_outer_speed;
@@ -822,7 +868,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     }
     else settling = 1U;
   }
-  if (settling)
+  if (settling || hold_slow_profile)
   {
     /* Single-side outer evidence already returned to continuous turning.
        Middle and ambiguous/crossing patterns receive low-speed guidance. */
@@ -871,6 +917,8 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       int16_t curve_center;
       int16_t left_target;
       int16_t right_target;
+      int16_t straight_max = smooth_straight_boost
+          ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
       uint8_t stable_center = (line_position == 0 &&
                                reading->x2_black == 0U &&
                                reading->x4_black == 0U) ? 1U : 0U;
@@ -890,11 +938,13 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                  TRACKING_SMOOTH_RAMP_INTERVAL_MS)
         {
           smooth_ramp_update_ms = now;
-          if (smooth_straight_pwm < TRACKING_SMOOTH_STRAIGHT_MAX_PWM)
+          if (smooth_straight_pwm < straight_max)
           {
             smooth_straight_pwm = clamp_speed(
                 (int32_t)smooth_straight_pwm +
                 TRACKING_SMOOTH_RAMP_STEP_PWM);
+            if (smooth_straight_pwm > straight_max)
+              smooth_straight_pwm = straight_max;
           }
         }
       }
@@ -969,8 +1019,8 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
         return LINE_ACTION_RIGHT_ADJUST;
       }
 
-      /* Only a continuously centred run earns the reduced 2600..2700
-         straight boost. Curve/search targets retain their existing effort. */
+      /* Only continuous centring earns acceleration; the mode-1 opt-in raises
+         its ceiling. Curve/search targets retain their existing effort. */
       command_set_pwm(command, smooth_straight_pwm, smooth_straight_pwm,
                       LINE_ACTION_FORWARD);
       return LINE_ACTION_FORWARD;
@@ -997,4 +1047,18 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   /* active_count==0 已在函数前半段处理，此处只作防御。 */
   command_stop(command);
   return LINE_ACTION_STOP;
+}
+
+LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
+                                         int16_t base_speed,
+                                         LineTrackingCommand *command)
+{
+  return line_tracking_compute_profile(reading, base_speed, command, 0U);
+}
+
+LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command)
+{
+  return line_tracking_compute_profile(reading, base_speed, command, 1U);
 }

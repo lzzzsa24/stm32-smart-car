@@ -1034,6 +1034,34 @@ static void test_bypass_travel(void)
   puts("PASS: 20/40-mm forward/reverse travel caps cruise at continuous 1800 CPS through old pulse tail; four-wheel PWM, wrap and whole-car completion");
 }
 
+static void test_fixed_travel_speed(void)
+{
+  DriveBaseTelemetry d;
+  unsigned w;
+  LineBypassTravel_Stop(); reset();
+  assert(!LineBypassTravel_StartFixed(0,2600));
+  assert(!LineBypassTravel_StartFixed(-300,2600));
+  assert(!LineBypassTravel_StartFixed(300,4001));
+  assert(LineBypassTravel_StartFixed(300,4000));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
+  assert(!LineBypassTravel_Start(20,2600));
+  DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTravel_Task();
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_StartFixed(360,1900));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==1900);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,3600));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==1800);
+  LineBypassTravel_Stop(); reset();
+  EncoderLinear_Init(); assert(EncoderLinear_Start(40,2600));
+  assert(!LineBypassTravel_StartFixed(300,2600)); EncoderLinear_Stop();
+  puts("PASS: fixed forward 4000-CPS cap, lower requested speed, legacy 1800-CPS probes, STOP and owner exclusivity");
+}
+
 static void test_bypass_travel_ownership(void)
 {
   DriveBaseTelemetry drive;
@@ -1238,6 +1266,36 @@ static void test_mode12_shared_following(void)
   puts("PASS: 3600 shared-cycle samples match current MODE2 including initial white, persistent edge, center, gaps, loss, caps and bypass-reset reentry");
 }
 
+static void test_mode1_boost_real_drive(void)
+{
+  unsigned ms,w;
+  DriveBaseTelemetry d;
+  reset(); line_tracking_start_following(); line_gpio_mask=5;
+  for(ms=0;ms<1000;ms+=10)
+  {
+    tick+=10; line_tracking_set_straight_boost(1);
+    line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+  }
+  DriveBase_GetTelemetry(&d);
+  assert(DriveBase_EquivalentCpsFromPwm(2700)==3815);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==4544);
+  line_tracking_follow_once(3000,2600); DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==DriveBase_EquivalentCpsFromPwm(2600));
+  line_gpio_mask=8; ++tick; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD);
+  DriveBase_GetTelemetry(&d);
+  assert(d.requested_cps[0]==2200 && d.requested_cps[1]==2200);
+  assert(d.requested_cps[2]==0 && d.requested_cps[3]==0);
+  line_tracking_follow_once(3000,0); DriveBase_GetTelemetry(&d);
+  assert(d.mode==DRIVE_BASE_STOPPED);
+  for(w=0;w<4;++w) assert(!d.requested_cps[w] && !pins[w]);
+  line_tracking_start_following(); line_gpio_mask=5;
+  for(ms=0;ms<1000;ms+=10) { tick+=10; line_tracking_follow_once(3000,MOTOR_PWM_PERIOD); }
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==3815);
+  line_tracking_reset();
+  puts("PASS: real four-wheel mode-1 target 3815->4544 CPS, ultrasonic cap, immediate outer pivot, STOP and mode-2 rollback");
+}
+
 static void test_bypass_contact_handoff(void)
 {
   unsigned i;
@@ -1268,6 +1326,7 @@ int main(void)
   int32_t creep[4]={1,50,-50,-50}, stopped[4]={0}, wrong[4]={-20,50,-50,-50};
   unsigned i;
   test_bypass_contact_handoff();
+  test_mode1_boost_real_drive();
   /* A single bad sample gets no assistance; the ramp and cap are finite. */
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==0);
   assert(LineTurnLoad_Update(&s,1,2500,50,20)==100);
@@ -1380,6 +1439,7 @@ int main(void)
   test_legacy_bypass_short_tail();
   test_bypass_travel();
   test_bypass_travel_ownership();
+  test_fixed_travel_speed();
   test_bypass_continuous_turn(1,15000);
   test_bypass_continuous_turn(-1,45000);
   tick=UINT32_MAX-200;

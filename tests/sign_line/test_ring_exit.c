@@ -15,10 +15,10 @@ static void step(uint8_t mask, int32_t left_mm, int32_t right_mm)
 {
   lc += (uint32_t)(left_mm * 7); rc += (uint32_t)(right_mm * 7);
   now += 10U;
-  SimpleLine_Step(&line,mask);
   SignRoute_UpdateEncoders((int32_t)lc,(int32_t)lc,(int32_t)rc,(int32_t)rc);
   SignRoute_Step(mask,now,&cmd);
   SignRoute_GetStatus(now,&status);
+  SimpleLine_StepRoute(&line,mask,&status,&cmd);
   /* Navigation itself never counter-rotates, including failures. */
   assert(cmd.left_pwm >= 0 && cmd.right_pwm >= 0);
   motor_left=cmd.active ? cmd.left_pwm : line.left_pwm;
@@ -261,6 +261,8 @@ static void test_exit_recovery(int8_t side)
   for(i=0;i<4;++i) step(side<0?12:3,0,0);
   assert(status.state==SIGN_ROUTE_EXIT_SELECT);
   for(i=0;i<260;++i) { observe(side<0?0:1); step(15,0,0); }
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT); /* low-speed alignment gets >2.5 s */
+  for(i=0;i<350;++i) { observe(side<0?0:1); step(15,0,0); }
   assert(status.state==SIGN_ROUTE_CANCELLED && !cmd.active && status.direction==0);
   assert(motor_left>0 && motor_right>0);
   for(i=0;i<200;++i) { observe(side<0?0:1); step(side<0?12:3,0,0); }

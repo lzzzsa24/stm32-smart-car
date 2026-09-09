@@ -948,9 +948,65 @@ static void test_visible_forward_and_lost_spin(void)
   line_tracking_reset();
 }
 
+static void test_mode1_straight_boost(void)
+{
+  unsigned mask, i;
+  LineTrackingCommand baseline;
+  reset(0,1); line_tracking_set_straight_boost(1);
+  sample(5,1,3000); hold(5,349);
+  assert(output.left_cps==2600 && output.right_cps==2600);
+  sample(5,1,3000);
+  assert(output.left_cps==2620);
+  for(i=0;i<100;++i)
+  {
+    int32_t previous=output.left_cps;
+    sample(5,20,3000);
+    assert(output.left_cps>=previous && output.left_cps-previous<=20);
+    assert(output.left_cps<=2850 && output.right_cps==output.left_cps);
+  }
+  assert(output.left_cps==2850); /* Non-multiple ceiling must not overshoot. */
+  line_tracking_apply_command(&output,2600);
+  assert(telemetry.requested_cps[0]==2600 && telemetry.requested_cps[2]==2600);
+  line_tracking_apply_command(&output,0);
+  assert(telemetry.mode==DRIVE_BASE_STOPPED);
+  line_tracking_set_straight_boost(0); sample(5,10,3000);
+  assert(output.left_cps==2700);
+
+  /* Every raw departure from centre cancels boost on the very first sample,
+     even if the PD filter has not advanced. Compare actual old/new commands. */
+  for(mask=0;mask<16;++mask)
+  {
+    if(mask==5) continue;
+    reset(0,1); hold(5,1000); sample(mask,1,3000); baseline=output;
+    reset(0,1); line_tracking_set_straight_boost(1); hold(5,1000);
+    assert(output.left_cps==2850); sample(mask,1,3000);
+    assert(output.valid==baseline.valid && output.action==baseline.action);
+    assert(output.left_cps==baseline.left_cps && output.right_cps==baseline.right_cps);
+  }
+  for(mask=2;mask<=8;mask+=6)
+  {
+    reset(0,1); line_tracking_set_straight_boost(1); hold(5,1000);
+    sample(mask,1,3000); sample(0,70,3000); assert_search();
+    assert((telemetry.requested_cps[0]>0)==(mask==8));
+  }
+  line_tracking_start_following(); hold(5,1000);
+  assert(output.left_cps==2700); /* Mode 2 cannot inherit mode 1 acceleration. */
+  line_tracking_set_straight_boost(1); line_tracking_rejoin_from_bypass(1);
+  /* The mode-1 wrapper reapplies opt-in on each normal follow cycle. */
+  line_tracking_set_straight_boost(1); sample(5,1,3000);
+  assert(output.left_cps==2200 && output.right_cps==2200);
+  hold(5,1600); assert(output.left_cps==2850);
+  sample(5,1,0); assert(output.valid && !output.left_cps && !output.right_cps);
+  tick=UINT32_MAX-200; reset(0,1); line_tracking_set_straight_boost(1);
+  hold(5,1000); assert(output.left_cps==2850);
+  line_tracking_reset(); hold(5,1000); assert(output.left_cps==2700);
+  puts("PASS: mode-1 boost hold/ramp/ceiling, 15 departure masks, latest-edge loss, caps/STOP, rejoin, mode reset and timer wrap");
+}
+
 int main(void)
 {
   unsigned smooth,forward,i;
+  test_mode1_straight_boost();
   test_persistent_outer_escalates();
   test_outer_escalation_boundaries();
   test_visible_forward_and_lost_spin();

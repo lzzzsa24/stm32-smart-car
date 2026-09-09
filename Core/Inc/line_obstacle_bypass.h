@@ -20,6 +20,18 @@ typedef enum
   LINE_BYPASS_FAULT
 } LineObstacleBypassState;
 
+typedef enum
+{
+  LINE_FIXED_NONE = 0U, /* adaptive bypass, including fallback */
+  LINE_FIXED_ENTRY,
+  LINE_FIXED_OUTWARD_TURN,
+  LINE_FIXED_OFFSET,
+  LINE_FIXED_PARALLEL_TURN,
+  LINE_FIXED_PARALLEL,
+  LINE_FIXED_RETURN_TURN,
+  LINE_FIXED_RETURN
+} LineFixedBypassPhase;
+
 typedef struct
 {
   uint16_t reverse_max_mm;
@@ -52,6 +64,12 @@ typedef struct
   uint8_t sensor_filter_samples;
   uint8_t line_clear_samples;
   uint8_t line_confirm_samples;
+  /* 0=adaptive; +1=fixed right route; -1=mirrored left route. Distances are
+     wheel-centre travel: outward 300 mm, parallel 360 mm, then inward 45 deg. */
+  int8_t fixed_route_direction;
+  /* Explicit test policy: zero ignores side IR, including invalid samples.
+     Front ultrasonic and line contact remain authoritative. Default is on. */
+  uint8_t infrared_enabled;
 } LineObstacleBypassConfig;
 
 typedef struct
@@ -93,6 +111,9 @@ typedef struct
   int32_t return_target_mdeg;
   uint8_t emergency_brake_active;
   uint8_t guided_turn_active;
+  uint8_t fixed_route_phase;
+  uint8_t fixed_route_fallback;
+  uint8_t infrared_enabled;
 } LineObstacleBypassTelemetry;
 
 void LineObstacleBypass_GetDefaultConfig(LineObstacleBypassConfig *config);
