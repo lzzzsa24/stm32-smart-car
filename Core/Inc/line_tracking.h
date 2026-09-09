@@ -110,6 +110,11 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
 LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
                                               int16_t base_speed,
                                               LineTrackingCommand *command);
+/* Acquired sign arc: current narrow contact ends the old crossing-straight
+   tail immediately. Retain the same slow speeds and recovery ownership. */
+LineTrackingAction line_tracking_compute_arc(const LineTrackingReading *reading,
+                                             int16_t base_speed,
+                                             LineTrackingCommand *command);
 
 #ifdef __cplusplus
 }

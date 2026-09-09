@@ -7,8 +7,8 @@
  *     触发 V2 黑线绕障控制器；直线段由编码器限制距离，转弯段由
  *     MPU6050 实测相对偏航角，随后在障碍另一侧重新捕获黑线。
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
- *   - 模式 3/4：共用 KEY2 循迹 + K210 圆环导航；MPU6050
- *     约束入弧、半圆与出口航向，失效时撤销导航而不盲目转向。
+ *   - 模式 3：KEY2 慢速循迹 + K210 传感器优先圆环导航。
+ *   - 模式 4：K210 选边，MPU6050 控制切线入弧、半圆和出口航向。
  *   - 遥控数字 5：K210 v4 整线测量 + STM32 曲线循迹，不识别路标。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
  *
@@ -130,8 +130,8 @@ typedef enum
 {
   APP_MODE_INTEGRATED = 0U,
   APP_MODE_LINE_ONLY,
-  APP_MODE_SIGN_LINE_ADVANCED,
-  APP_MODE_SIGN_LINE_SIMPLE,
+  APP_MODE_SIGN_LINE,
+  APP_MODE_SIGN_GYRO_TANGENT,
   APP_MODE_VISION_LINE_V4,
   APP_MODE_STOPPED
 } AppMode;
@@ -784,14 +784,13 @@ static void oled_application_task(AppMode mode)
           reading.obstacle_bottom,
           (uint8_t)vision_line_v4_command.state);
     }
-    else if (mode == APP_MODE_SIGN_LINE_ADVANCED ||
-        mode == APP_MODE_SIGN_LINE_SIMPLE)
+    else if (mode == APP_MODE_SIGN_LINE || mode == APP_MODE_SIGN_GYRO_TANGENT)
     {
       SignRouteStatus route_status;
 
       SignRoute_GetStatus(now, &route_status);
       OledStatus_SetSignLineData(
-          mode == APP_MODE_SIGN_LINE_ADVANCED ? 3U : 4U,
+          mode == APP_MODE_SIGN_LINE ? 3U : 4U,
           sign_line_mask,
           sign_line_action,
           route_status.last_class,
@@ -905,8 +904,7 @@ static uint8_t line_reading_mask(const LineTrackingReading *line)
                    (line->x4_black ? 1U : 0U));
 }
 
-static void sign_line_telemetry_task(AppMode mode,
-                                     const SignRouteStatus *route_status)
+static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_status)
 {
   VisionUartStats stats;
   uint32_t now = HAL_GetTick();
@@ -919,8 +917,7 @@ static void sign_line_telemetry_task(AppMode mode,
   }
   last_sign_uart_ms = now;
   vision_uart_get_stats(&stats);
-  DiagnosticUart_WriteString(mode == APP_MODE_SIGN_LINE_ADVANCED ?
-                             "SIGN3" : "SIGN4");
+  DiagnosticUart_WriteString(mode == APP_MODE_SIGN_LINE ? "SIGN3" : "SIGN4");
   DiagnosticUart_WriteString(" LINE=");
   DiagnosticUart_WriteUnsigned(sign_line_mask);
   DiagnosticUart_WriteString(" A=");
@@ -960,7 +957,7 @@ static void sign_line_telemetry_task(AppMode mode,
 static void sign_line_detection_task(AppMode mode)
 {
   VisionDetection detection;
-  if (mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE)
+  if (mode != APP_MODE_SIGN_LINE && mode != APP_MODE_SIGN_GYRO_TANGENT)
   {
     SignObservation_Reset();
     DriveBase_SetSpeedLimitCps(0L);
@@ -1000,7 +997,7 @@ static void sign_line_task(AppMode mode)
   LineTrackingReading line;
   uint32_t now;
 
-  SignRoute_SetProfile(mode == APP_MODE_SIGN_LINE_SIMPLE ?
+  SignRoute_SetProfile(mode == APP_MODE_SIGN_GYRO_TANGENT ?
       SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD);
   /* Diagnostics/display may have run after the background service. Consume
      available FIFO history immediately before this angle-dependent decision. */
@@ -1149,7 +1146,7 @@ static AppMode read_requested_mode(AppMode current_mode)
   uint8_t serial_key = app_take_serial_virtual_key();
 
   /* 遥控数字 0 为最高优先级停车；数字 1/2/3 与实体键等效，
-     数字 4 进入 SL2 + 标志识别，数字 5 进入 K210 v4 视觉循线。 */
+     数字 4 为陀螺仪切线圆弧，数字 5 为 K210 v4 视觉循线。 */
   if (remote_key == IR_REMOTE_VIRTUAL_STOP ||
       serial_key == IR_REMOTE_VIRTUAL_STOP)
   {
@@ -1203,16 +1200,16 @@ static AppMode read_requested_mode(AppMode current_mode)
   if (HAL_GPIO_ReadPin(key3_GPIO_Port, key3_Pin) == GPIO_PIN_RESET ||
       remote_key == IR_REMOTE_VIRTUAL_KEY3)
   {
-    return APP_MODE_SIGN_LINE_ADVANCED;
+    return APP_MODE_SIGN_LINE;
   }
   if (serial_key == IR_REMOTE_VIRTUAL_KEY3)
   {
-    return APP_MODE_SIGN_LINE_ADVANCED;
+    return APP_MODE_SIGN_LINE;
   }
   if (remote_key == IR_REMOTE_VIRTUAL_KEY4 ||
       serial_key == IR_REMOTE_VIRTUAL_KEY4)
   {
-    return APP_MODE_SIGN_LINE_SIMPLE;
+    return APP_MODE_SIGN_GYRO_TANGENT;
   }
   if (remote_key == IR_REMOTE_VIRTUAL_KEY5 ||
       serial_key == IR_REMOTE_VIRTUAL_KEY5)
@@ -1404,7 +1401,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   LineWaitAction action;
   uint32_t now = HAL_GetTick();
   uint8_t enabled = mode != APP_MODE_STOPPED &&
-      mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE;
+      mode != APP_MODE_SIGN_LINE && mode != APP_MODE_SIGN_GYRO_TANGENT;
   uint8_t paused;
   DriveBase_GetTelemetry(&telemetry);
   paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||
@@ -1502,7 +1499,7 @@ int main(void)
   DiagnosticUart_WriteUnsigned(AudioResumeStore_GetTrack());
   DiagnosticUart_WriteString("\r\n");
   DiagnosticUart_WriteString("\r\nLINE FAULT LOG v1: f=DUMP WHEN STOPPED; RAM ONLY; KEEP POWER ON; DEG=FEEDFORWARD WHEEL MASK\r\n");
-  DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=ADV+SIGN 4=SL2+SIGN 5=K210-VLINE4 0=STOP\r\n");
+  DiagnosticUart_WriteString("\r\nEXP7 UNIFIED MOTION V1 READY: DEFAULT STOP; 1=LINE+BYPASS 2=LINE 3=SIGN+RING 4=SIGN+GYRO-ARC 5=K210-VLINE4 0=STOP\r\n");
   motor_pwm_init();
   WheelEncoder_Init();
   WheelSpeedObserver_Init();
@@ -1585,7 +1582,7 @@ int main(void)
   MpuYaw_Init(HAL_GetTick());
   DiagnosticUart_WriteString("IMU: KEEP STILL 2s; g=STATUS c=RECALIBRATE IN STOP; KEY1 REQUIRES READY\r\n");
 
-  /* 烧录和连线调试期间默认锁存停车；按1/2/3/4/5后才启动对应功能。 */
+  /* 默认锁存停车；按1/2/3/4/5后启动对应功能。 */
   line_tracking_set_no_line_forward(0U);
   line_tracking_reset();
 
@@ -1746,7 +1743,7 @@ int main(void)
                                      EXP7_PASSIVE_MEASURE_INTERVAL_MS;
         WheelSpeedObserver_Start();
       }
-      else if (app_mode == APP_MODE_SIGN_LINE_ADVANCED)
+      else if (app_mode == APP_MODE_SIGN_LINE)
       {
         SignLineFollow_Start(&sign_line_controller);
         UltrasonicMotion_Reset();
@@ -1757,7 +1754,7 @@ int main(void)
         last_sign_uart_ms = HAL_GetTick() - 500U;
         DiagnosticUart_WriteString("SIGN3 KEY2 RING NAV START\r\n");
       }
-      else if (app_mode == APP_MODE_SIGN_LINE_SIMPLE)
+      else if (app_mode == APP_MODE_SIGN_GYRO_TANGENT)
       {
         SignLineFollow_Start(&sign_line_controller);
         UltrasonicMotion_Reset();
@@ -1791,15 +1788,15 @@ int main(void)
         advanced_stop();
       }
 
-      if (app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
-          app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
+      if (app_mode == APP_MODE_SIGN_LINE ||
+          app_mode == APP_MODE_SIGN_GYRO_TANGENT ||
           app_mode == APP_MODE_VISION_LINE_V4)
       {
         sign_rgb_off();
       }
     }
 
-    if (app_mode == APP_MODE_SIGN_LINE_ADVANCED || app_mode == APP_MODE_SIGN_LINE_SIMPLE)
+    if (app_mode == APP_MODE_SIGN_LINE || app_mode == APP_MODE_SIGN_GYRO_TANGENT)
       sign_rgb_off(); /* before recovery/fault paths can return early */
     sign_line_detection_task(app_mode);
     DriveBase_Task(HAL_GetTick());
@@ -1815,8 +1812,8 @@ int main(void)
     if (DriveBase_GetFaultMask() != 0U &&
         (app_mode == APP_MODE_INTEGRATED ||
          app_mode == APP_MODE_LINE_ONLY ||
-         app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
-         app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
+         app_mode == APP_MODE_SIGN_LINE ||
+         app_mode == APP_MODE_SIGN_GYRO_TANGENT ||
          app_mode == APP_MODE_VISION_LINE_V4) &&
         LineObstacleBypass_GetState() == LINE_BYPASS_IDLE)
     {
@@ -1828,7 +1825,7 @@ int main(void)
           (phase < (uint32_t)fault_code * 250U &&
            (phase % 250U) < 100U) ? GPIO_PIN_SET : GPIO_PIN_RESET,
           1U);
-      if (app_mode != APP_MODE_SIGN_LINE_ADVANCED && app_mode != APP_MODE_SIGN_LINE_SIMPLE)
+      if (app_mode != APP_MODE_SIGN_LINE && app_mode != APP_MODE_SIGN_GYRO_TANGENT)
         HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
@@ -1884,8 +1881,7 @@ int main(void)
       continue;
     }
 
-    if (app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
-        app_mode == APP_MODE_SIGN_LINE_SIMPLE)
+    if (app_mode == APP_MODE_SIGN_LINE || app_mode == APP_MODE_SIGN_GYRO_TANGENT)
     {
       sign_line_task(app_mode);
       HAL_Delay(1U);

@@ -59,5 +59,7 @@ if not "%errorlevel%"=="0" exit /b 1
 
 python tests\sign_line\check_integration.py
 if not "%errorlevel%"=="0" exit /b 1
+python tests\sign_line\test_mode_selection.py
+if not "%errorlevel%"=="0" exit /b 1
 python tests\sign_line\test_k210_runtime.py
 exit /b %errorlevel%

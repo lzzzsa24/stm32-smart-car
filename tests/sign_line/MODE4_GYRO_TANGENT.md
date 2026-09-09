@@ -3,9 +3,10 @@
 用户给出的轨迹从入口直线斜切到选定半圆，沿半圆前进，再斜切回出口直线。
 本方案只绑定模式 4；模式 3 保持原来的传感器优先圆弧状态机。
 
-分支 `feature/mode4-gyro-tangent-exit` 从当前主干 `e9037c2` 建立，先合并
-最新综合候选 `5cb1bd3`（基线合并提交 `2a9604f`），因此保留模式 1 的
-25/30 cm 绕障参数、模式 3/4 的慢速档和两秒识别停车。
+分支 `feature/mode4-gyro-tangent-exit` 从当时主干 `e9037c2` 建立，先合并
+综合候选 `5cb1bd3`（基线合并提交 `2a9604f`）。实现提交 `478e035` 完成后，
+又合入最新综合候选 `a6c61d3`：因此模式 1 的 25/30 cm 绕障参数、模式 3 的
+最新圆弧循线修复、模式 3/4 慢速档和两秒识别停车同时保留。
 
 ## 轨迹状态
 
@@ -33,9 +34,11 @@ OLED 模式 4 标题改为 `M4 GYRO`，串口状态中的 `P=1` 表示新方案�
 模式 3 隔离、两秒停车、鸣笛、K210 协议和真实 DriveBase 目标。
 - 完整 `line_recovery` 回归通过，包括两种搜索速度、模式 1/2、四轮闭环目标、
   转向助力、绕障和 STOP 所有权。
-- 正式 ARM 构建通过：text/data/bss = 109212/64/18336，BIN 109280 字节；
-  BIN SHA256 `E8316B5D00609EB80783DF91C9787342104B4698EDC5BEAD78F3FCE7D62A4BCD`，
-  HEX SHA256 `C249A2C000B398A3F73ADAD7DDE5CB4C8218A987981FB4E1633363A0869CC0A7`。
+- 完整 `gyro_turn` 回归通过，确认共享 MPU 服务、模式 1 绕障角度和模式 4
+  新绑定可以共同编译运行。
+- 正式 ARM 构建通过：text/data/bss = 109640/64/18344，BIN 109708 字节；
+  BIN SHA256 `6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01`，
+  HEX SHA256 `04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C`。
 
 这些检查只能证明源代码和主机模拟行为，不能证明实际圆弧半径或赛道通过率。
 
@@ -43,12 +46,14 @@ OLED 模式 4 标题改为 `M4 GYRO`，串口状态中的 `P=1` 表示新方案�
 role: 模式 4 独立陀螺仪切线过弧实验
 start_commit: e9037c27a053156a186809102afa56881fa1824c
 baseline_commit: 2a9604f
-result_commit: git log -1 --format=%H -- tests/sign_line/MODE4_GYRO_TANGENT.md
+feature_commit: 478e035
+latest_composite_base: a6c61d3
+result_commit: 当前分支 HEAD
 files_changed: sign_route.[ch]/config、sign_line_follow、line_tracking、main/OLED、sign tests/docs
-verification_completed: 完整 sign/line 回归、正式 ARM 构建、差异检查
+verification_completed: 完整 sign/line/gyro 回归、正式 ARM 构建、模式选择与差异检查
 not_verified: 烧录、离地轮测、实车圆弧半径、赛道出弧
 risks_or_assumptions: 2200/2400 PWM 等效目标形成的实际半径受地面、载荷和轮胎差异影响
-integration_notes: 保留 2a9604f 基线，只将最终功能提交合入 5cb1bd3 或后继综合版
+integration_notes: 分支已经合入 a6c61d3；集成最终分支 HEAD，避免重复应用 478e035
 ```
 
 本任务不访问串口、不烧录、不运行实体车、不推送远端。

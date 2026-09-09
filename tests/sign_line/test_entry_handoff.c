@@ -63,17 +63,28 @@ static void check_handoff(int side, uint32_t origin)
   assert(line.line_yaw_mdeg==heading);
   /* Opposite contact cannot refresh the anchor. The return sweep is allowed
      only inside the original selected-side sector, not an expanding U-turn. */
-  for(i=0;i<200;++i)
+  for(i=0;i<400;++i)
   {
     step(i%2?opposite:0,angle,1,0);
     assert(left+right==0 && left!=0);
     angle += left<0?1000:-1000;
-    assert(-side*angle>=0 && -side*angle<=25000);
+    assert(-side*angle>=0 && -side*angle<=SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG);
     assert(line.line_yaw_mdeg==heading);
   }
   step(6,-side*20000,1,0);
   for(i=0;i<5;++i) step(6,-side*20000,1,0);
   assert(!status.entry_line_ready); /* center without chosen outer is not capture */
+
+  init(side,origin);
+  step(selected,-side*90000,1,0); /* a late contact must not shift the far bound */
+  angle=-side*90000;
+  for(i=0;i<160;++i)
+  {
+    step(0,angle,1,0);
+    angle += left<0?1000:-1000;
+    assert(-side*angle>=0 && -side*angle<=SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG);
+    assert(status.state==SIGN_ROUTE_PROBE);
+  }
 
   init(side,origin);
   step(selected,-side*10000,1,0);
