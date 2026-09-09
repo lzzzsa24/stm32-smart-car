@@ -182,9 +182,24 @@ static void test_slowdown(void)
   CHECK(SignSlowdown_Reasons(2001U) == 0U);
   CHECK(SignSlowdown_TargetLimit(3U, -2700, 2700) == 0L);
   CHECK(SignSlowdown_TargetLimit(3U, 2700, -2700) == 0L);
-  CHECK(SignSlowdown_TargetLimit(3U, 2400, 2400) == 700L);
-  CHECK(SignSlowdown_TargetLimit(3U, 0, 2200) == 700L);
+  CHECK(SignSlowdown_TargetLimit(3U, 2400, 2400) == 500L);
+  CHECK(SignSlowdown_TargetLimit(3U, 0, 2200) == 500L);
+  CHECK(SignSlowdown_TargetLimit(SIGN_SLOWDOWN_VISION, 800, 2300) == 500L);
   CHECK(SignSlowdown_TargetLimit(0U, 2400, 2400) == 1200L);
+  SignRoute_Reset();
+  SignSlowdown_Reset();
+  CHECK(feed(&parser, "$D,0,15,160,120#", &frame) == VISION_PARSE_FRAME);
+  frame.sequence = ++seq; frame.received_ms = 4000U;
+  SignRoute_ObserveDetection(&frame);
+  SignSlowdown_ObserveDetection(&frame, 4000U);
+  CHECK(SignSlowdown_TargetLimit(SignSlowdown_Reasons(4000U),2300,2300)==500L);
+  CHECK(SignSlowdown_TargetLimit(SignSlowdown_Reasons(5499U),2300,2300)==500L);
+  CHECK(SignSlowdown_TargetLimit(SignSlowdown_Reasons(5500U),2300,2300)==1200L);
+  {
+    SignRouteStatus weak_status;
+    SignRoute_GetStatus(4000U,&weak_status);
+    CHECK(weak_status.direction==0);
+  }
   puts("PASS: one-frame slowdown, no-target/stale rejection, independent holds, reset and wrap");
 }
 

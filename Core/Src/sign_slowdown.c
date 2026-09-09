@@ -55,6 +55,7 @@ int32_t SignSlowdown_TargetLimit(uint8_t reasons, int16_t left_pwm, int16_t righ
 {
   if ((left_pwm < 0 && right_pwm > 0) || (left_pwm > 0 && right_pwm < 0))
     return 0L;
+  if (reasons & SIGN_SLOWDOWN_VISION) return SIGN_SLOWDOWN_VISION_LIMIT_CPS;
   if (reasons & SIGN_SLOWDOWN_BLACK) return SIGN_SLOWDOWN_BLACK_LIMIT_CPS;
   return SIGN_SLOWDOWN_LIMIT_CPS;
 }

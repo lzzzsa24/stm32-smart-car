@@ -16,6 +16,9 @@ def diff(a, b):
 tree = ast.parse(code)
 helpers = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
 scope = {'time': NS(ticks_diff=diff), 'THRESHOLD': .2, 'BOOT_DEBOUNCE_MS': 30}
+scope['THRESHOLD'] = next(ast.literal_eval(n.value) for n in tree.body
+    if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and
+    t.id == 'THRESHOLD' for t in n.targets))
 exec(compile(ast.Module(body=helpers, type_ignores=[]), str(SOURCE), 'exec'), scope)
 pick, frame = scope['select_route_detection'], scope['detection_frame']
 left = (10, 10, 40, 40, 0, .25)
@@ -27,7 +30,8 @@ assert pick([right, left]) == right
 assert pick([horn]) == horn
 assert pick([(0,0,40,40,4,1.0),left]) == left
 assert pick([right,(20,20,40,40,0,.95)])[4] == 0
-assert pick([(0, 0, 1, 1, 1, .19), left]) == left
+assert pick([(0, 0, 1, 1, 1, .14), left]) == left
+assert pick([(10, 10, 40, 40, 0, .15)]) is not None
 assert pick([(0, 0, 1, 1, 1, float('nan')), left]) == left
 assert pick([(400, 0, 20, 20, 1, .99), left]) == left
 assert frame(None) == '$D,-1,0,0,0#\n'
@@ -67,7 +71,7 @@ def run_loop(button_enabled, low_memory=False):
         def load_kmodel(self, path):
             assert path == '/sd/KPU/road_sign_det/road_sign_det.kmodel'
         def init_yolo2(self, anchors, **kwargs):
-            assert kwargs['threshold'] == .2 and kwargs['classes'] == 5
+            assert kwargs['threshold'] == .15 and kwargs['classes'] == 5
         def run_with_output(self, image): events.append(('infer', len(images)))
         def regionlayer_yolo2(self): return [left, horn]
     class UART:

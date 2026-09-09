@@ -44,7 +44,7 @@ assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
 assert 'SIGN3 SL2 RING NAV START' in main and 'SIGN4 SL2 RING NAV START' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
-assert "THRESHOLD      = 0.2" in k210
+assert "THRESHOLD      = 0.15" in k210
 assert 'KMODEL_PATH    = "/sd/KPU/road_sign_det/road_sign_det.kmodel"' in k210
 assert 'print("SIGN34 ready;' in k210
 assert model.stat().st_size == manifest["bytes"]

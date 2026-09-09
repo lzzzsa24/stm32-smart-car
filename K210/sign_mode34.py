@@ -38,7 +38,7 @@ KMODEL_PATH    = "/sd/KPU/road_sign_det/road_sign_det.kmodel"
 LABELS         = ["left", "right", "horn", "one", "two"]   # 顺序必须和 label.txt 一致
 ANCHOR         = (1.69, 2.28, 2.75, 4.22, 3.91, 4.02,
                   4.69, 4.66, 4.69, 6.09)                  # anchor.txt 第二行，5 个框
-THRESHOLD      = 0.2          # 2026-09-07 用户指定；动作确认由 STM32 多帧判定
+THRESHOLD      = 0.15         # 提前发现弱目标并减速；动作仍由 STM32 多帧确认
 NMS_VALUE      = 0.3          # 非极大值抑制，一般不用改
 SEND_INTERVAL  = 100          # 串口发送间隔 ms
 SHOW_BOXES     = False        # 参考 v2.0：短按 BOOT 切换框/标签/FPS
