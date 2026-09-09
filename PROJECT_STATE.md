@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: b326a6ad4fa975982111ec82c21508c1e46074a1
-flash_record_commit: cb9c328
-deployed_tag: deployed/2026-09-09-v13-b326a6a
+flashed_source_commit: 8a46fd6696870efa98a97b6a1524fdf5901ad4ab
+flash_record_commit: 068db96
+deployed_tag: deployed/2026-09-09-v14-8a46fd6
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 102636
-flashed_bin_sha256: B53205952EE5709F8D0E78C55E751AB19477F6351ED278B36515E5BFD1D3EE48
-flashed_hex_sha256: 3044B999BBA711881AFCB4C6499DB39D731ED1680CC7164BA58DC2D2E40AE3D5
-ground_test_status: not_tested_after_v13_b326a6a_deployment
+formal_bin_size_bytes: 103688
+flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572C3F1
+flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
+ground_test_status: not_tested_after_v14_8a46fd6_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
 candidate_source_commit: 2ebf64e
 candidate_bin_size_bytes: 101948
 candidate_bin_sha256: A2FC15385A8C30F39151070DD750BC6D1CA5E7B2C604F1D3C2F5D06D4A804509
 candidate_hex_sha256: 51DF3D44412ADC422007F6AF60C429236ACD75AAF696BB2789AF10A5BD91803C
-user_reported_flash: tool_verified_b326a6a_STM32_flash_readback_and_GO
+user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: local_main_mode1_2ebf64e_and_deployment_docs_not_pushed
+remote_sync_status: requested_sync_blocked_by_approval_specific_public_repo_confirmation_required
 remote_sync_branch: main
-stm32_runtime_status: COM11_b326a6a_GO_IMU_READY_CAL200_static20samples_pass_ACC_WARN1
+stm32_runtime_status: COM11_8a46fd6_readback_GO_no_post_GO_query_IMU_prior_V13_pass
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
-temporary_flash_selector_commit: b326a6a_comprehensive_v13_flashed
+temporary_flash_selector_commit: 8a46fd6_comprehensive_v14_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -61,6 +61,14 @@ pushed; hardware remains comprehensive V13 b326a6a with its separate evidence.
 Older statements that main is still rc.4 are superseded by this paragraph.
 
 ### Latest deployment override — 2026-09-09
+
+Current STM32 is V14 8a46fd6: includes 576fdbc route trace and K210-source
+prerequisite 624e8b4 on full V13. Build, full 103688-byte readback and GO passed.
+K210 hardware unchanged (new TX-selection source has NOT been deployed).
+No post-GO runtime or motion test. GitHub push explicitly requested but automatic
+approval requires user confirmation of publication to the specific public repo;
+no remote writes completed. See DEPLOYMENT_V14_8A46FD6_20260909.md.
+Older board-source statements below are history; main retains mode1-only scope.
 
 Current board is V13 b326a6a: rebuilt, 102636 bytes written/read back, GO OK.
 Twenty stationary IMU queries all reported READY/CAL=200/F=0, AGE=18..23 ms,
