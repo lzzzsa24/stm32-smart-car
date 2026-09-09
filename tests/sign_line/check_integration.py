@@ -26,6 +26,7 @@ assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_StepRoute(" in sign_task
 assert sign_task.index("if (SignSlowdown_Paused(now))") < sign_task.index("else if (route_command.active")
 assert "apply_sign_line_pwm(0, 0, sign_line_mask, sign_line_action)" in sign_task
+assert "SignSlowdown_AllowPause(pause_route.direction == 0 &&" in main
 assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task

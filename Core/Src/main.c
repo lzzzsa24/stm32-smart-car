@@ -1015,9 +1015,10 @@ static void sign_line_slowdown_task(AppMode mode)
   {
     SignRouteStatus pause_route;
     SignRoute_GetStatus(HAL_GetTick(), &pause_route);
-    SignSlowdown_AllowPause(pause_route.state == SIGN_ROUTE_IDLE ||
+    SignSlowdown_AllowPause(pause_route.direction == 0 &&
+        (pause_route.state == SIGN_ROUTE_IDLE ||
         pause_route.state == SIGN_ROUTE_ARMED || pause_route.state == SIGN_ROUTE_PROBE ||
-        pause_route.state == SIGN_ROUTE_WAIT_SIGN);
+        pause_route.state == SIGN_ROUTE_WAIT_SIGN));
     SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))

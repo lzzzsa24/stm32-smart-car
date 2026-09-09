@@ -319,6 +319,8 @@ static void test_observation_pause(void)
     f.sequence=i+1; f.received_ms=100+i*100;
     SignSlowdown_ObserveDetection(&f,f.received_ms);
     SignRoute_ObserveDetection(&f);
+    SignRoute_GetStatus(f.received_ms,&r);
+    SignSlowdown_AllowPause(r.direction==0);
     CHECK(SignSlowdown_Paused(f.received_ms)==(i<20));
   }
   SignRoute_GetStatus(3000,&r); CHECK(r.direction==-1);
@@ -329,8 +331,22 @@ static void test_observation_pause(void)
   for(i=0;i<=15;++i)
   { f.sequence++; f.received_ms=3200+i*100; SignSlowdown_ObserveDetection(&f,f.received_ms); }
   f.class_id=1; f.sequence++; f.received_ms=4800;
+  SignSlowdown_ObserveDetection(&f,4800); CHECK(!SignSlowdown_Paused(4800));
+  SignSlowdown_AllowPause(1); /* direction withdrawn/unconfirmed */
+  f.sequence++;
   SignSlowdown_ObserveDetection(&f,4800); CHECK(SignSlowdown_Paused(4800));
   CHECK(SignSlowdown_Paused(6799)); CHECK(!SignSlowdown_Paused(6800));
+  f.sequence++; f.received_ms=7299;
+  SignSlowdown_ObserveDetection(&f,7299); CHECK(!SignSlowdown_Paused(7299));
+  f.sequence++; f.received_ms=7300;
+  SignSlowdown_ObserveDetection(&f,7300); CHECK(SignSlowdown_Paused(7300));
+  CHECK(!SignSlowdown_Paused(9300));
+  SignSlowdown_ObserveDetection(&f,9800); CHECK(!SignSlowdown_Paused(9800)); /* duplicate */
+  SignSlowdown_Reset(); SignSlowdown_AllowPause(1);
+  f.sequence++; f.received_ms=10000; f.score=24;
+  SignSlowdown_ObserveDetection(&f,10000); CHECK(!SignSlowdown_Paused(10000));
+  f.sequence++; f.score=25;
+  SignSlowdown_ObserveDetection(&f,10000); CHECK(SignSlowdown_Paused(10000));
   SignSlowdown_Reset(); CHECK(!SignSlowdown_Paused(4801));
   SignSlowdown_AllowPause(0); f.sequence++; f.received_ms=5000;
   SignSlowdown_ObserveDetection(&f,5000); CHECK(!SignSlowdown_Paused(5000));
@@ -338,7 +354,7 @@ static void test_observation_pause(void)
   f.sequence++; f.received_ms=UINT32_MAX-999U;
   SignSlowdown_ObserveDetection(&f,f.received_ms);
   CHECK(SignSlowdown_Paused(999)); CHECK(!SignSlowdown_Paused(1000));
-  puts("PASS: fixed 2s observation, votes while stopped, no renewal, fresh rearm, reset and wrap");
+  puts("PASS: 25-percent pause gate, fixed 2s, confirmed inhibition, 500ms retry, fresh frames and wrap");
 }
 int main(void)
 {
