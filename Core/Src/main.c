@@ -668,8 +668,6 @@ static void show_ultrasonic_fault(UltrasonicAvoidState state)
 static void update_ultrasonic_buzzer(UltrasonicAvoidState state)
 {
   uint32_t now = HAL_GetTick();
-  uint16_t distance_cm = UltrasonicAvoid_GetLastDistanceCm();
-  uint8_t result = Ultrasonic_GetLastResult();
   GPIO_PinState buzzer = GPIO_PIN_RESET;
   uint8_t safety_override = 0U;
 
@@ -683,29 +681,8 @@ static void update_ultrasonic_buzzer(UltrasonicAvoidState state)
     buzzer = ((now / 100U) & 1U) == 0U
            ? GPIO_PIN_SET : GPIO_PIN_RESET;
   }
-  else if (UltrasonicAvoid_IsNoEchoFallbackActive() != 0U ||
-           (state == ULTRASONIC_AVOID_WAIT_SAFE &&
-            result == ULTRASONIC_RESULT_TIMEOUT))
-  {
-    safety_override = 1U;
-    /* 无回波/超量程：每 1000 ms 短鸣 80 ms。 */
-    buzzer = (now % 1000U) < 80U ? GPIO_PIN_SET : GPIO_PIN_RESET;
-  }
-  else if (distance_cm > 0U &&
-           distance_cm <= EXP7_ULTRASONIC_STOP_CM)
-  {
-    safety_override = 1U;
-    /* 已接近停止阈值，快速告警。 */
-    buzzer = ((now / 100U) & 1U) == 0U
-           ? GPIO_PIN_SET : GPIO_PIN_RESET;
-  }
-  else if (distance_cm > EXP7_ULTRASONIC_STOP_CM &&
-           distance_cm < EXP7_ULTRASONIC_CLEAR_CM)
-  {
-    safety_override = 1U;
-    /* 减速区：每 600 ms 短鸣 80 ms。 */
-    buzzer = (now % 600U) < 80U ? GPIO_PIN_SET : GPIO_PIN_RESET;
-  }
+  /* Missing/noisy echoes and an unconfirmed distance are diagnostic states,
+     not audible obstacle events. Leave manual phrase/audio ownership alone. */
 
   app_buzzer_safety_write(buzzer, safety_override);
 }

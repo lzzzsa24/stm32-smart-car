@@ -40,4 +40,9 @@ for marker in ("if (ultrasonic_state != ULTRASONIC_AVOID_FORWARD)",
     assert "continue;" in block(runtime, marker)
     assert runtime.index(marker) < runtime.index("experiment7_integrated_once();")
 assert "#define EXP7_VISION_ENABLED                 0U" in main
+audio = block(main, "static void update_ultrasonic_buzzer(UltrasonicAvoidState state)\n{")
+assert "ULTRASONIC_AVOID_STOPPING" in audio and "ULTRASONIC_AVOID_TURNING" in audio
+assert "UltrasonicAvoid_IsNoEchoFallbackActive" not in audio
+assert "UltrasonicAvoid_GetLastDistanceCm" not in audio
+assert "app_buzzer_safety_write(buzzer, safety_override);" in audio
 print("PASS: KEY1/KEY2 share profile and cycle; bypass/ultrasonic gates retain ownership; rejoin clears stale history")
