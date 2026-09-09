@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: ff4bbc9
 latest_code_commit: 7dbcb84
-flashed_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
-flash_record_commit: 2aa1e69
-deployed_tag: deployed/2026-09-09-comprehensive-v8-c767baa
+flashed_source_commit: fda63ce4597340df0f531b9f6940804f2795b00d
+flash_record_commit: 2582adc
+deployed_tag: deployed/2026-09-09-v11-fda63ce
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 99460
-flashed_bin_sha256: 7268C24CD4B0C8534AD509E477495EAE6CAAB5C453DFD869ABC89FA028EE382B
-flashed_hex_sha256: F661FB276C15B97D4186C9A2D7E47192BC4E7EBA7FA6C1E2B9CD284FD04994C7
-ground_test_status: not_tested_after_comprehensive_v8_c767baa_deployment
+formal_bin_size_bytes: 99488
+flashed_bin_sha256: F18BC8A7C516CCAC9B99CD2F1705B29E727CB2327197699094DADECCF213A84B
+flashed_hex_sha256: C877421C2C097BE9EDED5F11EECECDBB0C8E0F6EF6EBB77BAC696345A5FA50AE
+ground_test_status: not_tested_after_v11_fda63ce_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
 candidate_source_commit: ff4bbc9
 candidate_bin_size_bytes: 90380
 candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
 candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
-user_reported_flash: tool_verified_c767baa_STM32_flash_readback_and_GO
+user_reported_flash: tool_verified_fda63ce_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
 remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
 remote_sync_branch: main
-stm32_runtime_status: COM11_c767baa_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
+stm32_runtime_status: COM11_fda63ce_GO_IMU_CAL0_repeated_calibration_timeout_LAST_F5_not_READY
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
-temporary_flash_selector_commit: c767baa_comprehensive_v8_auto_recovery_flashed
+temporary_flash_selector_commit: fda63ce_comprehensive_v11_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -48,6 +48,15 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 ## Canonical repository layout
 
 ### Latest deployment override — 2026-09-09
+
+Latest: comprehensive V11 `fda63ce` has replaced V8 on STM32. Exact build,
+99488-byte full readback and GO passed; audio and calibration pages preserved.
+User-requested STOP-only IMU checks found communication and fresh samples but
+repeated calibration failure: `CAL=0`, `LAST_F=5`, restart count 1 then 4.
+IMU is NOT READY; zero yaw must not be treated as valid. The failed raw-axis
+condition is not exposed by current telemetry, so the physical cause remains
+unconfirmed. K210 unchanged; no motion test. Details:
+`DEPLOYMENT_FDA63CE_20260909.md`. Older V8 deployment statements below are history.
 
 Subsequently, the user requested the modes 3/4 K210 program. COM14 identified
 CanMV_Yahboom 2.1.1 with GC2145. The existing `/sd/main.py` (7256 bytes) already
