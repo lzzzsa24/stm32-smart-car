@@ -23,6 +23,7 @@ void DriveBase_SetSideCps(int32_t l,int32_t r)
 void advanced_stop(void) { DriveBase_Stop(DRIVE_STOP_COAST); }
 void LineBypassTravel_Stop(void) {}
 uint8_t LineBypassTravel_Start(int32_t mm,int32_t cps) { (void)mm; DriveBase_SetSideCps(cps,cps); return 1; }
+uint8_t LineBypassTravel_StartFixed(int32_t mm,int32_t cps) { return LineBypassTravel_Start(mm,cps); }
 void LineBypassTravel_Task(void) {}
 LineBypassTravelState LineBypassTravel_GetState(void) { return LINE_BYPASS_TRAVEL_RUNNING; }
 uint32_t LineBypassTravel_GetProgressMm(void) { return 0; }

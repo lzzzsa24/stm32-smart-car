@@ -38,6 +38,7 @@ static uint8_t smooth_centered_active;
 static uint32_t smooth_centered_since_ms;
 static uint32_t smooth_ramp_update_ms;
 static int16_t smooth_straight_pwm;
+static uint8_t smooth_straight_boost;
 static uint16_t smooth_turn_gain_percent = 100U;
 
 typedef enum
@@ -93,6 +94,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
 #define TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM     100
 #define TRACKING_SMOOTH_STRAIGHT_BASE_PWM      2600
 #define TRACKING_SMOOTH_STRAIGHT_MAX_PWM       2700
+#define TRACKING_SMOOTH_BOOST_MAX_PWM          2850
 #define TRACKING_SMOOTH_CENTER_HOLD_MS          350U
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
@@ -404,8 +406,16 @@ void line_tracking_reset(void)
   smooth_centered_since_ms = HAL_GetTick();
   smooth_ramp_update_ms = HAL_GetTick();
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  smooth_straight_boost = 0U;
   recovery_state = LINE_RECOVERY_NORMAL;
   recovery_state_started_ms = HAL_GetTick();
+}
+
+void line_tracking_set_straight_boost(uint8_t enable)
+{
+  smooth_straight_boost = enable != 0U ? 1U : 0U;
+  if (!smooth_straight_boost && smooth_straight_pwm > TRACKING_SMOOTH_STRAIGHT_MAX_PWM)
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
 }
 
 void line_tracking_set_no_line_forward(uint8_t enable)
@@ -871,6 +881,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
       int16_t curve_center;
       int16_t left_target;
       int16_t right_target;
+      int16_t straight_max = smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM;
       uint8_t stable_center = (line_position == 0 &&
                                reading->x2_black == 0U &&
                                reading->x4_black == 0U) ? 1U : 0U;
@@ -890,11 +901,12 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                  TRACKING_SMOOTH_RAMP_INTERVAL_MS)
         {
           smooth_ramp_update_ms = now;
-          if (smooth_straight_pwm < TRACKING_SMOOTH_STRAIGHT_MAX_PWM)
+          if (smooth_straight_pwm < straight_max)
           {
             smooth_straight_pwm = clamp_speed(
                 (int32_t)smooth_straight_pwm +
                 TRACKING_SMOOTH_RAMP_STEP_PWM);
+            if (smooth_straight_pwm > straight_max) smooth_straight_pwm = straight_max;
           }
         }
       }
