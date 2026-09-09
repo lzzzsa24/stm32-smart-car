@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: 5fdb84aee6c4e82b9d95435d90a072147ac3cb75
-flash_record_commit: 70ff182
-deployed_tag: deployed/2026-09-09-5fdb84a
+flashed_source_commit: ec2dd2f6b9ae20df45f461e45669dc32ad8a77ef
+flash_record_commit: 95efd3f
+deployed_tag: deployed/2026-09-09-ec2dd2f
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 108908
-flashed_bin_sha256: 900720C27D9990E9B19DA4381E0256585CC7BD74FFC3C084672F7F4F9B133751
-flashed_hex_sha256: C2BD4C84BF1A1F963571D7D08259EE0C5267A613377A57C5B064BD3F967F67DD
-ground_test_status: not_tested_after_5fdb84a_deployment
+formal_bin_size_bytes: 109740
+flashed_bin_sha256: 69710DBDEF1E517A297FB8992D761BC5E6552E359763278B94F2552B772D5478
+flashed_hex_sha256: 09E17A9C5F1F4AB441013F343A285D17346D928F354EEA44B6753A917D7F5A3C
+ground_test_status: not_tested_after_ec2dd2f_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 8b91f49fb47016501bc475b452afef40dc02b651
-candidate_bin_size_bytes: 108908
-candidate_bin_sha256: A1E6759D0694FEDB980C8C1CDAFEBFA49F8068421FE960E46F9C1BEBD67197F8
-candidate_hex_sha256: B16B32814BF5E781B1BD79ED3D8BB539E828F95368241F499A048FD3B381AFCC
-user_reported_flash: tool_verified_5fdb84a_readback_GO
+candidate_source_commit: ec2dd2f6b9ae20df45f461e45669dc32ad8a77ef
+candidate_bin_size_bytes: 109740
+candidate_bin_sha256: 69710DBDEF1E517A297FB8992D761BC5E6552E359763278B94F2552B772D5478
+candidate_hex_sha256: 09E17A9C5F1F4AB441013F343A285D17346D928F354EEA44B6753A917D7F5A3C
+user_reported_flash: tool_verified_ec2dd2f_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_5fdb84a_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_ec2dd2f_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 5fdb84a_comprehensive_arc_rectangle_flashed
+temporary_flash_selector_commit: ec2dd2f_comprehensive_low_speed_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive deployment: ec2dd2f
+
+11a243f integrated onto 8b91f49, retaining 24-cm bypass. Sign-only low-speed
+feedback regulation and 500-CPS search enabled. Full sign/line/gyro suites
+and build passed. COM11 109740-byte full readback and GO passed, reserved
+pages preserved. K210 unchanged; no post-GO/physical test. Main code unchanged.
+See docs/history/deployments/DEPLOYMENT_EC2DD2F_20260909.md.
+Supersedes older unflashed-24cm and STM32 deployment notes below.
 
 ### Latest unflashed candidate: 8b91f49
 
