@@ -665,6 +665,7 @@ static void build_sign_line_screen(uint8_t mode_number,
     index = append_char(line, index, ' ');
     index = append_char(line, index, route_direction < 0 ? 'L' : 'R');
   }
+  if (line_action == 3U) index = append_string(line, index, " S"); /* search without hiding phase */
   finish_text(line, index);
   draw_text(3U, 0U, line);
 }

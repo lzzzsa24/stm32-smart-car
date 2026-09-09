@@ -245,7 +245,7 @@ static void ring(int side,uint32_t origin)
     for(w=0;w<4;++w)counts[w]+=22;
     tick+=40; sample(6,side*(angle-80)*1000);
   }
-  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && !route_command.active); /* visible line keeps control */
   for(angle=90;angle>=12;--angle)
   {
     tick+=40; sample(0,side*angle*1000);
@@ -372,10 +372,69 @@ static void arc_feedback_and_entry_search(void)
   assert(failures==0);
   puts("PASS: ARC raw-line priority, measured curve search direction, entry sweep beyond 25 degrees and STOP");
 }
+static void exit_releases_direction(int side, uint32_t origin)
+{
+  unsigned i,w;
+  uint8_t opposite=side<0?1:8;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000); /* entry apex */
+  for(w=0;w<4;++w) counts[w]+=2000;
+  sample(6,side*80000); /* 160-degree arc, before the 170-degree trigger */
+  for(i=0;i<4;++i) sample(6,0); /* already following the aligned outgoing line */
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0);
+  assert(!route_command.active && route_command.just_finished);
+  assert(!follower.override_active && !follower.guard.entry_guard_active);
+  assert(!follower.guard.route_hint && !follower.guard.curve_yaw_valid);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+
+  /* A new bend on the ordinary line points opposite to the old sign. Its
+     current sensor contact, not the completed route, must choose the wheels. */
+  for(i=0;i<6;++i)
+  {
+    sample(opposite,0);
+    assert(!route_command.active && route.direction==0);
+    assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
+                   drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+  }
+  for(i=0;i<40;++i) sample(0,side*100000);
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
+  assert(!follower.override_active); /* old ARC's +/-25-degree sector cannot intervene */
+  assert(side<0 ? drive.requested_cps[0]==LINE_SEARCH_TARGET_CPS :
+                 drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  assert(drive.requested_cps[0]==-drive.requested_cps[2]);
+  for(i=0;i<10;++i) sample(6,0);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+
+  /* Active exit alignment also relinquishes ownership at the FIRST real
+     contact, including a contact in the alignment-to-clear transition. */
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(6,side*90000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT);
+  sample(0,side*30000); assert(route_command.active);
+  sample(opposite,side*5000);
+  assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active);
+  for(i=0;i<40;++i)
+  {
+    sample(0,side*5000);
+    assert(!route_command.active && !follower.override_active);
+  }
+  assert(drive.requested_cps[0]==-drive.requested_cps[2] && drive.requested_cps[0]!=0);
+  /* No extra 60 mm of straight motion may keep R alive after capture. */
+  for(i=0;i<4;++i) sample(6,side*5000);
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  SignLineFollow_Stop(&follower); sample(0,side*100000);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  puts("PASS: exit clears L/R and route motor ownership; opposite bend/re-loss use shared follower; no delayed exit turn");
+}
 int main(void)
 {
   mode4_gentle_drive(-1); mode4_gentle_drive(1);
   arc_feedback_and_entry_search();
+  exit_releases_direction(-1,100); exit_releases_direction(1,100);
+  exit_releases_direction(-1,UINT32_MAX-120U); exit_releases_direction(1,UINT32_MAX-120U);
   parity(100); parity(UINT32_MAX-400U);
   slow_profile_matches_key2_settle();
   slow_speed_and_recognition();

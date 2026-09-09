@@ -796,8 +796,7 @@ static void oled_application_task(AppMode mode)
           route_status.last_class,
           route_status.last_score,
           route_status.vision_online,
-          (route_status.searching && route_status.state != SIGN_ROUTE_PROBE) ?
-              (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
+          (uint8_t)route_status.state,
           route_status.direction);
     }
     else
@@ -907,9 +906,11 @@ static uint8_t line_reading_mask(const LineTrackingReading *line)
 static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_status)
 {
   VisionUartStats stats;
+  DriveBaseTelemetry drive;
   uint32_t now = HAL_GetTick();
 
-  SignTrace_Record(now, sign_line_mask, route_status);
+  DriveBase_GetTelemetry(&drive);
+  SignTrace_Record(now, sign_line_mask, route_status, drive.requested_cps[0], drive.requested_cps[2]);
 
   if (!tick_reached(now, last_sign_uart_ms + 500U))
   {
@@ -1745,6 +1746,7 @@ int main(void)
       }
       else if (app_mode == APP_MODE_SIGN_LINE)
       {
+        SignTrace_Init(); /* New operator run records this attempt, not a previous frozen fault. */
         SignLineFollow_Start(&sign_line_controller);
         UltrasonicMotion_Reset();
         ultrasonic_forward_speed_limit = 0;

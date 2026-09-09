@@ -53,6 +53,8 @@ typedef struct
   int32_t travel_mm;
   int32_t yaw_mdeg;       /* phase-relative MPU yaw; mdeg, positive left */
   SignRouteProfile profile;
+  int32_t heading_error_mdeg; /* current heading minus approach, wrapped +/-180 deg */
+  int32_t arc_peak_mdeg;  /* maximum arc angle observed on a narrow track line */
 } SignRouteStatus;
 
 void SignRoute_Init(void);

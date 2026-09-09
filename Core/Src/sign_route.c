@@ -42,6 +42,7 @@ typedef struct
   uint8_t junction_active;
   uint8_t departed;
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
+  uint8_t exit_line_seen;
   uint32_t entry_center_ms;
   uint8_t capture_active;
   int32_t previous_counts[4];
@@ -52,6 +53,8 @@ typedef struct
   uint8_t capture_kind;
   int32_t travel_mm, yaw_mdeg;
   SignRouteProfile profile;
+  int32_t arc_peak_mdeg;
+  int32_t exit_best_error_mdeg;
 } SignRouteContext;
 
 static SignRouteContext route;
@@ -84,6 +87,19 @@ static uint8_t is_center_line(uint8_t mask)
 {
   mask &= 0x0FU;
   return mask == 2U || mask == 4U || mask == 6U;
+}
+
+static uint8_t is_track_line(uint8_t mask)
+{
+  return mask != 0U && !is_junction(mask);
+}
+
+static int32_t heading_error(void)
+{
+  int64_t error=(route.imu_yaw-route.approach_yaw)%360000LL;
+  if(error>180000LL) error-=360000LL;
+  if(error<-180000LL) error+=360000LL;
+  return (int32_t)error;
 }
 
 static void clear_window(void)
@@ -287,9 +303,16 @@ static void enter_phase(SignRouteState state, uint32_t now)
   {
     route.imu_origin = route.entry_extreme_yaw;
     route.arc_origin_locked = 0U;
+    route.arc_peak_mdeg = 0L;
   }
   if (state == SIGN_ROUTE_EXIT_SELECT)
-    route.exit_previous_error = route.direction * (route.imu_yaw-route.approach_yaw);
+  {
+    route.exit_previous_error = route.direction * (route.profile == SIGN_ROUTE_PROFILE_STANDARD ?
+        heading_error() : route.imu_yaw-route.approach_yaw);
+    route.exit_best_error_mdeg = heading_error();
+    if (route.exit_best_error_mdeg < 0) route.exit_best_error_mdeg = -route.exit_best_error_mdeg;
+  }
+  if (state == SIGN_ROUTE_EXIT_CLEAR) route.exit_line_seen=0U;
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -320,7 +343,8 @@ static void update_geometry(void)
         if (route.direction * (route.imu_yaw-route.imu_origin) < 0 &&
             -route.direction * (route.imu_yaw-route.approach_yaw) <= SIGN_ENTRY_MAX_MDEG)
           route.imu_origin=route.imu_yaw;
-        if (route.travel_mm >= SIGN_ARC_MIN_MM &&
+        if ((route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT || is_track_line(route.last_line_mask)) &&
+            route.travel_mm >= SIGN_ARC_MIN_MM &&
             route.direction * (route.imu_yaw-route.imu_origin) >= SIGN_ARC_ORIGIN_LOCK_MDEG)
           route.arc_origin_locked=1U;
       }
@@ -356,6 +380,18 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
   route.capture_active = route.junction_active = 0U;
   clear_window();
   memset(command, 0, sizeof(*command)); /* withdraw, never replace SL2 with STOP */
+}
+
+static void complete_route(uint32_t now, SignRouteCommand *command)
+{
+  route.state=SIGN_ROUTE_LOCKED;
+  route.direction=0;
+  route.finished_ms=now;
+  route.none_since_ms=0U;
+  route.capture_active=route.junction_active=0U;
+  clear_window();
+  memset(command,0,sizeof(*command));
+  command->just_finished=1U;
 }
 
 static void capture_arc(uint32_t now, SignRouteCommand *command)
@@ -418,6 +454,11 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
       route.departed = 1U;
       return;
     }
+    /* Current line owns steering once it is seen. An angle threshold must
+       not pull a car that has already exited away from its new track. */
+    if (mask != 0U) return;
+    steer = heading_error() > 0 ? 1 : -1;
+    /* Only qualified, all-white exit alignment may own a blind pivot. */
     command->active = 1U;
     route.departed = 1U;
     command->left_pwm = steer < 0 ? 0 : SIGN_ROUTE_PWM;
@@ -631,7 +672,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     if (route.state == SIGN_ROUTE_SELECTING) observe_entry_line(line_mask, now);
     select_command(command, line_mask);
     if (now - route.phase_ms > timeout ||
-        turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)
+        (route.state == SIGN_ROUTE_EXIT_SELECT && route.profile == SIGN_ROUTE_PROFILE_STANDARD ?
+          (route.yaw_mdeg > SIGN_SELECT_MAX_YAW_MDEG || route.yaw_mdeg < -SIGN_SELECT_MAX_YAW_MDEG) :
+          (turn_yaw > SIGN_SELECT_MAX_YAW_MDEG || turn_yaw < -30000L)))
     {
       cancel_route(2U, now, command);
       return;
@@ -642,6 +685,30 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       return;
     }
 #if SIGN_ROUTE_REQUIRE_IMU
+    if (route.state == SIGN_ROUTE_EXIT_SELECT && route.profile == SIGN_ROUTE_PROFILE_STANDARD)
+    {
+      int64_t error = route.direction * heading_error();
+      int32_t magnitude = (int32_t)(error < 0 ? -error : error);
+      uint8_t aligned = (error >= -SIGN_EXIT_ALIGN_MDEG && error <= SIGN_EXIT_ALIGN_MDEG) ||
+          (((route.exit_previous_error > 0 && error <= 0) ||
+            (route.exit_previous_error < 0 && error >= 0)) &&
+           error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG);
+      route.exit_previous_error=error;
+      if (magnitude < route.exit_best_error_mdeg) route.exit_best_error_mdeg=magnitude;
+      if (line_mask==0U && magnitude > route.exit_best_error_mdeg+SIGN_EXIT_DIVERGE_MDEG)
+      { cancel_route(2U, now, command); return; }
+      if (aligned)
+      {
+        enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
+        command->gentle_arc=0U;
+        route.exit_line_seen=is_track_line(line_mask);
+        command->active=(line_mask==0U);
+        command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+        return;
+      }
+      return; /* Entry's minimum-turn/capture rules do not apply to exit alignment. */
+    }
+    /* Mode 4 keeps its separately commissioned gyro-tangent trajectory. */
     if (route.state == SIGN_ROUTE_EXIT_SELECT)
     {
       int64_t error = route.direction * (route.imu_yaw-route.approach_yaw);
@@ -650,7 +717,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
             (route.exit_previous_error < 0 && error >= 0)) &&
            error >= -15000 && error <= 15000);
       route.exit_previous_error=error;
-      if (turn_yaw >= SIGN_EXIT_MIN_MDEG && aligned)
+      if (turn_yaw >= SIGN_SELECT_CAPTURE_MIN_MDEG && aligned)
       {
         enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
         command->active=1U;
@@ -663,7 +730,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     if (!junction && !center) route.departed = 1U;
     if (stable(route.departed && center
 #if SIGN_ROUTE_REQUIRE_IMU
-        && turn_yaw >= SIGN_EXIT_MIN_MDEG
+        && turn_yaw >= SIGN_SELECT_CAPTURE_MIN_MDEG
         && (route.state != SIGN_ROUTE_EXIT_SELECT ||
             (route.imu_yaw - route.approach_yaw >= -15000 &&
              route.imu_yaw - route.approach_yaw <= 15000))
@@ -711,13 +778,37 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       cancel_route(3U, now, command);
       return;
     }
-    /* The gyro phase plus travel opens exit alignment even if the outgoing
-       branch's exact two-sensor pattern was missed. */
-    if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
-               directed_arc_yaw >=
 #if SIGN_ROUTE_REQUIRE_IMU
-               (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
-                SIGN_GYRO_TANGENT_ARC_MDEG : SIGN_GYRO_EXIT_TRIGGER_MDEG), now))
+    if (route.profile == SIGN_ROUTE_PROFILE_STANDARD)
+    {
+      int32_t error=heading_error();
+      if (is_track_line(line_mask) && route.arc_origin_locked && route.travel_mm >= SIGN_ARC_MIN_MM &&
+          directed_arc_yaw > route.arc_peak_mdeg)
+        route.arc_peak_mdeg=directed_arc_yaw;
+      uint8_t natural_exit=route.arc_peak_mdeg >= SIGN_GYRO_ARC_MIN_MDEG && center &&
+          error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
+      uint8_t turn_ready=is_track_line(line_mask) && route.arc_origin_locked &&
+          route.travel_mm >= SIGN_ARC_MIN_MM && directed_arc_yaw >= SIGN_GYRO_EXIT_TRIGGER_MDEG;
+      /* All-white search and full-black backgrounds cannot trigger exit.
+         Natural rejoin can finish before a hard 170-degree crossing is seen. */
+      if (stable(natural_exit ? 2U : (turn_ready ? 1U : 0U), now))
+      {
+        if (natural_exit)
+        {
+          complete_route(now,command);
+          return; /* Already on the aligned outgoing line: no extra route phase. */
+        }
+        enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
+        route.departed=1U;
+        command->just_started=1U;
+        /* Fresh visible line retains motor ownership in either transition. */
+      }
+      return;
+    }
+#endif
+    if (stable(route.travel_mm >= SIGN_ARC_MIN_MM && directed_arc_yaw >=
+#if SIGN_ROUTE_REQUIRE_IMU
+               SIGN_GYRO_TANGENT_ARC_MDEG, now))
 #else
                SIGN_ARC_MIN_YAW_MDEG &&
                line_mask == (exit_side == 8U ? 12U : 3U), now))
@@ -752,16 +843,26 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       return;
     }
 #if SIGN_ROUTE_REQUIRE_IMU
-    command->active=1U;
+    if (route.profile == SIGN_ROUTE_PROFILE_STANDARD)
+    {
+      exit_min_mm=0L;
+      if (is_track_line(line_mask)) route.exit_line_seen=1U;
+      command->active=(line_mask==0U && !route.exit_line_seen);
+    }
+    else command->active=1U;
     command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
 #endif
     if (stable(center && route.travel_mm >= exit_min_mm, now))
     {
-      route.state = SIGN_ROUTE_LOCKED;
-      route.finished_ms = now;
-      route.none_since_ms = 0U; /* only post-exit absence permits rearming */
-      command->active = 0U;
-      command->just_finished = 1U;
+      if (route.profile == SIGN_ROUTE_PROFILE_STANDARD) complete_route(now,command);
+      else
+      {
+        route.state = SIGN_ROUTE_LOCKED;
+        route.finished_ms = now;
+        route.none_since_ms = 0U;
+        command->active = 0U;
+        command->just_finished = 1U;
+      }
     }
   }
   command->direction = route.direction;
@@ -784,4 +885,6 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->travel_mm = route.travel_mm;
   status->yaw_mdeg = route.yaw_mdeg;
   status->profile = route.profile;
+  status->heading_error_mdeg = heading_error();
+  status->arc_peak_mdeg = route.arc_peak_mdeg;
 }
