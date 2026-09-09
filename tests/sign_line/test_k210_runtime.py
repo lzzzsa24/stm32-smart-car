@@ -21,9 +21,12 @@ pick, frame = scope['select_route_detection'], scope['detection_frame']
 left = (10, 10, 40, 40, 0, .25)
 right = (20, 20, 40, 40, 1, .95)
 horn = (20, 20, 40, 40, 2, .99)
-assert pick([horn, left]) == left
-assert pick([left, right]) is None
-assert pick([horn]) is None
+assert pick([horn, left]) == horn
+assert pick([left, right]) == right
+assert pick([right, left]) == right
+assert pick([horn]) == horn
+assert pick([(0,0,40,40,4,1.0),left]) == left
+assert pick([right,(20,20,40,40,0,.95)])[4] == 0
 assert pick([(0, 0, 1, 1, 1, .19), left]) == left
 assert pick([(0, 0, 1, 1, 1, float('nan')), left]) == left
 assert pick([(400, 0, 20, 20, 1, .99), left]) == left
@@ -51,9 +54,9 @@ class EndSimulation(Exception):
 def run_loop(button_enabled, low_memory=False):
     now, images, tx, events, logs, collections = [PERIOD-300], [], [], [], [], []
     class Image:
-        def __init__(self): self.draws = 0
-        def draw_rectangle(self, *args, **kwargs): self.draws += 1
-        def draw_string(self, *args, **kwargs): self.draws += 1
+        def __init__(self): self.draws = 0; self.boxes=0; self.text=[]
+        def draw_rectangle(self, *args, **kwargs): self.draws += 1; self.boxes+=1
+        def draw_string(self, *args, **kwargs): self.draws += 1; self.text.append(args[2])
     class Clock:
         def tick(self): now[0] += 50
         def fps(self): return 20.0
@@ -99,13 +102,15 @@ def run_loop(button_enabled, low_memory=False):
     assert len([e for e in events if e[0]=='infer']) == 24
     assert 10 <= len(tx) <= 12
     assert all(b[0]-a[0] >= 100 for a,b in zip(tx,tx[1:]))
-    assert all(v == '$D,0,25,30,30#\n' for _,v in tx)
+    assert all(v == '$D,2,99,40,40#\n' for _,v in tx)
     for kind, index in events:
         if kind == 'lcd' and ('tx', index) in events:
             assert events.index(('tx', index)) < events.index(('lcd', index))
     assert len(logs) == 3  # initialization only; no per-frame debug printing
     assert namespace['SHOW_BOXES'] == button_enabled  # held button toggles once
-    assert any(img.draws for img in images) == button_enabled
+    assert all(img.boxes<=1 for img in images)
+    assert any(img.boxes for img in images) == button_enabled
+    assert any('TX:HORN 99' in img.text for img in images)
     assert len(collections) >= 24 if low_memory else 4 <= len(collections) < 12
     return tx
 

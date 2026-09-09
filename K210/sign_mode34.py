@@ -13,7 +13,7 @@ K210 路标识别（目标检测模型）—— 5 类蓝底圆形路标
 同帧出现两个方向视为歧义，发送无候选，等待重新确认。
 串口输出（发给主控 STM32，8=TX 6=RX 115200）：
   $D,<class>,<score>,<cx>,<cy>#
-    class: 本阶段仅 0左半弧 / 1右半弧；其他类不发动作候选
+    class: 0左半弧 / 1右半弧 / 2鸣笛；每帧只发送最高分候选
     score: 置信度 0~100（百分制）
     cx,cy: 检测框中心坐标（320x240 画面内）
   未检测到路标：$D,-1,0,0,0#
@@ -85,19 +85,15 @@ def detection_frame(best):
     return "$D,%d,%d,%d,%d#\n" % (best[4], int(best[5] * 100), cx, cy)
 
 def select_route_detection(detections):
-    """只在箭头中选最高分；左右同时出现时不猜测路线。"""
+    """单标志赛道：只取左、右、鸣笛中分数最高的一项。"""
     best = None
-    direction = None
     for item in detections:
         if not valid_detection(item):
             continue
         cls = item[4]
-        if cls not in (0, 1):
+        if cls not in (0, 1, 2):
             continue
-        if direction is not None and cls != direction:
-            return None
-        direction = cls
-        if best is None or item[5] > best[5]:
+        if best is None or item[5] > best[5] or (item[5] == best[5] and cls < best[4]):
             best = item
     return best
 
@@ -136,8 +132,10 @@ kpu.init_yolo2(ANCHOR,
                classes=len(LABELS))
 print("SIGN34 ready; model=%s threshold=%.2f; vflip=%d hmirror=%d" %
       (KMODEL_PATH, THRESHOLD, SENSOR_VFLIP, SENSOR_HMIRROR))
-print("SIGN34 v2-display; BOOT toggles boxes; UART arrows only")
+print("SIGN34 single-best; BOOT toggles selected box; UART left/right/horn")
 
+last_sent_best = None
+last_tx_text = "TX:WAIT"
 last_gc = time.ticks_ms()
 last_send = time.ticks_add(last_gc, -SEND_INTERVAL)
 last_display = time.ticks_add(last_gc, -DISPLAY_INTERVAL)
@@ -164,6 +162,9 @@ while True:
     if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
         frame = detection_frame(best)
         uart.write(frame)
+        last_sent_best = best
+        last_tx_text = "TX:NONE" if best is None else "TX:%s %d" % (
+            ("L", "R", "HORN")[best[4]], int(best[5]*100))
         last_send = now
         if DEBUG_PRINT and time.ticks_diff(now, last_debug) >= DEBUG_INTERVAL:
             print(frame.strip())
@@ -171,7 +172,7 @@ while True:
 
     if time.ticks_diff(now, last_display) >= DISPLAY_INTERVAL:
         if SHOW_BOXES:
-            for item in dect:
+            for item in (() if last_sent_best is None else (last_sent_best,)):
                 if not valid_detection(item):
                     continue
                 x, y, w, h, cls, score = item[:6]
@@ -179,6 +180,7 @@ while True:
                 img.draw_string(max(0, x), max(0, y), "%s %.2f" % (LABELS[cls], score),
                                 color=(255, 0, 0), scale=2.0)
             img.draw_string(0, 0, "%2.1ffps" % clock.fps(), color=(0, 60, 255), scale=2.0)
+        img.draw_string(0, 220, last_tx_text, color=(255, 255, 0), scale=1.0)
         lcd.display(img)
         last_display = time.ticks_ms()
     # 不让上一帧的图像/检测列表拖到下一次 sensor.snapshot() 后才释放。
