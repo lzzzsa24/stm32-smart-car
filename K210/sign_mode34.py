@@ -40,6 +40,8 @@ ANCHOR         = (1.69, 2.28, 2.75, 4.22, 3.91, 4.02,
                   4.69, 4.66, 4.69, 6.09)                  # anchor.txt 第二行，5 个框
 THRESHOLD      = 0.2          # 2026-09-07 用户指定；动作确认由 STM32 多帧判定
 NMS_VALUE      = 0.3          # 非极大值抑制，一般不用改
+ARROW_SCORE_MARGIN = 0.15     # 同一目标的左右冲突需有明显分差
+ARROW_OVERLAP_MIN = 0.35
 SEND_INTERVAL  = 100          # 串口发送间隔 ms
 SHOW_BOXES     = False        # 参考 v2.0：短按 BOOT 切换框/标签/FPS
 DISPLAY_INTERVAL = 100        # LCD 最多 10 fps；不限制 KPU 推理循环
@@ -84,21 +86,27 @@ def detection_frame(best):
     cy = min(239, int((y0 + y1) // 2))
     return "$D,%d,%d,%d,%d#\n" % (best[4], int(best[5] * 100), cx, cy)
 
+def arrow_overlap(a, b):
+    w = max(0, min(a[0]+a[2], b[0]+b[2])-max(a[0], b[0]))
+    h = max(0, min(a[1]+a[3], b[1]+b[3])-max(a[1], b[1]))
+    intersection = w*h
+    return intersection / (a[2]*a[3] + b[2]*b[3] - intersection)
+
+
 def select_route_detection(detections):
-    """只在箭头中选最高分；左右同时出现时不猜测路线。"""
+    """同一框的低分反向误检不否决高分箭头；分离标志/近分冲突仍不猜。"""
+    arrows = [item for item in detections
+              if valid_detection(item) and item[4] in (0, 1)]
     best = None
-    direction = None
-    for item in detections:
-        if not valid_detection(item):
-            continue
-        cls = item[4]
-        if cls not in (0, 1):
-            continue
-        if direction is not None and cls != direction:
-            return None
-        direction = cls
+    for item in arrows:
         if best is None or item[5] > best[5]:
             best = item
+    if best is not None:
+        for item in arrows:
+            if item[4] != best[4] and (
+                    best[5] - item[5] < ARROW_SCORE_MARGIN or
+                    arrow_overlap(best, item) < ARROW_OVERLAP_MIN):
+                return None
     return best
 
 
@@ -138,6 +146,7 @@ print("SIGN34 ready; model=%s threshold=%.2f; vflip=%d hmirror=%d" %
       (KMODEL_PATH, THRESHOLD, SENSOR_VFLIP, SENSOR_HMIRROR))
 print("SIGN34 v2-display; BOOT toggles boxes; UART arrows only")
 
+last_tx_text = "TX:WAIT"
 last_gc = time.ticks_ms()
 last_send = time.ticks_add(last_gc, -SEND_INTERVAL)
 last_display = time.ticks_add(last_gc, -DISPLAY_INTERVAL)
@@ -164,6 +173,8 @@ while True:
     if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
         frame = detection_frame(best)
         uart.write(frame)
+        last_tx_text = "TX:NONE" if best is None else "TX:%s %d" % (
+            "L" if best[4] == 0 else "R", int(best[5]*100))
         last_send = now
         if DEBUG_PRINT and time.ticks_diff(now, last_debug) >= DEBUG_INTERVAL:
             print(frame.strip())
@@ -179,6 +190,7 @@ while True:
                 img.draw_string(max(0, x), max(0, y), "%s %.2f" % (LABELS[cls], score),
                                 color=(255, 0, 0), scale=2.0)
             img.draw_string(0, 0, "%2.1ffps" % clock.fps(), color=(0, 60, 255), scale=2.0)
+        img.draw_string(0, 220, last_tx_text, color=(255, 255, 0), scale=1.0)
         lcd.display(img)
         last_display = time.ticks_ms()
     # 不让上一帧的图像/检测列表拖到下一次 sensor.snapshot() 后才释放。
