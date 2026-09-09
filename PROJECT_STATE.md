@@ -23,10 +23,10 @@ flashed_bin_sha256: 69710DBDEF1E517A297FB8992D761BC5E6552E359763278B94F2552B772D
 flashed_hex_sha256: 09E17A9C5F1F4AB441013F343A285D17346D928F354EEA44B6753A917D7F5A3C
 ground_test_status: not_tested_after_ec2dd2f_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: ec2dd2f6b9ae20df45f461e45669dc32ad8a77ef
-candidate_bin_size_bytes: 109740
-candidate_bin_sha256: 69710DBDEF1E517A297FB8992D761BC5E6552E359763278B94F2552B772D5478
-candidate_hex_sha256: 09E17A9C5F1F4AB441013F343A285D17346D928F354EEA44B6753A917D7F5A3C
+candidate_source_commit: a5b618d339edfb89f3b2d2545d2894c665c3663a
+candidate_bin_size_bytes: 109900
+candidate_bin_sha256: 390732B8C9F64AEF2A5B6C2CE186B46106F9C620B6CC11B115E192BFD1F87FEC
+candidate_hex_sha256: 79A7392C30C244CEF307267D30D2D0C2A29710267D680A8DDA3AECEF74A2B171
 user_reported_flash: tool_verified_ec2dd2f_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed comprehensive candidate: a5b618d
+
+2e9a38e integrated onto ec2dd2f. Sign-only low-speed powered phases retain
+breakaway power while encoder-accounted coasting preserves target speed.
+Sign, line and gyro regression suites and formal build passed. Synthetic
+friction tests are not physical validation. Board remains ec2dd2f; K210 and
+main code unchanged. No serial access, flashing or push in this merge task.
+See docs/history/candidates/COMPREHENSIVE_A5B618D_20260909.md.
+This supersedes older candidate statements below, not deployment evidence.
 
 ### Latest comprehensive deployment: ec2dd2f
 
