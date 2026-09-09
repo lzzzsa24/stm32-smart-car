@@ -44,7 +44,8 @@ uint8_t SignSlowdown_Reasons(uint32_t now)
 
 int32_t SignSlowdown_TargetLimit(uint8_t reasons, int16_t left_pwm, int16_t right_pwm)
 {
+  (void)reasons; /* Sign modes are always slow; frame expiry must not accelerate. */
   if ((left_pwm < 0 && right_pwm > 0) || (left_pwm > 0 && right_pwm < 0))
     return 0L;
-  return reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0L;
+  return SIGN_SLOWDOWN_LIMIT_CPS;
 }
