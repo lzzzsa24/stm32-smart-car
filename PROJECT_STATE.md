@@ -11,8 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-09
 integration_branch: main
-repository_head_at_update: ff4bbc9
-latest_code_commit: 7dbcb84
+repository_head_at_update: 2ebf64e
+latest_code_commit: 2ebf64e
 flashed_source_commit: b326a6ad4fa975982111ec82c21508c1e46074a1
 flash_record_commit: cb9c328
 deployed_tag: deployed/2026-09-09-v13-b326a6a
@@ -23,14 +23,14 @@ flashed_bin_sha256: B53205952EE5709F8D0E78C55E751AB19477F6351ED278B36515E5BFD1D3
 flashed_hex_sha256: 3044B999BBA711881AFCB4C6499DB39D731ED1680CC7164BA58DC2D2E40AE3D5
 ground_test_status: not_tested_after_v13_b326a6a_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
-candidate_source_commit: ff4bbc9
-candidate_bin_size_bytes: 90380
-candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
-candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
+candidate_source_commit: 2ebf64e
+candidate_bin_size_bytes: 101948
+candidate_bin_sha256: A2FC15385A8C30F39151070DD750BC6D1CA5E7B2C604F1D3C2F5D06D4A804509
+candidate_hex_sha256: 51DF3D44412ADC422007F6AF60C429236ACD75AAF696BB2789AF10A5BD91803C
 user_reported_flash: tool_verified_b326a6a_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
+remote_sync_status: local_main_mode1_2ebf64e_and_deployment_docs_not_pushed
 remote_sync_branch: main
 stm32_runtime_status: COM11_b326a6a_GO_IMU_READY_CAL200_static20samples_pass_ACC_WARN1
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
@@ -46,6 +46,19 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current local main: mode1-only V13 promotion
+
+Main code 2ebf64e promotes V13 mode1 and required MPU6050/calibration modules.
+Includes gyro/fallback bypass, sonar continuity, measured >45-degree inward
+continuous return and queued outer-contact rejoin. Modes3/4 and mode5 retain
+their previous main controllers and adapters. Mode2 retains legacy recovery;
+its normal follow path is an equivalent shared-helper extraction. All five host
+suites and ARM build passed (101948-byte BIN, hashes above). See
+MAIN_MODE1_V13_20260909.md. Rollback tag:
+rollback/2026-09-09-before-mode1-v13. This local main image is NOT flashed or
+pushed; hardware remains comprehensive V13 b326a6a with its separate evidence.
+Older statements that main is still rc.4 are superseded by this paragraph.
 
 ### Latest deployment override — 2026-09-09
 
