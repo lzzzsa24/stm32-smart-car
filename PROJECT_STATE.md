@@ -23,10 +23,10 @@ flashed_bin_sha256: 4E83C0EB990FEF6E44B56F368B2CA8D5A16A5DE25DB586E97523588D692B
 flashed_hex_sha256: A7E7266BC2234AEB5F81E165DB4B41F4BB6CA4B06660BC7C58B4ABC37BF82233
 ground_test_status: not_tested_after_3a00fa8_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 3a00fa8022a2bf991bbbc3fac878df5e62ebcc79
-candidate_bin_size_bytes: 106384
-candidate_bin_sha256: 4E83C0EB990FEF6E44B56F368B2CA8D5A16A5DE25DB586E97523588D692BB36F
-candidate_hex_sha256: A7E7266BC2234AEB5F81E165DB4B41F4BB6CA4B06660BC7C58B4ABC37BF82233
+candidate_source_commit: a773196f9062ed2739f389ef6cf52d4130e0bc7d
+candidate_bin_size_bytes: 107696
+candidate_bin_sha256: F17B37583276FC498EBD584533ABB0CF88A82CBD4DE80B8FA86DD98AED902AF2
+candidate_hex_sha256: F583CAD78456C55A1D268FE5631EAE496367EBEF72638BC23E0C138D4C3CC028
 user_reported_flash: tool_verified_3a00fa8_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,14 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed comprehensive candidate: a773196
+
+74c0d66 integrated onto 3a00fa8. Mode1 fixed right 180/120-mm bypass and
+45-degree diagonal return, with adaptive fallback; latest sign modes retained.
+Formal build, line (both speeds), gyro and sign suites passed. No flash,
+serial access, physical test or push; board remains 3a00fa8 and K210 unchanged.
+See docs/history/candidates/COMPREHENSIVE_A773196_20260909.md for hashes.
 
 ### Latest deployment: 3a00fa8
 
