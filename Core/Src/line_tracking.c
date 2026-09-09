@@ -456,6 +456,16 @@ LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward
   return action;
 }
 
+void line_tracking_rejoin_from_bypass(uint8_t contact_mask)
+{
+  line_tracking_start_following();
+  recovery_turn_direction = (contact_mask == 1U || contact_mask == 2U || contact_mask == 3U) ? 1 :
+      ((contact_mask == 8U || contact_mask == 4U || contact_mask == 12U) ? -1 : 0);
+  line_has_been_seen = 1U;
+  recovery_state = LINE_RECOVERY_SETTLE;
+  recovery_state_started_ms = HAL_GetTick();
+}
+
 LineTrackingReading line_tracking_read(void)
 {
   LineTrackingReading reading = {0};

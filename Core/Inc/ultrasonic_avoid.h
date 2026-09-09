@@ -43,6 +43,9 @@ void UltrasonicAvoid_Init(UltrasonicAvoidDriveCallback drive_callback,
 
 /* 在主循环中反复调用，不要在其中加入长时间 HAL_Delay。 */
 void UltrasonicAvoid_Task(void);
+/* Cancel completed bypass maneuver state without braking the new line owner.
+   Keep configured callbacks/thresholds; fresh near echoes still take priority. */
+void UltrasonicAvoid_ResumeFollowing(void);
 
 void UltrasonicAvoid_SetThresholds(uint16_t stop_cm, uint16_t clear_cm);
 /* Fast path used while approaching at speed.  Two consecutive raw readings

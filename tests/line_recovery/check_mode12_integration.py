@@ -32,8 +32,12 @@ assert "LineObstacleBypass_Task" not in pure
 
 bypass = block(runtime, "if (LineObstacleBypass_GetState() != LINE_BYPASS_IDLE)")
 assert "LineObstacleBypass_Task(&bypass_input);" in bypass
-assert "line_tracking_follow_once" not in bypass and "continue;" in bypass
-assert "line_tracking_reset();" in block(bypass, "if (bypass_state == LINE_BYPASS_DONE)")
+done = block(bypass, "if (bypass_state == LINE_BYPASS_DONE)")
+assert bypass.count("line_tracking_follow_once") == 1 and "line_tracking_follow_once" in done
+assert "line_tracking_rejoin_from_bypass(contact);" in done
+assert "UltrasonicAvoid_ResumeFollowing();" in done and "configure_ultrasonic_avoid();" not in done
+assert bypass.index("LineObstacleBypass_ObserveRawSensors") < bypass.index("LineObstacleBypass_Task")
+assert "bypass_input.front_obstacle = bypass_front_obstacle;" in bypass
 assert runtime.index("LineObstacleBypass_Task(") < runtime.index("experiment7_integrated_once();")
 for marker in ("if (ultrasonic_state != ULTRASONIC_AVOID_FORWARD)",
                "if (ultrasonic_forward_speed_limit <= 0)"):

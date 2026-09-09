@@ -148,6 +148,15 @@ static void continue_degraded(void)
   if (drive_callback != NULL) drive_callback(slow_speed, slow_speed);
 }
 
+void UltrasonicAvoid_ResumeFollowing(void)
+{
+  last_trigger_ms = HAL_GetTick() - AVOID_MEASURE_INTERVAL_MS;
+  last_valid_measurement_ms = HAL_GetTick();
+  no_echo_timeout_count = 0U;
+  UltrasonicMotion_Reset();
+  continue_degraded();
+}
+
 void UltrasonicAvoid_Init(UltrasonicAvoidDriveCallback drive,
                           UltrasonicAvoidStopCallback stop,
                           UltrasonicAvoidTurnCallback turn_left,
