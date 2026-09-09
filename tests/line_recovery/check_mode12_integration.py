@@ -26,7 +26,7 @@ assert integrated.index("line_tracking_set_straight_boost(1U);") < integrated.in
 assert main.count("line_tracking_set_straight_boost(") == 1, "boost must be mode-1-only"
 assert "ultrasonic_forward_speed_limit" in integrated
 assert "line_tracking_compute(" not in integrated
-runtime = main[main.index("sign_line_slowdown_task(app_mode);"):]
+runtime = main[main.index("sign_line_detection_task(app_mode);"):]
 pure = block(runtime, "if (app_mode == APP_MODE_LINE_ONLY)")
 assert "line_tracking_follow_once(EXP7_LINE_SPEED," in pure
 assert "MOTOR_PWM_PERIOD" in pure

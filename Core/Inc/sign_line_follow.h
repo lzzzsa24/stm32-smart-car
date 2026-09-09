@@ -7,7 +7,6 @@ typedef struct
 {
   SimpleLineController guard;
   uint8_t running, override_active;
-  int32_t forward_limit_cps; /* zero on display means uncapped */
 } SignLineFollowController;
 
 void SignLineFollow_Init(SignLineFollowController *controller);
@@ -17,6 +16,5 @@ void SignLineFollow_Stop(SignLineFollowController *controller);
    owner may calculate/apply commands; shared recovery can itself drive motors. */
 uint8_t SignLineFollow_Step(SignLineFollowController *controller,
     const LineTrackingReading *reading, int16_t base_speed,
-    const SignRouteStatus *route, const SignRouteCommand *route_command,
-    uint8_t paused, uint8_t slowdown_reasons);
+    const SignRouteStatus *route, const SignRouteCommand *route_command, uint8_t paused);
 #endif

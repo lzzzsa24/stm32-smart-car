@@ -1,5 +1,4 @@
 #include "sign_line_follow.h"
-#include "sign_slowdown.h"
 #include "line_search_model.h"
 #include "drive_base.h"
 #include "motorPWM.h"
@@ -39,8 +38,7 @@ static uint8_t display_action(LineTrackingAction action)
 
 uint8_t SignLineFollow_Step(SignLineFollowController *c,
     const LineTrackingReading *reading, int16_t base_speed,
-    const SignRouteStatus *route, const SignRouteCommand *route_command,
-    uint8_t paused, uint8_t reasons)
+    const SignRouteStatus *route, const SignRouteCommand *route_command, uint8_t paused)
 {
   LineTrackingCommand output = {0};
   uint8_t mask = (uint8_t)((reading->x2_black ? 8U : 0U) |
@@ -48,7 +46,6 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
       (reading->x4_black ? 1U : 0U));
   uint8_t arc = route->state == SIGN_ROUTE_ARC;
   uint8_t guarded_search, override, action;
-  int32_t limit;
 
   if (!c->running || base_speed <= 0)
   {
@@ -67,13 +64,6 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     c->override_active = override;
   }
 
-  /* A recognition event retains its slow approach; ordinary tracking has
-     KEY2's targets. Active navigation keeps its existing slow forward cap. */
-  c->forward_limit_cps = reasons & SIGN_SLOWDOWN_VISION ? SIGN_SLOWDOWN_VISION_LIMIT_CPS :
-      (reasons & SIGN_SLOWDOWN_BLACK ? SIGN_SLOWDOWN_BLACK_LIMIT_CPS :
-       ((arc || route_command->active || c->guard.entry_guard_active) ? SIGN_SLOWDOWN_LIMIT_CPS : 0L));
-  limit = c->forward_limit_cps ? c->forward_limit_cps :
-      DriveBase_EquivalentCpsFromPwm(MOTOR_PWM_PERIOD);
   /* Never carry a prior forward cap into shared recovery's signed targets. */
   DriveBase_SetSpeedLimitCps(0L);
 
@@ -85,10 +75,12 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     if (paused) action = 6U;
     else if (route_command->active)
     {
-      /* Route commands retain their historical forward-weight units and
-         targets. Only shared ordinary tracking bypasses this conversion. */
-      output.left_cps = SignSlowdown_ForwardCps(route_command->left_pwm);
-      output.right_cps = SignSlowdown_ForwardCps(route_command->right_pwm);
+      /* Route chooses heading; the shared normal profile chooses wheel CPS. */
+      if (route_command->left_pwm > 0 || route_command->right_pwm > 0)
+        line_tracking_make_route_command(
+            route_command->left_pwm == route_command->right_pwm ? 0 :
+            (route_command->left_pwm < route_command->right_pwm ? -1 : 1),
+            base_speed, &output);
       action = 5U;
     }
     else
@@ -105,6 +97,13 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
   {
     LineTrackingAction line_action = line_tracking_compute(reading, base_speed, &output);
     action = display_action(line_action);
+    /* Sign modes cruise through all-black bars, short gaps and rejoin at the
+       same normal straight target; do not inherit a temporary straight downshift. */
+    if (output.valid && (line_action == LINE_ACTION_FORWARD || line_action == LINE_ACTION_CROSSING))
+    {
+      line_tracking_make_route_command(0, base_speed, &output);
+      output.action = line_action;
+    }
     /* A captured semicircle has no hairpin. Retain KEY2's initial outer-probe
        pivot when its persistent-edge escalation would counter-rotate. */
     if (arc && (mask == 8U || mask == 1U) && output.valid &&
@@ -115,6 +114,6 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
       if (output.right_cps < 0) output.right_cps = 0L;
     }
   }
-  line_tracking_apply_command_cps(&output, limit);
+  line_tracking_apply_command(&output, MOTOR_PWM_PERIOD);
   return action;
 }

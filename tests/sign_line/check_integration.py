@@ -14,27 +14,24 @@ assert "return APP_MODE_SIGN_LINE_SIMPLE;" in main
 assert "Figure8Encoder_Start();" not in main
 assert "SquareEncoder_Start();" not in main
 assert "sign_line_task(app_mode);" in main
-assert main.index("sign_line_slowdown_task(app_mode);") < main.index("if (service_bounded_line_wait(app_mode))")
-assert "SignSlowdown_ObserveDetection(&detection, HAL_GetTick());" in main
-assert "line_reading_mask(&line) == 15U" in main
-assert "LineSensorSample_TakeAllBlack" in main
-transition = main[main.index("if (requested_mode != app_mode)"):main.index("sign_line_slowdown_task(app_mode);")]
-assert "SignSlowdown_Reset();" in transition
+assert main.index("sign_line_detection_task(app_mode);") < main.index("if (service_bounded_line_wait(app_mode))")
+assert "SignRoute_ObserveDetection(&detection);" in main
+assert "SignSlowdown" not in main
+transition = main[main.index("if (requested_mode != app_mode)"):main.index("sign_line_detection_task(app_mode);")]
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_StepRoute(" not in sign_task
 assert "SimpleLine_ResolveRouteOutput(" not in sign_task
 assert "SignLineFollow_Step(&sign_line_controller, &line, EXP7_LINE_SPEED," in sign_task
-assert "&route_status, &route_command, SignSlowdown_Paused(now), sign_slow_reasons)" in sign_task
+assert "&route_status, &route_command, SignObservation_Paused(now))" in sign_task
 assert sign_task.count("SignLineFollow_Step(") == 1
-assert "SignSlowdown_AllowPause(pause_route.direction == 0 &&" in main
 assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
 assert sign_task.index("SignRoute_Step(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
-slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
+detection_task = main[main.index("static void sign_line_detection_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
 # Power rollback: keep the established encoder speed interface as the owner.
 assert "DriveBase_SetSignLowSpeedMode" not in main
 drive = (ROOT / "Core/Src/drive_base.c").read_text(encoding="utf-8")
@@ -45,18 +42,23 @@ adapter = (ROOT / "Core/Src/sign_line_follow.c").read_text(encoding="utf-8")
 tracking = (ROOT / "Core/Src/line_tracking.c").read_text(encoding="utf-8")
 assert "line_tracking_start_following();" in adapter
 assert "line_tracking_compute(reading, base_speed, &output)" in adapter
-assert "line_tracking_apply_command_cps(&output, limit);" in adapter
+assert "line_tracking_apply_command(&output, MOTOR_PWM_PERIOD);" in adapter
+assert "line_tracking_make_route_command(" in adapter
+assert "SignSlowdown" not in adapter
+assert "override = paused || route_command->active || guarded_search;" in adapter
+assert "SignObservation_ObserveDetection(&detection, HAL_GetTick());" in detection_task
+assert "SignObservation_AllowPause(observation_route.direction == 0 &&" in detection_task
+assert "SignObservation_Reset();" in transition
+assert "forward_limit_cps" not in adapter
 assert "pwm_motor" not in adapter and "DriveBase_SetSideCps" not in adapter
 assert "DriveBase_PrepareLineTurnAssist(left, right);" in tracking
 assert "DriveBase_SetSideCps(left, right);" in tracking
 assert transition.count("SignLineFollow_Start(&sign_line_controller);") == 2
 assert "pwm_motor" not in sign_task
-assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in slow_task
+assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in detection_task
 assert "SignHorn_Reset();" in transition
-assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
-assert "SignSlowdown_ForwardCps" not in main
-assert "SignSlowdown_ForwardCps(route_command->left_pwm)" in adapter
-assert "SignSlowdown_ForwardCps(route_command->right_pwm)" in adapter
+assert not (ROOT / "Core/Src/sign_slowdown.c").exists()
+assert not (ROOT / "Core/Inc/sign_slowdown.h").exists()
 assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]

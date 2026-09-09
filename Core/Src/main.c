@@ -45,7 +45,7 @@
 #include "gyro_turn.h"
 #include "line_bypass_turn.h"
 #include "sign_route.h"
-#include "sign_slowdown.h"
+#include "sign_observation.h"
 #include "line_sensor_sample.h"
 #include "sign_line_follow.h"
 #if defined(LINE_TRACKING_LIFT_TEST)
@@ -164,8 +164,6 @@ static int8_t line_wait_side;
 static SignLineFollowController sign_line_controller;
 static uint8_t sign_line_mask;
 static uint8_t sign_line_action;
-static uint8_t sign_slow_reasons;
-static int32_t sign_speed_limit_cps;
 static VisionLineV4Command vision_line_v4_command;
 static uint8_t audio_store_error_reported;
 
@@ -947,10 +945,7 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
   DiagnosticUart_WriteString(" IMU=");
   DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
-  DiagnosticUart_WriteString(" SLOW=");
-  DiagnosticUart_WriteUnsigned(sign_slow_reasons);
-  DiagnosticUart_WriteString(" CAP=");
-  DiagnosticUart_WriteUnsigned((uint32_t)sign_speed_limit_cps);
+  DiagnosticUart_WriteString(" SLOW=0 CAP=0"); /* retained diagnostic fields; no sign speed cap */
   DiagnosticUart_WriteString(" SEARCH=");
   DiagnosticUart_WriteUnsigned(route_status->searching);
   DiagnosticUart_WriteString(" BAD=");
@@ -959,40 +954,28 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteString("\r\n");
 }
 
-/* Gather recognition evidence; the shared line owner applies forward caps. */
-static void sign_line_slowdown_task(AppMode mode)
+/* Recognition and the explicit two-second observation stop; no moving-speed cap. */
+static void sign_line_detection_task(AppMode mode)
 {
   VisionDetection detection;
-  uint32_t sampled_ms;
-  uint8_t all_black = LineSensorSample_TakeAllBlack(&sampled_ms);
   if (mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE)
   {
-    SignSlowdown_Reset();
-    sign_slow_reasons = 0U;
-    sign_speed_limit_cps = 0L;
+    SignObservation_Reset();
     DriveBase_SetSpeedLimitCps(0L);
     return;
   }
-  if (all_black) SignSlowdown_ObserveBlack(sampled_ms);
-  {
-    LineTrackingReading line = line_tracking_read();
-    if (line_reading_mask(&line) == 15U)
-      SignSlowdown_ObserveBlack(HAL_GetTick());
-  }
   while (vision_uart_take_detection(&detection) != 0U)
   {
-    SignRouteStatus pause_route;
-    SignRoute_GetStatus(HAL_GetTick(), &pause_route);
-    SignSlowdown_AllowPause(pause_route.direction == 0 &&
-        (pause_route.state == SIGN_ROUTE_IDLE ||
-        pause_route.state == SIGN_ROUTE_ARMED || pause_route.state == SIGN_ROUTE_PROBE ||
-        pause_route.state == SIGN_ROUTE_WAIT_SIGN));
-    SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
+    SignRouteStatus observation_route;
+    SignRoute_GetStatus(HAL_GetTick(), &observation_route);
+    SignObservation_AllowPause(observation_route.direction == 0 &&
+        (observation_route.state == SIGN_ROUTE_IDLE || observation_route.state == SIGN_ROUTE_ARMED ||
+         observation_route.state == SIGN_ROUTE_PROBE || observation_route.state == SIGN_ROUTE_WAIT_SIGN));
+    SignObservation_ObserveDetection(&detection, HAL_GetTick());
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))
       (void)BuzzerPhrase400_Start(5U);
   }
-  sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
 }
 
 static void sign_rgb_off(void)
@@ -1030,8 +1013,7 @@ static void sign_line_task(AppMode mode)
   SignRoute_Step(sign_line_mask, now, &route_command);
   SignRoute_GetStatus(now, &route_status);
   sign_line_action = SignLineFollow_Step(&sign_line_controller, &line, EXP7_LINE_SPEED,
-      &route_status, &route_command, SignSlowdown_Paused(now), sign_slow_reasons);
-  sign_speed_limit_cps = sign_line_controller.forward_limit_cps;
+      &route_status, &route_command, SignObservation_Paused(now));
   if (sign_line_action == 5U) UltrasonicMotion_Reset();
 
   SignRoute_GetStatus(now, &route_status);
@@ -1552,7 +1534,7 @@ int main(void)
   SignRoute_Init();
   SignTrace_Init();
   SignHorn_Reset();
-  SignSlowdown_Reset();
+  SignObservation_Reset();
   VisionLineV4Control_Init();
   vision_uart_init();
   Ultrasonic_Init();
@@ -1707,10 +1689,8 @@ int main(void)
     {
       uint32_t discarded_black_ms;
       (void)LineSensorSample_TakeAllBlack(&discarded_black_ms);
-      SignSlowdown_Reset();
       SignHorn_Reset();
-      sign_slow_reasons = 0U;
-      sign_speed_limit_cps = 0L;
+      SignObservation_Reset();
       DriveBase_SetSpeedLimitCps(0L);
       LineWaitGuard_Reset(&line_wait_guard);
       WheelSpeedObserver_Stop();
@@ -1815,7 +1795,7 @@ int main(void)
 
     if (app_mode == APP_MODE_SIGN_LINE_ADVANCED || app_mode == APP_MODE_SIGN_LINE_SIMPLE)
       sign_rgb_off(); /* before recovery/fault paths can return early */
-    sign_line_slowdown_task(app_mode);
+    sign_line_detection_task(app_mode);
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));

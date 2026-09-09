@@ -164,6 +164,26 @@ static void command_stop(LineTrackingCommand *command)
   command_set_pwm(command, 0, 0, LINE_ACTION_STOP);
 }
 
+void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
+                                      LineTrackingCommand *command)
+{
+  if (!command) return;
+  if (base_speed <= 0) { command_stop(command); return; }
+  if (!direction)
+  {
+    int16_t cruise = base_speed > TRACKING_NORMAL_CENTER_PWM ?
+        TRACKING_NORMAL_CENTER_PWM : base_speed;
+    command_set_pwm(command, cruise, cruise, LINE_ACTION_FORWARD);
+  }
+  else
+  {
+    command->left_cps = direction < 0 ? 0L : TRACKING_EDGE_OUTER_CPS;
+    command->right_cps = direction < 0 ? TRACKING_EDGE_OUTER_CPS : 0L;
+    command->action = direction < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST;
+    command->valid = 1U;
+  }
+}
+
 static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
 {
   int16_t left = TRACKING_SETTLE_CENTER_PWM, right = TRACKING_SETTLE_CENTER_PWM;

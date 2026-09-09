@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include "simple_line_mode.h"
-#include "sign_slowdown.h"
 
 static SimpleLineController line;
 static SignRouteStatus status;
@@ -94,7 +93,6 @@ static void check_handoff(int side, uint32_t origin)
   step(opposite,-side*20000,1,0);
   assert(left>0 && right>0 && !command.active);
   assert(side<0 ? left>right : right>left); /* real opposite arc curvature now allowed */
-  assert(SignSlowdown_ForwardCps(left)>0 && SignSlowdown_ForwardCps(right)>0);
   step(selected,-side*20000,1,0);
   assert(left>0 && right>0 && !command.active); /* route cannot reclaim an acquired line */
   for(i=0;i<4;++i) step(6,-side*80000,1,0);

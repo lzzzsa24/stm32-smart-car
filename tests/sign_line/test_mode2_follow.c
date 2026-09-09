@@ -9,7 +9,7 @@
 #include "battery_monitor.h"
 #include "motorPWM.h"
 #include "sign_line_follow.h"
-#include "sign_slowdown.h"
+#include "sign_observation.h"
 #include "line_sensor_sample.h"
 #include "line_search_model.h"
 #include "line_fault_log.h"
@@ -46,9 +46,10 @@ static void init(uint8_t sign, uint32_t origin)
   tick=origin; seq=0; voltage=7800; gpio_mask=0;
   memset(counts,0,sizeof(counts)); memset(fraction,0,sizeof(fraction)); memset(pins,0,sizeof(pins));
   DriveBase_Init(); line_tracking_init(); SignRoute_Init(); SignLineFollow_Init(&follower);
+  SignObservation_Reset();
   if(sign) SignLineFollow_Start(&follower); else line_tracking_start_following();
 }
-static uint8_t sample(uint8_t mask,int32_t yaw,uint8_t pause,uint8_t reasons)
+static uint8_t sample(uint8_t mask,int32_t yaw)
 {
   LineTrackingReading reading;
   uint8_t action;
@@ -58,7 +59,7 @@ static uint8_t sample(uint8_t mask,int32_t yaw,uint8_t pause,uint8_t reasons)
   SignRoute_UpdateYaw(3700000LL+yaw,1);
   SimpleLine_UpdateYaw(&follower.guard,3700000LL+yaw,1,1);
   SignRoute_Step(mask,tick,&route_command); SignRoute_GetStatus(tick,&route);
-  action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,pause,reasons);
+  action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,SignObservation_Paused(tick));
   DriveBase_Task(tick); DriveBase_GetTelemetry(&drive);
   return action;
 }
@@ -66,6 +67,10 @@ static void observe(int side)
 {
   VisionDetection d={0}; d.class_id=side<0?0:1; d.score=80;
   d.center_x=160; d.center_y=120; d.sequence=++seq; d.received_ms=tick;
+  SignRoute_GetStatus(tick,&route);
+  SignObservation_AllowPause(route.direction==0 && (route.state==SIGN_ROUTE_IDLE ||
+      route.state==SIGN_ROUTE_ARMED || route.state==SIGN_ROUTE_PROBE || route.state==SIGN_ROUTE_WAIT_SIGN));
+  SignObservation_ObserveDetection(&d,tick);
   SignRoute_ObserveDetection(&d);
 }
 static uint8_t normalized(LineTrackingAction a)
@@ -99,7 +104,19 @@ static void parity(uint32_t origin)
         { fraction[w]+=drive.requested_cps[w]/2; counts[w]+=fraction[w]/1000; fraction[w]%=1000; }
         LineSensorSample_Tick(tick);
       }
-      if(!pass) action=normalized(line_tracking_follow_once(3000,3599));
+      if(!pass)
+      {
+        LineTrackingCommand normal;
+        LineTrackingAction a;
+        reading=line_tracking_read();
+        a=line_tracking_compute(&reading,3000,&normal);
+        /* New sign policy has a fixed normal straight target. All steering
+           and search still use the unmodified KEY2 reference commands. */
+        if(normal.valid && (a==LINE_ACTION_FORWARD || a==LINE_ACTION_CROSSING))
+          normal.left_cps=normal.right_cps=DriveBase_EquivalentCpsFromPwm(2700);
+        line_tracking_apply_command(&normal,3599);
+        action=normalized(a);
+      }
       else
       {
         reading=line_tracking_read();
@@ -107,9 +124,8 @@ static void parity(uint32_t origin)
         SignRoute_UpdateEncoders(counts[0],counts[1],counts[2],counts[3]);
         SignRoute_Step(mask,tick,&route_command); SignRoute_GetStatus(tick,&route);
         SimpleLine_UpdateYaw(&follower.guard,0,1,1);
-        /* This replay isolates the base follower. Recognition/all-black
-           event caps are tested separately, and are intentional differences. */
-        action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,0,0);
+        /* Exercise the actual sign owner with no temporary caps. */
+        action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,0);
       }
       DriveBase_Task(tick); DriveBase_GetTelemetry(&drive);
       for(w=0;w<4;++w)
@@ -120,77 +136,93 @@ static void parity(uint32_t origin)
       if(!pass)baseline[i].action=action; else assert(baseline[i].action==action);
     }
   }
-  puts("PASS: 4000 sign/KEY2 samples match four-wheel targets, controlled speeds, actual PWM and actions");
+  puts("PASS: 4000 sign samples match KEY2 steering/search with steady normal straight speed, all wheel outputs and actions");
 }
-static void caps_and_ownership(void)
+static void normal_speed_and_recognition(void)
 {
-  unsigned i; int32_t before;
+  unsigned i;
+  uint32_t pause_start;
+  const int32_t cruise=DriveBase_EquivalentCpsFromPwm(2700);
   init(1,100);
-  sample(6,0,0,0); before=drive.requested_cps[0]; assert(before>1200);
-  sample(6,0,0,SIGN_SLOWDOWN_BLACK); assert(drive.requested_cps[0]==700);
-  sample(6,0,0,SIGN_SLOWDOWN_VISION); assert(drive.requested_cps[0]==500);
-  sample(6,0,1,SIGN_SLOWDOWN_VISION); for(i=0;i<4;++i)assert(!pins[i]&&!drive.requested_cps[i]);
-  sample(6,0,0,0); assert(drive.requested_cps[0]>1200);
-  for(i=0;i<40;++i) sample(0,0,0,SIGN_SLOWDOWN_VISION);
+  sample(6,0); assert(drive.requested_cps[0]==cruise);
+  pause_start=tick;
+  /* Retain exactly two seconds of observation, then restore normal cruise
+     with no post-pause speed cap or repeat stop after direction confirmation. */
+  for(i=0;i<300;++i)
+  {
+    observe(1); sample(6,0);
+    if(tick-pause_start<2000U)
+      assert(!drive.requested_cps[0]&&!drive.requested_cps[2]);
+    else assert(drive.requested_cps[0]==cruise&&drive.requested_cps[2]==cruise);
+  }
+  assert(route.direction==1);
+  for(i=0;i<100;++i)
+  {
+    sample(15,0);
+    assert(drive.requested_cps[0]==cruise&&drive.requested_cps[2]==cruise);
+  }
+  for(i=0;i<40;++i) sample(0,0);
   assert(drive.requested_cps[0]==-drive.requested_cps[2]);
   assert(drive.requested_cps[0]==LINE_SEARCH_TARGET_CPS||drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
-  /* Pause interrupts active shared recovery before it can submit a new spin. */
-  sample(0,0,1,SIGN_SLOWDOWN_VISION);
+  observe(1);
+  sample(0,0);
+  assert(drive.requested_cps[0]==-drive.requested_cps[2]&&drive.requested_cps[0]!=0);
+  SignLineFollow_Stop(&follower); sample(0,0);
   for(i=0;i<4;++i)assert(!pins[i]&&!drive.requested_cps[i]);
-  SignLineFollow_Stop(&follower); sample(0,0,0,0);
-  for(i=0;i<4;++i)assert(!pins[i]&&!drive.requested_cps[i]);
-  puts("PASS: event-only slowdown, pause over active recovery, uncapped search, resume and STOP");
+  puts("PASS: fixed 2-second observation, normal-speed resume, no repeated confirmed stop, all-black normal speed and STOP");
 }
 static void ring(int side,uint32_t origin)
 {
   unsigned i,w; int angle; uint8_t selected=side<0?8:1,opposite=side<0?1:8;
   init(1,origin);
-  for(i=0;i<3;++i) { observe(side); sample(6,0,0,0); }
-  for(i=0;i<3;++i) sample(15,0,0,SIGN_SLOWDOWN_BLACK);
+  /* Camera and control loop keep running throughout the observation stop. */
+  for(i=0;i<203;++i) { observe(side); sample(6,0); }
+  for(i=0;i<3;++i) sample(15,0);
   assert(route.state==SIGN_ROUTE_PROBE);
-  sample(opposite,0,0,0);
+  sample(opposite,0);
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
   assert(drive.requested_cps[0]==-drive.requested_cps[2]);
-  sample(selected,-side*10000,0,0); assert(route_command.active);
+  sample(selected,-side*10000); assert(route_command.active);
   assert(side<0?drive.requested_cps[0]==0:drive.requested_cps[2]==0);
-  assert(drive.requested_cps[0]+drive.requested_cps[2]==1147); /* preserve route's old 2200-weight target */
-  for(i=0;i<4;++i)sample(6,-side*20000,0,0);
+  assert(drive.requested_cps[0]+drive.requested_cps[2]==2200); /* KEY2 normal outer-pivot target */
+  for(i=0;i<4;++i)sample(6,-side*20000);
   assert(route.state==SIGN_ROUTE_ARC && route.entry_line_ready);
-  sample(0,-side*20000,0,0);
+  sample(0,-side*20000);
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
   for(angle=21;angle<=80;++angle)
   {
     for(w=0;w<4;++w)counts[w]+=22;
-    tick+=40; sample(selected,-side*angle*1000,0,0);
+    tick+=40; sample(selected,-side*angle*1000);
     assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
     assert(drive.requested_cps[0]>=0&&drive.requested_cps[2]>=0);
+    assert(drive.requested_cps[0]+drive.requested_cps[2]==2200);
   }
   for(angle=1;angle<=171;++angle)
   {
     for(w=0;w<4;++w)counts[w]+=22;
-    tick+=40; sample(6,side*(angle-80)*1000,0,0);
+    tick+=40; sample(6,side*(angle-80)*1000);
   }
   assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
   for(angle=90;angle>=12;--angle)
   {
-    tick+=40; sample(0,side*angle*1000,0,0);
+    tick+=40; sample(0,side*angle*1000);
     assert(route.state==SIGN_ROUTE_EXIT_SELECT);
     assert(side<0?drive.requested_cps[0]==0:drive.requested_cps[2]==0);
   }
-  tick+=90; sample(0,-side*12000,0,0);
+  tick+=90; sample(0,-side*12000);
   assert(route.state==SIGN_ROUTE_EXIT_CLEAR);
   for(i=0;i<20;++i)
   {
     for(w=0;w<4;++w)counts[w]+=22;
-    tick+=40; sample(0,-side*12000,0,0);
+    tick+=40; sample(0,-side*12000);
     assert(route.state==SIGN_ROUTE_EXIT_CLEAR);
     assert(drive.requested_cps[0]>0&&drive.requested_cps[0]==drive.requested_cps[2]);
-    assert(drive.requested_cps[0]==1147);
+    assert(drive.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(2700));
   }
-  for(i=0;i<2;++i){tick+=40;sample(6,-side*12000,0,0);}
+  for(i=0;i<2;++i){tick+=40;sample(6,-side*12000);}
   assert(route.state==SIGN_ROUTE_LOCKED);
-  sample(6,-side*12000,0,0); assert(drive.requested_cps[0]>1200);
-  SignLineFollow_Stop(&follower); sample(selected,0,0,0);
+  sample(6,-side*12000); assert(drive.requested_cps[0]>1200);
+  SignLineFollow_Stop(&follower); sample(selected,0);
   for(w=0;w<4;++w)assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: real route -> KEY2 follower -> DriveBase, selected branch, forward arc, gyro exit, rejoin and STOP");
 }
@@ -198,30 +230,30 @@ static void late_choice(int side)
 {
   unsigned i;
   init(1,100);
-  for(i=0;i<3;++i)sample(15,0,0,0);
-  for(i=0;i<40;++i)sample(0,0,0,0);
+  for(i=0;i<3;++i)sample(15,0);
+  for(i=0;i<40;++i)sample(0,0);
   assert(route.state==SIGN_ROUTE_WAIT_SIGN);
-  for(i=0;i<3;++i){observe(side);sample(0,0,0,0);}
+  for(i=0;i<203;++i){observe(side);sample(0,0);}
   assert(route.state==SIGN_ROUTE_SELECTING);
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
-  sample(side<0?1:8,0,0,0); /* opposite evidence cannot take back ownership */
+  sample(side<0?1:8,0); /* opposite evidence cannot take back ownership */
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
-  sample(side<0?8:1,-side*10000,1,SIGN_SLOWDOWN_VISION);
+  sample(side<0?8:1,-side*10000);
   assert(route_command.active);
-  for(i=0;i<4;++i)assert(!pins[i]&&!drive.requested_cps[i]);
-  sample(side<0?8:1,-side*10000,0,0);
+  assert(drive.requested_cps[0]+drive.requested_cps[2]==2200);
+  sample(side<0?8:1,-side*10000);
   assert(side<0?drive.requested_cps[0]==0:drive.requested_cps[2]==0);
   assert(drive.requested_cps[0]+drive.requested_cps[2]>0);
   /* Route cancellation hands back a live KEY2 follower, not stale search. */
-  tick+=10001;sample(6,0,0,0);
+  tick+=10001;sample(6,0);
   assert(route.state==SIGN_ROUTE_CANCELLED);
   assert(drive.requested_cps[0]>0&&drive.requested_cps[2]>0);
-  puts("PASS: late confirmed choice preempts shared search, pause preempts route, cancel resumes live line");
+  puts("PASS: late confirmed choice preempts shared search at normal turn speed; cancel resumes live line");
 }
 int main(void)
 {
   parity(100); parity(UINT32_MAX-400U);
-  caps_and_ownership();
+  normal_speed_and_recognition();
   late_choice(-1);late_choice(1);
   ring(-1,100);ring(1,100);ring(-1,UINT32_MAX-120U);ring(1,UINT32_MAX-120U);
   return 0;
