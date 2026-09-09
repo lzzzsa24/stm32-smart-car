@@ -10,6 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-09
+comprehensive_candidate_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
+comprehensive_candidate_status: mode45_integrated_all_host_suites_build_passed_github_pushed_not_flashed
+comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
+comprehensive_candidate_bin_size_bytes: 111280
+comprehensive_candidate_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
+comprehensive_candidate_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -46,6 +52,43 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### GitHub comprehensive synchronization (2026-09-09)
+
+Remote test/comprehensive-v15-sign-horn-20260909 now containsed7eb3b,
+includingfd8472b,852ade1 and the adaptedfb311e3 fast mode5. Both local
+pre-integration rollback tags were pushed. Main receives shared-state docs
+only through its protected-branch PR workflow; comprehensive code is not
+promoted to main. No new release, hardware access or deployment.
+This supersedes the older not-pushed statements for this candidate below.
+
+### Latest comprehensive candidate: ed7eb3b (not flashed)
+
+On comprehensive-v15-sign-horn,852ade1 merged as7baf411 preservingfd8472b;
+fb311e3 adapted ased7eb3b. Mode4 uses turn/straight-entry/live-arc/turn/exit.
+Mode5 now fixed bypass plus fast four-line follow, replacing visual control.
+Mode1/2 parameters and mode3 exit release retained; K210 unchanged. Main
+firmware remains rc.5. Full sign, line (both speeds), gyro/bypass, archived
+vision and audio suites, composite mode5 checks and exact ARM build passed.
+BIN111280 bytes with hashes in the comprehensive fields above. Worktree:
+F:/myproject/jidian/worktrees/comprehensive-v15-sign-horn; artifacts in its
+manual-build-unified-motion directory. Rollback tag:
+rollback/2026-09-09-before-comprehensive-mode45. Integration notes are in that
+candidate's docs/history/candidates/COMPREHENSIVE_MODE45_20260909.md.
+No serial access, flash, physical test or GitHub push. Board remains58c3744.
+This supersedes the older comprehensive candidate below, not main rc.5.
+
+### Latest comprehensive candidate: fd8472b (not flashed)
+
+Comprehensive-v15-sign-horn fast-forwarded from58c3744 tofd8472b. Mode3
+releases route direction and motor ownership after confirmed exit; visible
+line feedback takes priority during exit, and OLED/STRACE expose real phase
+and requested wheel speeds. Mode4 driving profile, mode1 bypass, K210,
+motor mapping and main firmware code remain unchanged. Full sign, line and
+gyro host suites and formal build passed. BIN111196 bytes; detailed hashes
+and rollback are in docs/history/candidates/COMPREHENSIVE_FD8472B_20260909.md.
+No serial access, flash, physical test or GitHub push. Board remains58c3744.
+The main rc.5 candidate fields/artifacts above remain separate and unchanged.
 
 ### Published main rc.5: mode5 fixed black-line bypass
 
