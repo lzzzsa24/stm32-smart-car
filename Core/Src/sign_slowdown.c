@@ -3,8 +3,8 @@
 
 static uint32_t black_ms, vision_ms, sequence;
 static uint8_t black_valid, vision_valid, sequence_valid;
-static uint8_t pause_allowed, pause_active, pause_latched, clear_valid;
-static uint32_t pause_ms, clear_ms, clear_last_ms;
+static uint8_t pause_allowed, pause_active, pause_started;
+static uint32_t pause_ms;
 
 void SignSlowdown_AllowPause(uint8_t allowed) { pause_allowed = allowed; }
 uint8_t SignSlowdown_Paused(uint32_t now)
@@ -17,8 +17,8 @@ void SignSlowdown_Reset(void)
 {
   black_valid = vision_valid = sequence_valid = 0U;
   black_ms = vision_ms = sequence = 0U;
-  pause_allowed = pause_active = pause_latched = clear_valid = 0U;
-  pause_ms = clear_ms = clear_last_ms = 0U;
+  pause_allowed = pause_active = pause_started = 0U;
+  pause_ms = 0U;
 }
 
 void SignSlowdown_ObserveBlack(uint32_t sampled_ms)
@@ -34,18 +34,7 @@ void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now)
   sequence = frame->sequence;
   sequence_valid = 1U;
   if (now - frame->received_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS) return;
-  /* Only fresh no-target heartbeats rearm a new encounter. UART loss and
-     alternate classes cannot cause repeated stops in front of one sign. */
-  if (frame->class_id == -1)
-  {
-    if (!clear_valid || frame->received_ms - clear_last_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS)
-    { clear_valid = 1U; clear_ms = frame->received_ms; }
-    clear_last_ms = frame->received_ms;
-    if (!SignSlowdown_Paused(now) && frame->received_ms - clear_ms >= 1500U)
-      pause_latched = 0U;
-    return;
-  }
-  clear_valid = 0U;
+  if (frame->class_id == -1) return;
   /* A no-target heartbeat is not recognition. No route vote is required:
      a single positive-score object of any supported class slows the car. */
   if (frame->class_id < 0 || frame->class_id > 4 ||
@@ -54,9 +43,10 @@ void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now)
       now - frame->received_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS) return;
   vision_ms = frame->received_ms;
   vision_valid = 1U;
-  if (pause_allowed && !pause_latched && frame->class_id <= 1 && frame->score >= 15U)
+  if (pause_allowed && (!pause_started || now - pause_ms >= 2500U) &&
+      frame->class_id <= 1 && frame->score >= 25U)
   {
-    pause_latched = pause_active = 1U;
+    pause_started = pause_active = 1U;
     pause_ms = now; /* never refreshed by subsequent frames */
   }
 }
