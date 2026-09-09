@@ -58,6 +58,16 @@ condition is not exposed by current telemetry, so the physical cause remains
 unconfirmed. K210 unchanged; no motion test. Details:
 `DEPLOYMENT_FDA63CE_20260909.md`. Older V8 deployment statements below are history.
 
+Follow-up: user reports flat, component-side-up, stationary mounting. Repeated
+STOP-only queries still showed CAL=0 and calibration-timeout restarts (41).
+Explicit `c` was accepted (`IMU CAL START: KEEP STILL`); five subsequent `g`
+samples again showed CAL=0, fresh AGE=8..13 ms, no backlog, no transport fault.
+Thus a stale latched calibration state is not the explanation. Raw acceleration
+and gyro samples are not exposed by this firmware, so no exact rejected axis is
+known. Inspect raw acceptance limits before changing hardware: absolute gyro
+raw >196 (about 3 deg/s before bias removal), accel orientation and sample span
+all reset progress. No firmware changes or flash in this follow-up.
+
 Subsequently, the user requested the modes 3/4 K210 program. COM14 identified
 CanMV_Yahboom 2.1.1 with GC2145. The existing `/sd/main.py` (7256 bytes) already
 matched V8 `c767baa`'s `K210/sign_mode34.py`; it and `/flash/main.py` were backed
