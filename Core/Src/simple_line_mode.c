@@ -55,28 +55,6 @@ void SimpleLine_Stop(SimpleLineController *controller)
   }
 }
 
-void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask)
-{
-  uint8_t mask = raw_mask & 15U;
-  SimpleLine_Step(controller, mask);
-  if (controller == NULL || controller->mode == SIMPLE_LINE_STOP || mask == 0U)
-    return;
-  /* Use current contact to withdraw a prior spin immediately on reacquisition.
-     Neither a lone outer probe nor its adjacent inner pair owns a pivot here. */
-  if (mask == 8U || mask == 12U || mask == 4U)
-  {
-    controller->last_direction = -1;
-    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_SLOW_PWM, SIMPLE_LINE_OUTER_PWM);
-  }
-  else if (mask == 1U || mask == 3U || mask == 2U)
-  {
-    controller->last_direction = 1;
-    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_OUTER_PWM, SIMPLE_LINE_SLOW_PWM);
-  }
-  else
-    set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_SLOW_PWM, SIMPLE_LINE_SLOW_PWM);
-}
-
 void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask)
 {
   uint8_t mask = raw_mask & 15U;
@@ -101,6 +79,73 @@ void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask)
   }
   else
     set_output(controller, mask == 6U ? SIMPLE_LINE_TRACK : SIMPLE_LINE_WIDE, 2300, 2300);
+}
+
+void SimpleLine_UpdateYaw(SimpleLineController *controller, int64_t yaw_mdeg,
+                          uint8_t valid, uint32_t generation)
+{
+  if (!controller) return;
+  if (!valid || !controller->yaw_configured || controller->yaw_generation != generation)
+    controller->line_yaw_valid = controller->sector_active = 0U;
+  controller->yaw_configured=1U; controller->yaw_valid=valid;
+  controller->yaw_generation=generation; controller->yaw_mdeg=yaw_mdeg;
+}
+
+void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
+                          const SignRouteStatus *route, const SignRouteCommand *command)
+{
+  if (!controller || !route || !command || controller->mode == SIMPLE_LINE_STOP) return;
+  if (controller->route_state != (uint8_t)route->state)
+    controller->route_hint = 0;
+  if (route->state == SIGN_ROUTE_PROBE && route->direction && !controller->route_hint)
+  {
+    SimpleLine_SetDirection(controller, route->direction);
+    controller->route_hint = route->direction;
+  }
+  else if (route->state == SIGN_ROUTE_ARC &&
+           controller->route_state != (uint8_t)SIGN_ROUTE_ARC && route->direction)
+    SimpleLine_SetDirection(controller, (int8_t)-route->direction);
+  else if (route->state != SIGN_ROUTE_PROBE && route->state != SIGN_ROUTE_ARC &&
+           command->just_started && route->direction)
+    SimpleLine_SetDirection(controller, route->direction);
+  controller->route_state = (uint8_t)route->state;
+  /* Current line wins even on the same cycle as a route transition. Never
+     write last_direction after this calculation: that poisons the next loss. */
+  SimpleLine_StepSlow(controller, raw_mask);
+  if (!controller->yaw_configured) return; /* legacy standalone callers */
+  if (raw_mask & 15U)
+  {
+    controller->sector_active=0U;
+    if (controller->yaw_valid)
+    {
+      controller->line_yaw_mdeg=controller->yaw_mdeg;
+      controller->line_yaw_valid=1U;
+    }
+    return;
+  }
+  if (!controller->yaw_valid)
+  {
+    /* No trustworthy heading: withdraw search rather than rotate unbounded.
+       Keep SEARCH state, so fresh yaw or line can resume without a new START. */
+    set_output(controller,SIMPLE_LINE_SEARCH,0,0);
+    return;
+  }
+  if (!controller->line_yaw_valid)
+  {
+    controller->line_yaw_mdeg=controller->yaw_mdeg;
+    controller->line_yaw_valid=1U;
+  }
+  if (!controller->sector_active)
+  {
+    controller->sector_active=1U;
+    controller->sector_direction=controller->last_direction;
+  }
+  if (controller->yaw_mdeg-controller->line_yaw_mdeg >= SIMPLE_LINE_SEARCH_SECTOR_MDEG)
+    controller->sector_direction=1; /* positive yaw is left; steer back right */
+  else if (controller->yaw_mdeg-controller->line_yaw_mdeg <= -SIMPLE_LINE_SEARCH_SECTOR_MDEG)
+    controller->sector_direction=-1;
+  set_turn(controller,controller->sector_direction);
+  controller->mode=SIMPLE_LINE_SEARCH;
 }
 
 void SimpleLine_SetDirection(SimpleLineController *controller,

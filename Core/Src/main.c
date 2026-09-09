@@ -1046,24 +1046,10 @@ static void sign_line_task(AppMode mode)
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   MpuYaw_GetReading(&yaw);
   SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
+  SimpleLine_UpdateYaw(&simple_line_controller, yaw.yaw_mdeg, MpuYaw_IsReady(now), yaw.generation);
   SignRoute_Step(sign_line_mask, now, &route_command);
   SignRoute_GetStatus(now, &route_status);
-  if (route_status.state == SIGN_ROUTE_PROBE && route_status.direction != 0)
-    SimpleLine_SetDirection(&simple_line_controller, route_status.direction);
-  if (route_status.state == SIGN_ROUTE_ARC && route_command.just_finished)
-    SimpleLine_SetDirection(&simple_line_controller, (int8_t)-route_status.direction);
-  /* Both normal following and ARC use the steady profile, after route hints. */
-  SimpleLine_StepSlow(&simple_line_controller, sign_line_mask);
-
-  if ((route_command.just_started != 0U || route_command.just_finished != 0U) &&
-      route_status.state != SIGN_ROUTE_ARC)
-  {
-    /* Never resume the old enhanced controller's latched in-place recovery.
-       Both sign modes use the same SL2 path that can follow the user's arc. */
-    SignRoute_GetStatus(now, &route_status);
-    SimpleLine_SetDirection(&simple_line_controller,
-        route_status.direction);
-  }
+  SimpleLine_StepRoute(&simple_line_controller, sign_line_mask, &route_status, &route_command);
 
   if (route_command.active != 0U)
   {
@@ -1465,7 +1451,8 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   DriveBaseTelemetry telemetry;
   LineWaitAction action;
   uint32_t now = HAL_GetTick();
-  uint8_t enabled = mode != APP_MODE_STOPPED;
+  uint8_t enabled = mode != APP_MODE_STOPPED &&
+      mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE;
   uint8_t paused;
   DriveBase_GetTelemetry(&telemetry);
   paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||

@@ -213,6 +213,73 @@ static void test_slow_profile(void)
   CHECK(c.left_pwm==0 && c.right_pwm==0);
   puts("PASS: gentle alternating inner correction, steady cap, all visible masks forward, search and STOP");
 }
+static void test_entry_direction(void)
+{
+  int side; unsigned i;
+  for(side=-1;side<=1;side+=2)
+  {
+    SimpleLineController c, old;
+    SignRouteStatus r={0}; SignRouteCommand cmd={0};
+    SimpleLine_Init(&c); SimpleLine_Start(&c);
+    r.state=SIGN_ROUTE_PROBE; r.direction=(int8_t)side; cmd.just_started=1;
+    SimpleLine_StepRoute(&c,15,&r,&cmd);
+    CHECK(c.last_direction==side);
+    cmd.just_started=0;
+    SimpleLine_StepRoute(&c,side<0?2:4,&r,&cmd);
+    CHECK(c.last_direction==-side);
+    old=c; /* reproduce deployed continuous PROBE override */
+    SimpleLine_SetDirection(&old,(int8_t)side); SimpleLine_StepSlow(&old,0);
+    CHECK(side<0 ? old.left_pwm<0 : old.left_pwm>0);
+    for(i=0;i<500;++i)
+    {
+      SimpleLine_StepRoute(&c,0,&r,&cmd);
+      CHECK(side<0 ? c.left_pwm>0 && c.right_pwm<0 : c.left_pwm<0 && c.right_pwm>0);
+    }
+    r.state=SIGN_ROUTE_ARC; cmd.just_finished=1;
+    SimpleLine_StepRoute(&c,side<0?8:1,&r,&cmd);
+    CHECK(c.last_direction==side); /* live contact wins on capture cycle */
+    cmd.just_finished=0; SimpleLine_StepRoute(&c,0,&r,&cmd);
+    CHECK(c.last_direction==side);
+    r.state=SIGN_ROUTE_PROBE; r.direction=0;
+    SimpleLine_StepRoute(&c,6,&r,&cmd);
+    r.direction=(int8_t)-side;
+    SimpleLine_StepRoute(&c,0,&r,&cmd);
+    CHECK(c.last_direction==-side); /* late confirmation is seeded once */
+    SimpleLine_Stop(&c); SimpleLine_StepRoute(&c,8,&r,&cmd);
+    CHECK(c.left_pwm==0 && c.right_pwm==0);
+  }
+  puts("PASS: deployed wrong-way PROBE loss reproduced; one-shot hint preserves live curve/search and STOP");
+}
+static void test_search_sector(void)
+{
+  SimpleLineController c;
+  SignRouteStatus r={0}; SignRouteCommand cmd={0};
+  int64_t angle=10000000; unsigned i;
+  SimpleLine_Init(&c); SimpleLine_Start(&c);
+  r.state=SIGN_ROUTE_PROBE; r.direction=-1;
+  SimpleLine_UpdateYaw(&c,angle,1,1);
+  SimpleLine_StepRoute(&c,6,&r,&cmd);
+  for(i=0;i<1000;++i)
+  {
+    SimpleLine_UpdateYaw(&c,angle,1,1);
+    SimpleLine_StepRoute(&c,0,&r,&cmd);
+    CHECK(c.left_pwm==-c.right_pwm && c.left_pwm!=0);
+    angle += c.left_pwm<0 ? 2000 : -2000;
+    CHECK(angle>=10000000-27000 && angle<=10000000+27000);
+  }
+  SimpleLine_UpdateYaw(&c,angle,0,1);
+  SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(c.mode==SIMPLE_LINE_SEARCH && c.left_pwm==0 && c.right_pwm==0);
+  SimpleLine_UpdateYaw(&c,-5000000,1,2); /* IMU reset must not use old angle origin */
+  SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(c.line_yaw_mdeg==-5000000 && c.left_pwm!=0);
+  SimpleLine_StepRoute(&c,3,&r,&cmd);
+  CHECK(c.left_pwm>0 && c.right_pwm>0 && !c.sector_active);
+  SimpleLine_Stop(&c); SimpleLine_UpdateYaw(&c,0,1,2);
+  SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(c.left_pwm==0 && c.right_pwm==0);
+  puts("PASS: measured-yaw sector contains repeated search, stale yaw withdrawal, generation reset and STOP");
+}
 int main(void)
 {
   test_parser();
@@ -220,5 +287,7 @@ int main(void)
   test_sign_route();
   test_slowdown();
   test_slow_profile();
+  test_entry_direction();
+  test_search_sector();
   return 0;
 }
