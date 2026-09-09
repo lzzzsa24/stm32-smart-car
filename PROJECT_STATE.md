@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: a6c61d30f4936aabf25ecc70ff9ae2bd304c088a
-flash_record_commit: 0d6e372
-deployed_tag: deployed/2026-09-09-a6c61d3
+flashed_source_commit: 58c3744de08796edba355ef3becf8453819aa546
+flash_record_commit: 575b120
+deployed_tag: deployed/2026-09-09-58c3744
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 108800
-flashed_bin_sha256: 8D35B9376F602C68DD8B05BF62D7360DB7DD3973C89F9EB30CAF131EEBD500CB
-flashed_hex_sha256: FFD47049FE1210E9B0ED9521EBB25B0F08A530C33407A3ACB7FEAB2F1331E0E8
-ground_test_status: not_tested_after_a6c61d3_deployment
+formal_bin_size_bytes: 109708
+flashed_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01
+flashed_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
+ground_test_status: not_tested_after_58c3744_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 58c3744de08796edba355ef3becf8453819aa546
 candidate_bin_size_bytes: 109708
 candidate_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01
 candidate_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
-user_reported_flash: tool_verified_a6c61d3_readback_GO
+user_reported_flash: tool_verified_58c3744_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_a6c61d3_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_58c3744_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: a6c61d3_consolidated_mode3_flashed
+temporary_flash_selector_commit: 58c3744_mode4_gyro_tangent_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive deployment: 58c3744
+
+COM11 full109708-byte readback and GO passed, reserved pages preserved.
+Mode4 now gyro-tangent trajectory, not STOP; digital0 remains STOP. Mode3
+live-line behavior retained. Side IR disabled. K210 and main code unchanged.
+No post-GO query or physical test. See
+docs/history/deployments/DEPLOYMENT_58C3744_20260909.md.
+Supersedes older unflashed-candidate and STM32 deployment statements below.
 
 ### Latest unflashed candidate: 58c3744
 
