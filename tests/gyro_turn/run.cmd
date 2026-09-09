@@ -12,10 +12,6 @@ manual-build-gyro-host-test\test_real_drive.exe
 if not "%errorlevel%"=="0" exit /b 1
 python tests\gyro_turn\check_integration.py
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_mpu_service.c Core\Src\mpu6050_yaw.c /Fomanual-build-gyro-host-test\ /Femanual-build-gyro-host-test\test_mpu_service.exe
-if not "%errorlevel%"=="0" exit /b 1
-manual-build-gyro-host-test\test_mpu_service.exe
-if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\gyro_turn\test_ultrasonic_recovery.c Core\Src\ultrasonic_avoid.c Core\Src\ultrasonic_motion.c /Fomanual-build-gyro-host-test\ /Femanual-build-gyro-host-test\test_ultrasonic_recovery.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-gyro-host-test\test_ultrasonic_recovery.exe

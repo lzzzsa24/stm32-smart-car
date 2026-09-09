@@ -109,6 +109,12 @@ void VisionLineV4Control_Step(const VisionLineV4Reading *reading,
       reading->obstacle_bottom >= V4_OBSTACLE_NEAR_BOTTOM)
   {
     command->state = VISION_LINE_V4_OBSTACLE_STOP;
+    /* Keep the old diagnostic state number, but remove its indefinite stop.
+       Turn toward the clearer image side; fresh frames release the avoidance. */
+    last_turn_direction = (uint32_t)reading->obstacle_left + reading->obstacle_right < 320U ? 1 : -1;
+    set_spin(command, last_turn_direction, V4_LOST_SEARCH_PWM);
+    searching = 1U;
+    reacquire_frames = 0U;
     return;
   }
 

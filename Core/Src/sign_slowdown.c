@@ -3,11 +3,22 @@
 
 static uint32_t black_ms, vision_ms, sequence;
 static uint8_t black_valid, vision_valid, sequence_valid;
+static uint8_t pause_allowed, pause_active, pause_latched, clear_valid;
+static uint32_t pause_ms, clear_ms, clear_last_ms;
+
+void SignSlowdown_AllowPause(uint8_t allowed) { pause_allowed = allowed; }
+uint8_t SignSlowdown_Paused(uint32_t now)
+{
+  if (pause_active && now - pause_ms >= 2000U) pause_active = 0U;
+  return pause_active;
+}
 
 void SignSlowdown_Reset(void)
 {
   black_valid = vision_valid = sequence_valid = 0U;
   black_ms = vision_ms = sequence = 0U;
+  pause_allowed = pause_active = pause_latched = clear_valid = 0U;
+  pause_ms = clear_ms = clear_last_ms = 0U;
 }
 
 void SignSlowdown_ObserveBlack(uint32_t sampled_ms)
@@ -22,6 +33,19 @@ void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now)
       (sequence_valid && frame->sequence == sequence)) return;
   sequence = frame->sequence;
   sequence_valid = 1U;
+  if (now - frame->received_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS) return;
+  /* Only fresh no-target heartbeats rearm a new encounter. UART loss and
+     alternate classes cannot cause repeated stops in front of one sign. */
+  if (frame->class_id == -1)
+  {
+    if (!clear_valid || frame->received_ms - clear_last_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS)
+    { clear_valid = 1U; clear_ms = frame->received_ms; }
+    clear_last_ms = frame->received_ms;
+    if (!SignSlowdown_Paused(now) && frame->received_ms - clear_ms >= 1500U)
+      pause_latched = 0U;
+    return;
+  }
+  clear_valid = 0U;
   /* A no-target heartbeat is not recognition. No route vote is required:
      a single positive-score object of any supported class slows the car. */
   if (frame->class_id < 0 || frame->class_id > 4 ||
@@ -30,6 +54,11 @@ void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now)
       now - frame->received_ms > SIGN_SLOWDOWN_FRAME_MAX_AGE_MS) return;
   vision_ms = frame->received_ms;
   vision_valid = 1U;
+  if (pause_allowed && !pause_latched && frame->class_id <= 1 && frame->score >= 15U)
+  {
+    pause_latched = pause_active = 1U;
+    pause_ms = now; /* never refreshed by subsequent frames */
+  }
 }
 
 uint8_t SignSlowdown_Reasons(uint32_t now)
@@ -42,9 +71,20 @@ uint8_t SignSlowdown_Reasons(uint32_t now)
                    (vision_valid ? SIGN_SLOWDOWN_VISION : 0U));
 }
 
+int32_t SignSlowdown_ForwardCps(int16_t request)
+{
+  /* Sign requests are relative steering weights, not motor startup PWM.
+     The shared PWM conversion floors every nonzero value <=2200 equally. */
+  if (request <= 0) return 0;
+  if (request >= 2300) return SIGN_SLOWDOWN_LIMIT_CPS;
+  return (int32_t)request * SIGN_SLOWDOWN_LIMIT_CPS / 2300;
+}
+
 int32_t SignSlowdown_TargetLimit(uint8_t reasons, int16_t left_pwm, int16_t right_pwm)
 {
   if ((left_pwm < 0 && right_pwm > 0) || (left_pwm > 0 && right_pwm < 0))
     return 0L;
-  return reasons ? SIGN_SLOWDOWN_LIMIT_CPS : 0L;
+  if (reasons & SIGN_SLOWDOWN_VISION) return SIGN_SLOWDOWN_VISION_LIMIT_CPS;
+  if (reasons & SIGN_SLOWDOWN_BLACK) return SIGN_SLOWDOWN_BLACK_LIMIT_CPS;
+  return SIGN_SLOWDOWN_LIMIT_CPS;
 }

@@ -40,12 +40,15 @@ typedef struct
   uint8_t vision_online;
   uint32_t last_sequence;
   uint8_t searching;
+  uint8_t yaw_valid;
   uint8_t fault;          /* navigation warnings only; line loss never owns STOP */
   int32_t travel_mm;
-  int32_t yaw_mdeg;       /* encoder estimate; not measured chassis yaw */
+  int32_t yaw_mdeg;       /* phase-relative MPU yaw; mdeg, positive left */
 } SignRouteStatus;
 
 void SignRoute_Init(void);
+/* Fresh continuous MPU yaw: positive left, millidegrees. No motor ownership. */
+void SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid);
 void SignRoute_Reset(void);
 /* WheelEncoder logical signed cumulative counts (1040 per revolution).
    Call once each navigation cycle; individual counter wrap is handled. */

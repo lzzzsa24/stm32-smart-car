@@ -635,7 +635,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   else
   {
     index = append_char(line, index,
-        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : '-'));
+        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : (vision_class == 2 ? 'H' : '-')));
     index = append_char(line, index, ' ');
     index = append_unsigned(line, index, vision_score);
   }
@@ -643,7 +643,9 @@ static void build_sign_line_screen(uint8_t mode_number,
   draw_text(2U, 0U, line);
 
   index = append_string(line, 0U, "ROUTE:");
-  switch (route_state)
+  if (line_action == 6U)
+    index = append_string(line, index, "OBSERVE");
+  else switch (route_state)
   {
     case 1U: index = append_string(line, index, "ARM"); break;
     case 2U: index = append_string(line, index, "TURN"); break;

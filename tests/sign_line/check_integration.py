@@ -23,21 +23,30 @@ assert "SignSlowdown_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
-assert "SimpleLine_Step(" in sign_task
+assert "SimpleLine_StepRoute(" in sign_task
+assert sign_task.index("if (SignSlowdown_Paused(now))") < sign_task.index("else if (route_command.active")
+assert "apply_sign_line_pwm(0, 0, sign_line_mask, sign_line_action)" in sign_task
+assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SimpleLine_StepRoute(")
+assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
-assert sign_task.index("SimpleLine_Step(") < sign_task.index("SignRoute_Step(")
+assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
+assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in slow_task
+assert "SignHorn_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
 assert "SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm)" in main
-assert "route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING" in main
+assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
+assert "left_cps = SignSlowdown_ForwardCps(left_pwm)" in main
+assert "right_cps = SignSlowdown_ForwardCps(right_pwm)" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
-assert "SIGN_LINE" not in enable
+assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
+assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
 assert 'SIGN3 SL2 RING NAV START' in main and 'SIGN4 SL2 RING NAV START' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
-assert "THRESHOLD      = 0.2" in k210
+assert "THRESHOLD      = 0.15" in k210
 assert 'KMODEL_PATH    = "/sd/KPU/road_sign_det/road_sign_det.kmodel"' in k210
 assert 'print("SIGN34 ready;' in k210
 assert model.stat().st_size == manifest["bytes"]

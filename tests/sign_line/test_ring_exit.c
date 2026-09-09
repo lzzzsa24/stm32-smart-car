@@ -15,10 +15,10 @@ static void step(uint8_t mask, int32_t left_mm, int32_t right_mm)
 {
   lc += (uint32_t)(left_mm * 7); rc += (uint32_t)(right_mm * 7);
   now += 10U;
-  SimpleLine_Step(&line,mask);
   SignRoute_UpdateEncoders((int32_t)lc,(int32_t)lc,(int32_t)rc,(int32_t)rc);
   SignRoute_Step(mask,now,&cmd);
   SignRoute_GetStatus(now,&status);
+  SimpleLine_StepRoute(&line,mask,&status,&cmd);
   /* Navigation itself never counter-rotates, including failures. */
   assert(cmd.left_pwm >= 0 && cmd.right_pwm >= 0);
   motor_left=cmd.active ? cmd.left_pwm : line.left_pwm;
