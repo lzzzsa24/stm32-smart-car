@@ -44,6 +44,8 @@ void SimpleLine_Stop(SimpleLineController *controller);
 void SimpleLine_SetDirection(SimpleLineController *controller,
                              int8_t direction);
 void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask);
+/* Legacy standalone arc API; production sign modes use StepRoute. */
+void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask);
 /* Mode 3/4 slow visible-line profile; white retains powered search. */
 void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask);
 /* One route hint per entry, followed by authoritative live line evidence. */
