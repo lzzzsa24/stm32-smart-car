@@ -35,9 +35,17 @@ assert "SignRoute_UpdateEncoders(" in sign_task
 assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
-assert "DriveBase_SetSignLowSpeedMode(0U);" in slow_task
-assert "DriveBase_SetSignLowSpeedMode(1U);" in slow_task
-assert slow_task.index("DriveBase_SetSignLowSpeedMode(0U);") < slow_task.index("return;") < slow_task.index("DriveBase_SetSignLowSpeedMode(1U);")
+# Power rollback: keep the established encoder speed interface as the owner.
+assert "DriveBase_SetSignLowSpeedMode" not in main
+drive = (ROOT / "Core/Src/drive_base.c").read_text(encoding="utf-8")
+assert "sign_low_speed_mode" not in drive
+assert "low_speed_budget" not in drive
+assert "DRIVE_SIGN_POWERED" not in drive
+adapter_start = main.index("static void apply_sign_line_pwm(", main.index("static void apply_sign_line_pwm(") + 1)
+adapter = main[adapter_start:main.index("static void sign_line_slowdown_task(AppMode mode)\n{")]
+assert "DriveBase_SetSideCps(left_cps, right_cps)" in adapter
+assert "pwm_motor" not in adapter
+assert "pwm_motor" not in sign_task
 assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in slow_task
 assert "SignHorn_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]

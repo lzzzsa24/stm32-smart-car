@@ -1004,14 +1004,12 @@ static void sign_line_slowdown_task(AppMode mode)
   uint8_t all_black = LineSensorSample_TakeAllBlack(&sampled_ms);
   if (mode != APP_MODE_SIGN_LINE_ADVANCED && mode != APP_MODE_SIGN_LINE_SIMPLE)
   {
-    DriveBase_SetSignLowSpeedMode(0U);
     SignSlowdown_Reset();
     sign_slow_reasons = 0U;
     sign_speed_limit_cps = 0L;
     DriveBase_SetSpeedLimitCps(0L);
     return;
   }
-  DriveBase_SetSignLowSpeedMode(1U);
   if (all_black) SignSlowdown_ObserveBlack(sampled_ms);
   {
     LineTrackingReading line = line_tracking_read();

@@ -1,5 +1,9 @@
 # Modes 3/4 low-speed breakaway power
 
+WITHDRAWN at the user's request after excessive ground acceleration. The
+powered-output change is removed; see POWER_ROLLBACK.md. This note records
+the superseded experiment and does not describe the current controller.
+
 The user reports that the wheels cannot turn normally, especially while
 steering. Canonical main was checked at `59ed898`; its current deployment
 record identifies `ec2dd2f`, which replays `11a243f` onto the comprehensive

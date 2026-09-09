@@ -1,5 +1,9 @@
 # Modes 3/4: entry oscillation and ineffective exit steering
 
+The experimental low-speed actuation and 500-CPS search changes below are
+WITHDRAWN at the user's request; see POWER_ROLLBACK.md. The independent fix
+that removes automatic reversal on entering ARC remains active.
+
 ## Observations and baseline
 
 The user reports that entry now oscillates left/right more than the previous
