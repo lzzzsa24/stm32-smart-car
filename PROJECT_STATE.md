@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-09
 integration_branch: main
-repository_head_at_update: cd44bb0
+repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
 flashed_source_commit: 58c3744de08796edba355ef3becf8453819aa546
 flash_record_commit: 575b120
@@ -23,22 +23,22 @@ flashed_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380
 flashed_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
 ground_test_status: not_tested_after_58c3744_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: cd44bb0ea4f94a90511652cc80672d04f9359f93
+candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
 user_reported_flash: tool_verified_58c3744_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
-remote_sync_status: mode5_fixed_bypass_PR_preparing
+remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
 stm32_runtime_status: COM11_58c3744_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
 temporary_flash_selector_commit: 58c3744_mode4_gyro_tangent_flashed
-github_release_tag: v1.2.0-rc.4
-github_release_source_commit: ff4bbc9
-github_release_firmware_commit: ff4bbc9
-github_release_status: prerelease_published_9_assets_digest_verified_exact_main_firmware_not_flashed_no_physical_test
+github_release_tag: v1.2.0-rc.5
+github_release_source_commit: 71b2e7f
+github_release_firmware_commit: 71b2e7f
+github_release_status: prerelease_published_7_assets_digest_verified_main_mode5_not_flashed
 ```
 
 `repository_head_at_update` is the source/history anchor present when this
@@ -46,6 +46,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Published main rc.5: mode5 fixed black-line bypass
+
+PR15 merged as71b2e7f; v1.2.0-rc.5 published with7 size/digest-verified assets.
+Main mode5 replaces K210 visual line with composite58c3744 mode1 behavior.
+Main modes1-4 preserved; main3/4 are NOT the new composite3/4 controllers.
+Build and six host suites passed; no flash or physical test. Board remains
+58c3744 and K210 unchanged. Composite branch and rollback/deployment tags
+also pushed. Current main firmware BIN102264 bytes is NOT the board image.
+See docs/history/candidates/MAIN_MODE5_FIXED_RC5_20260909.md.
+This supersedes older main-source, release and mode5-visual claims below.
 
 ### Current main: mode5 fixed bypass promotion (cd44bb0)
 
