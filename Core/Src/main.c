@@ -945,6 +945,8 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
   DiagnosticUart_WriteString(" IMU=");
   DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
+  DiagnosticUart_WriteString(" P=");
+  DiagnosticUart_WriteUnsigned((uint32_t)route_status->profile);
   DiagnosticUart_WriteString(" SLOW=0 CAP=0"); /* retained diagnostic fields; no sign speed cap */
   DiagnosticUart_WriteString(" SEARCH=");
   DiagnosticUart_WriteUnsigned(route_status->searching);
@@ -998,6 +1000,8 @@ static void sign_line_task(AppMode mode)
   LineTrackingReading line;
   uint32_t now;
 
+  SignRoute_SetProfile(mode == APP_MODE_SIGN_LINE_SIMPLE ?
+      SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD);
   /* Diagnostics/display may have run after the background service. Consume
      available FIFO history immediately before this angle-dependent decision. */
   MpuYaw_Refresh(HAL_GetTick());
@@ -1748,6 +1752,7 @@ int main(void)
         UltrasonicMotion_Reset();
         ultrasonic_forward_speed_limit = 0;
         SignRoute_Reset();
+        SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
         vision_uart_reset_detections();
         last_sign_uart_ms = HAL_GetTick() - 500U;
         DiagnosticUart_WriteString("SIGN3 KEY2 RING NAV START\r\n");
@@ -1758,9 +1763,10 @@ int main(void)
         UltrasonicMotion_Reset();
         ultrasonic_forward_speed_limit = 0;
         SignRoute_Reset();
+        SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);
         vision_uart_reset_detections();
         last_sign_uart_ms = HAL_GetTick() - 500U;
-        DiagnosticUart_WriteString("SIGN4 KEY2 RING NAV START\r\n");
+        DiagnosticUart_WriteString("SIGN4 GYRO TANGENT ARC START\r\n");
       }
       else if (app_mode == APP_MODE_VISION_LINE_V4)
       {

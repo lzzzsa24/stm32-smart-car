@@ -64,7 +64,14 @@ wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mo
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
 assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
-assert 'SIGN3 KEY2 RING NAV START' in main and 'SIGN4 KEY2 RING NAV START' in main
+assert 'SIGN3 KEY2 RING NAV START' in main
+assert 'SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);' in main
+assert 'SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);' in main
+assert 'SIGN4 GYRO TANGENT ARC START' in main
+assert '"M4 GYRO"' in (ROOT / "Core/Src/oled_status.c").read_text(encoding="utf-8")
+assert 'route_command->gentle_arc' in adapter
+assert 'line_tracking_make_slow_arc_command(steer, base_speed, &output)' in adapter
+assert 'DiagnosticUart_WriteUnsigned((uint32_t)route_status->profile);' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.15" in k210

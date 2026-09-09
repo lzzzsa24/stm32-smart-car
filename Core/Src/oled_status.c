@@ -618,7 +618,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 LINE");
+  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 GYRO");
 
   index = append_string(line, 0U, "LINE:");
   index = append_line_mask(line, index, line_mask);

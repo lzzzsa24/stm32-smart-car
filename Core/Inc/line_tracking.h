@@ -77,6 +77,9 @@ void line_tracking_yield_to_route(void);
    direction 0 = settle straight, -1/+1 = existing left/right outer pivot. */
 void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
                                       LineTrackingCommand *command);
+/* Both sides remain forward using KEY2's settle turn pair. */
+void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
+                                         LineTrackingCommand *command);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才静音搜索。
    仅外侧识黑时内侧停、外侧低速前进；相邻双探头正向差速；横线多点优先低速穿越。
    同一最外侧单独持续识黑 120 ms 后以两侧反向强修正；其他原始状态立即解除。

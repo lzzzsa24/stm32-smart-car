@@ -77,10 +77,13 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     {
       /* Route chooses heading; KEY2's slow rejoin profile chooses wheel CPS. */
       if (route_command->left_pwm > 0 || route_command->right_pwm > 0)
-        line_tracking_make_route_command(
-            route_command->left_pwm == route_command->right_pwm ? 0 :
-            (route_command->left_pwm < route_command->right_pwm ? -1 : 1),
-            base_speed, &output);
+      {
+        int8_t steer = route_command->left_pwm == route_command->right_pwm ? 0 :
+            (route_command->left_pwm < route_command->right_pwm ? -1 : 1);
+        if (route_command->gentle_arc)
+          line_tracking_make_slow_arc_command(steer, base_speed, &output);
+        else line_tracking_make_route_command(steer, base_speed, &output);
+      }
       action = 5U;
     }
     else

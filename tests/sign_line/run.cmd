@@ -44,6 +44,10 @@ cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_gyro_route.c 
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_gyro_route.exe
 if not "%errorlevel%"=="0" exit /b 1
+cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_mode4_gyro_tangent.c Core\Src\sign_route.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_mode4_gyro_tangent.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-sign-line-host-test\test_mode4_gyro_tangent.exe
+if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_sign_trace.c Core\Src\sign_trace.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_sign_trace.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_sign_trace.exe

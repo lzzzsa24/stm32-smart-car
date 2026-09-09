@@ -51,6 +51,7 @@ typedef struct
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   int32_t travel_mm, yaw_mdeg;
+  SignRouteProfile profile;
 } SignRouteContext;
 
 static SignRouteContext route;
@@ -181,8 +182,16 @@ void SignRoute_Init(void)
 
 void SignRoute_Reset(void)
 {
+  SignRouteProfile profile = route.profile;
   memset(&route, 0, sizeof(route));
+  route.profile = profile;
   route.last_class = -1;
+}
+
+void SignRoute_SetProfile(SignRouteProfile profile)
+{
+  route.profile = profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+      SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD;
 }
 
 void SignRoute_ObserveDetection(const VisionDetection *detection)
@@ -363,13 +372,15 @@ static void observe_entry_line(uint8_t mask, uint32_t now)
 {
   uint8_t selected = route.direction < 0 ? 8U : 1U;
   uint8_t adjacent = route.direction < 0 ? 12U : 3U;
+  int32_t minimum_yaw = route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+      SIGN_GYRO_TANGENT_ENTRY_MDEG : 15000L;
   if (!route.direction || route.entry_line_ready) return;
   if (mask == selected || mask == adjacent) route.entry_edge_seen = 1U;
   /* Full middle capture is stronger than a lone inner hit on either branch.
      Small measured progress rejects a crossbar tail; 60 degrees is NOT a
      prerequisite for returning current line control to the follower. */
   if (route.entry_edge_seen && mask == 6U && route.imu_valid &&
-      -route.direction * route.yaw_mdeg >= 15000L)
+      -route.direction * route.yaw_mdeg >= minimum_yaw)
   {
     if (!route.entry_center_active)
     { route.entry_center_active=1U; route.entry_center_ms=now; }
@@ -377,6 +388,17 @@ static void observe_entry_line(uint8_t mask, uint32_t now)
       route.entry_line_ready=1U;
   }
   else route.entry_center_active=0U;
+}
+
+static void tangent_command(SignRouteCommand *command, int8_t direction)
+{
+  if (!command || !direction) return;
+  command->active = 1U;
+  command->gentle_arc = 1U;
+  command->left_pwm = direction < 0 ?
+      SIGN_GYRO_TANGENT_INNER_PWM : SIGN_GYRO_TANGENT_OUTER_PWM;
+  command->right_pwm = direction < 0 ?
+      SIGN_GYRO_TANGENT_OUTER_PWM : SIGN_GYRO_TANGENT_INNER_PWM;
 }
 
 static void select_command(SignRouteCommand *command, uint8_t mask)
@@ -390,6 +412,12 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
       steer = (int8_t)-steer; /* correct overshoot instead of continuing around */
     /* Only the angle-qualified EXIT phase may align without visible line.
        Entry must never cut across white while waiting for a nominal angle. */
+    if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+    {
+      tangent_command(command, steer);
+      route.departed = 1U;
+      return;
+    }
     command->active = 1U;
     route.departed = 1U;
     command->left_pwm = steer < 0 ? 0 : SIGN_ROUTE_PWM;
@@ -401,8 +429,18 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
       route.entry_line_ready) return;
   /* A sign is only a branch preference. It cannot drive off the black line,
      override a current centre line, or steer across an all-black bar. */
-  if (route.direction == 0 || !(mask & selected_edge) || mask == 15U)
+  if (route.direction == 0) return;
+  if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+  {
+    if (!(mask & selected_edge) && !route.departed) return;
+    if (mask == 15U && !route.departed) return;
+  }
+  else if (!(mask & selected_edge) || mask == 15U) return;
+  if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+  {
+    tangent_command(command, route.direction);
     return;
+  }
   command->active = 1U;
   /* Forward pivot, never equal-and-opposite wheel rotation. Exit uses the
      SAME side as entry: a right semicircle exits to the right of its tangent. */
@@ -616,6 +654,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       {
         enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
         command->active=1U;
+        command->gentle_arc=0U;
         command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
         return;
       }
@@ -677,7 +716,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
                directed_arc_yaw >=
 #if SIGN_ROUTE_REQUIRE_IMU
-               SIGN_GYRO_EXIT_TRIGGER_MDEG, now))
+               (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+                SIGN_GYRO_TANGENT_ARC_MDEG : SIGN_GYRO_EXIT_TRIGGER_MDEG), now))
 #else
                SIGN_ARC_MIN_YAW_MDEG &&
                line_mask == (exit_side == 8U ? 12U : 3U), now))
@@ -688,13 +728,25 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       command->just_started = 1U;
       select_command(command, line_mask);
     }
+    else if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+    {
+      /* The circle bends opposite the entry/exit transition. Keeping both
+         wheels forward prevents the old in-place U-turn and makes yaw the
+         phase boundary instead of a particular line-mask coincidence. */
+      tangent_command(command, (int8_t)-route.direction);
+    }
     return;
   }
 
   if (route.state == SIGN_ROUTE_EXIT_CLEAR)
   {
-    if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS ||
-        route.travel_mm > SIGN_EXIT_STRAIGHT_MAX_MM)
+    uint32_t exit_timeout = route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+        SIGN_GYRO_TANGENT_EXIT_TIMEOUT_MS : SIGN_EXIT_CLEAR_TIMEOUT_MS;
+    int32_t exit_max_mm = route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+        SIGN_GYRO_TANGENT_EXIT_MAX_MM : SIGN_EXIT_STRAIGHT_MAX_MM;
+    int32_t exit_min_mm = route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
+        SIGN_GYRO_TANGENT_EXIT_CLEAR_MM : SIGN_EXIT_CLEAR_MM;
+    if (now - route.phase_ms > exit_timeout || route.travel_mm > exit_max_mm)
     {
       cancel_route(5U, now, command);
       return;
@@ -703,7 +755,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     command->active=1U;
     command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
 #endif
-    if (stable(center && route.travel_mm >= SIGN_EXIT_CLEAR_MM, now))
+    if (stable(center && route.travel_mm >= exit_min_mm, now))
     {
       route.state = SIGN_ROUTE_LOCKED;
       route.finished_ms = now;
@@ -731,4 +783,5 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->fault = route.fault;
   status->travel_mm = route.travel_mm;
   status->yaw_mdeg = route.yaw_mdeg;
+  status->profile = route.profile;
 }

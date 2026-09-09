@@ -9,6 +9,7 @@
 #include "battery_monitor.h"
 #include "motorPWM.h"
 #include "sign_line_follow.h"
+#include "sign_route_config.h"
 #include "sign_observation.h"
 #include "line_sensor_sample.h"
 #include "line_search_model.h"
@@ -45,7 +46,9 @@ static void init(uint8_t sign, uint32_t origin)
 {
   tick=origin; seq=0; voltage=7800; gpio_mask=0;
   memset(counts,0,sizeof(counts)); memset(fraction,0,sizeof(fraction)); memset(pins,0,sizeof(pins));
-  DriveBase_Init(); line_tracking_init(); SignRoute_Init(); SignLineFollow_Init(&follower);
+  DriveBase_Init(); line_tracking_init(); SignRoute_Init();
+  SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
+  SignLineFollow_Init(&follower);
   SignObservation_Reset();
   if(sign) SignLineFollow_Start(&follower); else line_tracking_start_following();
 }
@@ -290,8 +293,31 @@ static void late_choice(int side)
   assert(drive.requested_cps[0]>0&&drive.requested_cps[2]>0);
   puts("PASS: late confirmed choice preempts shared search at normal turn speed; cancel resumes live line");
 }
+static void mode4_gentle_drive(int side)
+{
+  unsigned i,w;
+  const int32_t inner=DriveBase_EquivalentCpsFromPwm(SIGN_GYRO_TANGENT_INNER_PWM);
+  const int32_t outer=DriveBase_EquivalentCpsFromPwm(SIGN_GYRO_TANGENT_OUTER_PWM);
+  init(1,100); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);
+  for(i=0;i<203;++i) { observe(side); sample(6,0); }
+  for(i=0;i<3;++i) sample(15,0);
+  sample(side<0?8:1,-side*30000);
+  assert(route.state==SIGN_ROUTE_PROBE && route_command.gentle_arc);
+  assert(drive.requested_cps[0]==(side<0?inner:outer));
+  assert(drive.requested_cps[2]==(side<0?outer:inner));
+  for(i=0;i<4;++i) sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  assert(route.state==SIGN_ROUTE_ARC);
+  sample(15,-side*(SIGN_GYRO_TANGENT_ENTRY_MDEG-10000L));
+  assert(route_command.gentle_arc);
+  assert(drive.requested_cps[0]==(side<0?outer:inner));
+  assert(drive.requested_cps[2]==(side<0?inner:outer));
+  assert(drive.requested_cps[0]>0 && drive.requested_cps[2]>0);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+}
 int main(void)
 {
+  mode4_gentle_drive(-1); mode4_gentle_drive(1);
   parity(100); parity(UINT32_MAX-400U);
   slow_profile_matches_key2_settle();
   slow_speed_and_recognition();

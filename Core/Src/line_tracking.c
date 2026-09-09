@@ -184,6 +184,20 @@ void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
   }
 }
 
+void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
+                                         LineTrackingCommand *command)
+{
+  int16_t inner, outer;
+  if (!command) return;
+  if (base_speed <= 0 || !direction) { command_stop(command); return; }
+  inner = base_speed < TRACKING_SETTLE_INNER_PWM ? base_speed : TRACKING_SETTLE_INNER_PWM;
+  outer = base_speed < TRACKING_SETTLE_OUTER_PWM ? base_speed : TRACKING_SETTLE_OUTER_PWM;
+  command_set_pwm(command,
+      direction < 0 ? inner : outer,
+      direction < 0 ? outer : inner,
+      direction < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST);
+}
+
 static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
 {
   int16_t left = TRACKING_SETTLE_CENTER_PWM, right = TRACKING_SETTLE_CENTER_PWM;

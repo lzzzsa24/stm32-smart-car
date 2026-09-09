@@ -31,4 +31,13 @@
 #define SIGN_EXIT_CLEAR_MM 60L
 #define SIGN_EXIT_CLEAR_TIMEOUT_MS 2000U
 #define SIGN_ROUTE_PWM 2200
+/* Mode-4 trajectory: diagonal entry, half-circle, diagonal heading recovery,
+   then a bounded straight search for the outgoing centre line. */
+#define SIGN_GYRO_TANGENT_ENTRY_MDEG 60000L
+#define SIGN_GYRO_TANGENT_ARC_MDEG 165000L
+#define SIGN_GYRO_TANGENT_INNER_PWM 2200
+#define SIGN_GYRO_TANGENT_OUTER_PWM 2400
+#define SIGN_GYRO_TANGENT_EXIT_CLEAR_MM 80L
+#define SIGN_GYRO_TANGENT_EXIT_MAX_MM 450L
+#define SIGN_GYRO_TANGENT_EXIT_TIMEOUT_MS 3500U
 #endif
