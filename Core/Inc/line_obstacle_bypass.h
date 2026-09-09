@@ -58,6 +58,7 @@ typedef struct
 {
   uint8_t line_mask;
   uint8_t infrared_valid;
+  uint8_t front_obstacle; /* Fresh front range result supplied by the app. */
   uint16_t left_ir_adc;
   uint16_t right_ir_adc;
   uint16_t left_ir_threshold;
@@ -74,6 +75,8 @@ typedef struct
   uint8_t fault_mask;
   uint8_t line_mask;
   uint8_t original_line_cleared;
+  uint8_t captured_line_mask, return_cruise, return_yaw_valid;
+  int32_t return_yaw_mdeg; /* inward yaw relative to bypass entry, not wheel estimate */
   uint8_t flank_acquired;
   uint8_t acquire_escape_committed;
   uint8_t return_aligned;
@@ -99,6 +102,11 @@ uint8_t LineObstacleBypass_Start(int8_t direction);
 uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
                                           uint32_t entry_speed_cps);
 void LineObstacleBypass_Task(const LineObstacleBypassInput *input);
+/* Replay the existing 1-ms queue while bypass owns the motors. Raw bits are
+   X1/X2/X3/X4=1/2/4/8, unlike the display-order mask in bypass input. */
+void LineObstacleBypass_ObserveRawSensors(uint8_t raw_mask, uint32_t sample_ms);
+/* Display-order contact retained through a brief white gap; read before Stop. */
+uint8_t LineObstacleBypass_GetCapturedLineMask(void);
 void LineObstacleBypass_Stop(void);
 LineObstacleBypassState LineObstacleBypass_GetState(void);
 uint8_t LineObstacleBypass_GetFaultMask(void);
