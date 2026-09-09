@@ -23,10 +23,10 @@ flashed_bin_sha256: 900720C27D9990E9B19DA4381E0256585CC7BD74FFC3C084672F7F4F9B13
 flashed_hex_sha256: C2BD4C84BF1A1F963571D7D08259EE0C5267A613377A57C5B064BD3F967F67DD
 ground_test_status: not_tested_after_5fdb84a_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 5fdb84aee6c4e82b9d95435d90a072147ac3cb75
+candidate_source_commit: 8b91f49fb47016501bc475b452afef40dc02b651
 candidate_bin_size_bytes: 108908
-candidate_bin_sha256: 900720C27D9990E9B19DA4381E0256585CC7BD74FFC3C084672F7F4F9B133751
-candidate_hex_sha256: C2BD4C84BF1A1F963571D7D08259EE0C5267A613377A57C5B064BD3F967F67DD
+candidate_bin_sha256: A1E6759D0694FEDB980C8C1CDAFEBFA49F8068421FE960E46F9C1BEBD67197F8
+candidate_hex_sha256: B16B32814BF5E781B1BD79ED3D8BB539E828F95368241F499A048FD3B381AFCC
 user_reported_flash: tool_verified_5fdb84a_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,13 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed candidate: 8b91f49
+
+c7f68e6 integrated onto 5fdb84a, fixed offset now 240 mm; parallel 120 mm,
+return 45 degrees and latest sign behavior retained. Build, gyro and line
+regressions passed. No serial/flash/physical test/push; board stays 5fdb84a.
+See docs/history/candidates/COMPREHENSIVE_8B91F49_20260909.md.
 
 ### Latest comprehensive deployment: 5fdb84a
 
