@@ -904,7 +904,10 @@ static void apply_sign_line_pwm(int16_t left_pwm,
   sign_speed_limit_cps = SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm);
   DriveBase_SetSpeedLimitCps(sign_speed_limit_cps);
   DriveBase_SetLineFaultObservation(1U, line_mask, controller_state);
-  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  if ((left_cps < 0 && right_cps > 0) || (left_cps > 0 && right_cps < 0))
+    DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  else
+    DriveBase_PrepareLineTurnAssist(0, 0);
   if (left_cps == 0L && right_cps == 0L)
   {
     DriveBase_Stop(DRIVE_STOP_COAST);
@@ -1020,10 +1023,8 @@ static void sign_line_task(AppMode mode)
     SimpleLine_SetDirection(&simple_line_controller, route_status.direction);
   if (route_status.state == SIGN_ROUTE_ARC && route_command.just_finished)
     SimpleLine_SetDirection(&simple_line_controller, (int8_t)-route_status.direction);
-  if (route_status.state == SIGN_ROUTE_ARC)
-    SimpleLine_StepArc(&simple_line_controller, sign_line_mask);
-  else
-    SimpleLine_Step(&simple_line_controller, sign_line_mask);
+  /* Both normal following and ARC use the steady profile, after route hints. */
+  SimpleLine_StepSlow(&simple_line_controller, sign_line_mask);
 
   if ((route_command.just_started != 0U || route_command.just_finished != 0U) &&
       route_status.state != SIGN_ROUTE_ARC)

@@ -77,6 +77,32 @@ void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask)
     set_output(controller, SIMPLE_LINE_TRACK, SIMPLE_LINE_SLOW_PWM, SIMPLE_LINE_SLOW_PWM);
 }
 
+void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask)
+{
+  uint8_t mask = raw_mask & 15U;
+  SimpleLine_Step(controller, mask);
+  if (controller == NULL || controller->mode == SIMPLE_LINE_STOP || mask == 0U)
+    return;
+  /* Current contact always releases a stale spin immediately. Gentle middle
+     corrections never accelerate the outside wheel above straight speed. */
+  if (mask == SIMPLE_LINE_LEFT_INNER || mask == SIMPLE_LINE_RIGHT_INNER)
+  {
+    int8_t direction = mask == SIMPLE_LINE_LEFT_INNER ? -1 : 1;
+    controller->last_direction = direction;
+    set_output(controller, SIMPLE_LINE_TRACK,
+        direction < 0 ? 2200 : 2300, direction < 0 ? 2300 : 2200);
+  }
+  else if (mask == 8U || mask == 12U || mask == 1U || mask == 3U)
+  {
+    int8_t direction = mask & 8U ? -1 : 1;
+    controller->last_direction = direction;
+    set_output(controller, SIMPLE_LINE_TRACK,
+        direction < 0 ? 2000 : 2300, direction < 0 ? 2300 : 2000);
+  }
+  else
+    set_output(controller, mask == 6U ? SIMPLE_LINE_TRACK : SIMPLE_LINE_WIDE, 2300, 2300);
+}
+
 void SimpleLine_SetDirection(SimpleLineController *controller,
                              int8_t direction)
 {

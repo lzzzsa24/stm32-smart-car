@@ -38,5 +38,7 @@ void SimpleLine_SetDirection(SimpleLineController *controller,
 void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask);
 /* Arc tracking: visible line uses forward differential drive, white searches. */
 void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask);
+/* Mode 3/4 slow visible-line profile; white retains powered search. */
+void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask);
 
 #endif
