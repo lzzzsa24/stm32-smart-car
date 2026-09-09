@@ -998,6 +998,17 @@ static void sign_line_slowdown_task(AppMode mode)
   sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
 }
 
+static void sign_rgb_off(void)
+{
+  /* Left green is PE7, not PG7; use each LED's actual port. */
+  HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LRGB_G_GPIO_Port, LRGB_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LRGB_B_GPIO_Port, LRGB_B_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_R_GPIO_Port, RRGB_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_G_GPIO_Port, RRGB_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_B_GPIO_Port, RRGB_B_Pin, GPIO_PIN_RESET);
+}
+
 static void sign_line_task(AppMode mode)
 {
   SignRouteCommand route_command;
@@ -1043,20 +1054,7 @@ static void sign_line_task(AppMode mode)
 
   SignRoute_GetStatus(now, &route_status);
   app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
-  HAL_GPIO_WritePin(LRGB_R_GPIO_Port,
-                    LRGB_R_Pin | LRGB_G_Pin | LRGB_B_Pin,
-                    GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(RRGB_R_GPIO_Port,
-                    RRGB_R_Pin | RRGB_G_Pin | RRGB_B_Pin,
-                    GPIO_PIN_RESET);
-  if (route_status.direction < 0)
-  {
-    HAL_GPIO_WritePin(LRGB_G_GPIO_Port, LRGB_G_Pin, GPIO_PIN_SET);
-  }
-  else if (route_status.direction > 0)
-  {
-    HAL_GPIO_WritePin(RRGB_G_GPIO_Port, RRGB_G_Pin, GPIO_PIN_SET);
-  }
+  sign_rgb_off();
   HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
   HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin,
                     route_status.vision_online != 0U ?
@@ -1861,15 +1859,12 @@ int main(void)
           app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
           app_mode == APP_MODE_VISION_LINE_V4)
       {
-        HAL_GPIO_WritePin(LRGB_R_GPIO_Port,
-                          LRGB_R_Pin | LRGB_G_Pin | LRGB_B_Pin,
-                          GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(RRGB_R_GPIO_Port,
-                          RRGB_R_Pin | RRGB_G_Pin | RRGB_B_Pin,
-                          GPIO_PIN_RESET);
+        sign_rgb_off();
       }
     }
 
+    if (app_mode == APP_MODE_SIGN_LINE_ADVANCED || app_mode == APP_MODE_SIGN_LINE_SIMPLE)
+      sign_rgb_off(); /* before recovery/fault paths can return early */
     sign_line_slowdown_task(app_mode);
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
@@ -1896,7 +1891,8 @@ int main(void)
           (phase < (uint32_t)fault_code * 250U &&
            (phase % 250U) < 100U) ? GPIO_PIN_SET : GPIO_PIN_RESET,
           1U);
-      HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_SET);
+      if (app_mode != APP_MODE_SIGN_LINE_ADVANCED && app_mode != APP_MODE_SIGN_LINE_SIMPLE)
+        HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
       HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin, GPIO_PIN_SET);
       HAL_Delay(1U);
@@ -1905,7 +1901,7 @@ int main(void)
 
     if (app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_LINE_ONLY)
     {
-      /* KEY1/KEY2 保留红外状态灯；模式 3/4 改由标志方向占用 RGB。 */
+      /* KEY1/KEY2 保留红外状态灯；模式 3/4 关闭 RGB，避免照射标志。 */
       ir_status = ir_avoid_read();
       ir_avoid_show_status(&ir_status);
     }
