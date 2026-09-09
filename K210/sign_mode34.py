@@ -86,6 +86,15 @@ def detection_frame(best):
     cy = min(239, int((y0 + y1) // 2))
     return "$D,%d,%d,%d,%d#\n" % (best[4], int(best[5] * 100), cx, cy)
 
+def transmit_label(best, detections):
+    if best is not None:
+        return "TX:%s %d" % ("L" if best[4] == 0 else "R", int(best[5]*100))
+    valid = [item for item in detections if valid_detection(item)]
+    if any(item[4] in (0, 1) for item in valid):
+        return "TX:NONE CONFLICT"
+    return "TX:NONE NONARROW" if valid else "TX:NONE EMPTY"
+
+
 def arrow_overlap(a, b):
     w = max(0, min(a[0]+a[2], b[0]+b[2])-max(a[0], b[0]))
     h = max(0, min(a[1]+a[3], b[1]+b[3])-max(a[1], b[1]))
@@ -173,8 +182,7 @@ while True:
     if time.ticks_diff(now, last_send) >= SEND_INTERVAL:
         frame = detection_frame(best)
         uart.write(frame)
-        last_tx_text = "TX:NONE" if best is None else "TX:%s %d" % (
-            "L" if best[4] == 0 else "R", int(best[5]*100))
+        last_tx_text = transmit_label(best, dect)
         last_send = now
         if DEBUG_PRINT and time.ticks_diff(now, last_debug) >= DEBUG_INTERVAL:
             print(frame.strip())

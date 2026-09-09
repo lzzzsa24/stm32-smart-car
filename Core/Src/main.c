@@ -19,6 +19,7 @@
 
 #include "main.h"
 #include "line_fault_log.h"
+#include "sign_trace.h"
 #include "gpio.h"
 
 #include <stdint.h>
@@ -452,6 +453,12 @@ static uint8_t app_take_serial_virtual_key(void)
     case 'f':
     case 'F':
       LineFaultLog_RequestDump();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'j':
+      SignTrace_Request(0U);
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'J':
+      SignTrace_Request(1U);
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case '0':
       DfPlayerMini_Stop();
@@ -937,6 +944,8 @@ static void sign_line_telemetry_task(AppMode mode,
 {
   VisionUartStats stats;
   uint32_t now = HAL_GetTick();
+
+  SignTrace_Record(now, sign_line_mask, route_status);
 
   if (!tick_reached(now, last_sign_uart_ms + 500U))
   {
@@ -1541,6 +1550,7 @@ int main(void)
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
+  SignTrace_Init();
   SignSlowdown_Reset();
   VisionLineV4Control_Init();
   vision_uart_init();
@@ -1736,6 +1746,7 @@ int main(void)
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
+    SignTrace_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
     if (service_bounded_line_wait(app_mode))
     {
       HAL_Delay(1U);

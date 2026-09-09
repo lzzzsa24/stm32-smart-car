@@ -116,7 +116,7 @@ def run_loop(button_enabled, low_memory=False, detections=None):
     assert all(any(t.startswith('TX:') for t in img.text) for img in displayed)
     assert all(img.draws == 1 for img in displayed) if not button_enabled else True
     chosen = pick(detections)
-    text = 'TX:NONE' if chosen is None else 'TX:%s %d' % ('L' if chosen[4]==0 else 'R', int(chosen[5]*100))
+    text = scope['transmit_label'](chosen, detections)
     assert displayed[-1].text[-1] == text
     assert len(collections) >= 24 if low_memory else 4 <= len(collections) < 12
     return tx
@@ -126,4 +126,7 @@ run_loop(False, low_memory=True)
 run_loop(False, detections=[left,right])
 run_loop(True, detections=[left,(10,10,40,40,1,.30)])
 run_loop(False, detections=[horn])
+assert scope['transmit_label'](None, []) == 'TX:NONE EMPTY'
+assert scope['transmit_label'](None, [horn]) == 'TX:NONE NONARROW'
+assert scope['transmit_label'](None, [left, (10,10,40,40,1,.30)]) == 'TX:NONE CONFLICT'
 print('PASS: K210 helpers, BOOT bounce/hold/wrap, real loop UART before display, overlay isolation, GC fallback')
