@@ -260,7 +260,7 @@ static void test_return_cruise(int direction)
   LineObstacleBypass_Stop();
   puts("PASS: full mirrored bypass reaches measured inward >45, drives continuously 5s and captures one-sample outer rejoin");
 }
-static void test_fixed_rectangle(int direction)
+static void test_fixed_rectangle(int direction,uint8_t infrared)
 {
   LineObstacleBypassConfig config;
   LineObstacleBypassInput input={0};
@@ -268,6 +268,7 @@ static void test_fixed_rectangle(int direction)
   unsigned i,phase=LINE_FIXED_ENTRY,changes=0;
   reset(); LineObstacleBypass_GetDefaultConfig(&config);
   config.fixed_route_direction=(int8_t)direction;
+  config.infrared_enabled=infrared;
   config.forward_cps=2600; config.return_cps=2300; config.turn_cps=2500;
   LineObstacleBypass_Init(&config);
   input.infrared_valid=1;
@@ -296,10 +297,16 @@ static void test_fixed_rectangle(int direction)
     input.line_mask=(phase==LINE_FIXED_OFFSET || phase==LINE_FIXED_PARALLEL)?1:0;
     /* In-band/far readings must not create intermediate short probes. */
     input.left_ir_adc=input.right_ir_adc=(phase==LINE_FIXED_PARALLEL && i%2)?1720:3000;
+    if(!infrared)
+    {
+      input.infrared_valid=(uint8_t)(i%2);
+      input.left_ir_adc=input.right_ir_adc=(uint16_t)(i%2?0:4095);
+    }
   }
   assert(i<2500 && changes==6 && b.return_cruise && b.original_line_cleared);
   assert(b.return_yaw_valid && b.return_yaw_mdeg>=41000 && b.return_yaw_mdeg<=49000);
   input.line_mask=0; input.left_ir_adc=input.right_ir_adc=3000;
+  if(!infrared) { input.infrared_valid=0; input.left_ir_adc=input.right_ir_adc=0; }
   for(i=0;i<500;++i)
   {
     DriveBaseTelemetry d;
@@ -326,7 +333,8 @@ int main(void)
   test_faults();
   test_automatic_recovery();
   test_return_cruise(1); test_return_cruise(-1);
-  test_fixed_rectangle(1); test_fixed_rectangle(-1);
+  test_fixed_rectangle(1,1); test_fixed_rectangle(-1,1);
+  test_fixed_rectangle(1,0); test_fixed_rectangle(-1,0);
   puts("PASS: real DriveBase/FIFO/gyro/bypass chain, mirror turns, yaw gain, brake/travel ownership, IR interruption, stall and STOP");
   return 0;
 }

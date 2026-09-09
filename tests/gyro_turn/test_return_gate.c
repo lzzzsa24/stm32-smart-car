@@ -175,6 +175,42 @@ static void test_fixed_route(void)
   puts("PASS: fixed 240/120/45 geometry, absolute-heading drift correction, all-phase STOP, obstacle fallback, generation/encoder fallback, capture gate and timer wrap");
 }
 
+static void test_ir_disabled(void)
+{
+  int direction;
+  unsigned i;
+  for(direction=-1;direction<=1;direction+=2)
+  {
+    LineObstacleBypassInput input=fixed_setup(direction), snapshot;
+    LineObstacleBypassTelemetry telemetry;
+    bypass_config.infrared_enabled=0;
+    input.infrared_valid=0;
+    input.left_ir_adc=input.right_ir_adc=0;
+    input.left_ir_threshold=input.right_ir_threshold=4095;
+    input.left_ir_hysteresis=input.right_ir_hysteresis=65535;
+    snapshot=input;
+    for(i=0;i<6;++i) fixed_step(&input);
+    assert(fixed_phase==LINE_FIXED_RETURN && !fixed_fallback);
+    assert(turn_calls==3 && travel_calls==2 && fault_mask==0);
+    assert(memcmp(&input,&snapshot,sizeof input)==0);
+    for(i=0;i<20;++i) { ++test_ms; LineObstacleBypass_Task(&input); }
+    assert(fixed_phase==LINE_FIXED_RETURN && !fixed_fallback);
+    LineObstacleBypass_GetTelemetry(&telemetry); assert(!telemetry.infrared_enabled);
+    /* Disabling side IR cannot suppress front ultrasonic or STOP. */
+    input.front_obstacle=1; ++test_ms; LineObstacleBypass_Task(&input);
+    assert(fixed_fallback && bypass_state==LINE_BYPASS_TURNING);
+    fixed_step(&input); ++test_ms; LineObstacleBypass_Task(&input);
+    assert(bypass_state==LINE_BYPASS_TURNING && travel_calls==2);
+    LineObstacleBypass_Stop(); ++test_ms; LineObstacleBypass_Task(&input);
+    assert(bypass_state==LINE_BYPASS_IDLE && test_drive.mode==DRIVE_BASE_STOPPED);
+    /* A null input is still invalid, rather than invented line/front data. */
+    input=fixed_setup(direction); bypass_config.infrared_enabled=0;
+    LineObstacleBypass_Task(0); assert(bypass_state==LINE_BYPASS_FAULT);
+    LineObstacleBypass_Stop();
+  }
+  puts("PASS: IR-off ignores invalid/near/saturated samples through fixed and adaptive phases, preserves input, ultrasonic and STOP");
+}
+
 int main(void)
 {
   int dir;
@@ -221,5 +257,6 @@ int main(void)
   }
   puts("PASS: 44.999/45/45.001 degree mirrored gate, all obstacle inputs, missing/reset yaw, outward phase, expired contact and STOP");
   test_fixed_route();
+  test_ir_disabled();
   return 0;
 }

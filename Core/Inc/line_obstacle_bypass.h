@@ -67,6 +67,9 @@ typedef struct
   /* 0=adaptive; +1=fixed right route; -1=mirrored left route. Distances are
      wheel-centre travel: outward 240 mm, parallel 120 mm, then inward 45 deg. */
   int8_t fixed_route_direction;
+  /* Explicit test policy: zero ignores side IR, including invalid samples.
+     Front ultrasonic and line contact remain authoritative. Default is on. */
+  uint8_t infrared_enabled;
 } LineObstacleBypassConfig;
 
 typedef struct
@@ -110,6 +113,7 @@ typedef struct
   uint8_t guided_turn_active;
   uint8_t fixed_route_phase;
   uint8_t fixed_route_fallback;
+  uint8_t infrared_enabled;
 } LineObstacleBypassTelemetry;
 
 void LineObstacleBypass_GetDefaultConfig(LineObstacleBypassConfig *config);

@@ -56,3 +56,16 @@ print("PASS: KEY1/KEY2 share tracking cycle; only KEY1 opts into straight boost;
 assert main.count("bypass_config.fixed_route_direction = 1;") == 1
 assert 'DiagnosticUart_WriteUnsigned(telemetry.fixed_route_phase)' in main
 print("PASS: only mode-1 bypass enables the fixed right-hand rectangle and exposes phase telemetry")
+assert "#define EXP7_IR_AVOID_ENABLED              0U" in main
+assert "bypass_config.infrared_enabled = EXP7_IR_AVOID_ENABLED;" in main
+assert "if (EXP7_IR_AVOID_ENABLED && !ir_avoid_calibrate())" in main
+assert "if (EXP7_IR_AVOID_ENABLED && confirmed_ir_bypass_direction" in main
+ir_off = block(main, "if (!EXP7_IR_AVOID_ENABLED)")
+assert "ir_avoid_set_enabled(false);" in ir_off
+for side in ("LEFT", "RIGHT"):
+    assert f"HAL_GPIO_WritePin(IR_{side}_ENABLE_GPIO_Port, IR_{side}_ENABLE_Pin, GPIO_PIN_SET);" in ir_off
+assert "ir_avoid_init();" in main and "BatteryMonitor_Init();" in main
+assert "IrRemote_Init();" in main and "IrRemote_EXTI_Callback(GPIO_Pin);" in main
+status = main[main.index("/* KEY1/KEY2 保留红外状态灯") - 180:]
+assert "EXP7_IR_AVOID_ENABLED" in status[:180]
+print("PASS: obstacle IR disabled at emitters/calibration/trigger/display; shared battery ADC and remote STOP retained")

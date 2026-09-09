@@ -949,6 +949,7 @@ void LineObstacleBypass_GetDefaultConfig(LineObstacleBypassConfig *config)
   config->line_clear_samples = 3U;
   config->line_confirm_samples = 3U;
   config->fixed_route_direction = 0;
+  config->infrared_enabled = 1U;
 }
 
 void LineObstacleBypass_Init(const LineObstacleBypassConfig *config)
@@ -1504,6 +1505,19 @@ static void bypass_task(const LineObstacleBypassInput *input)
 
 void LineObstacleBypass_Task(const LineObstacleBypassInput *input)
 {
+  LineObstacleBypassInput without_ir;
+  if (input && !bypass_config.infrared_enabled)
+  {
+    /* Intentional IR bypass is not a sensor failure. Supply neutral side
+       evidence to both the fixed route and its adaptive ultrasonic fallback.
+       These values are policy placeholders, not measured clear-space data. */
+    without_ir = *input;
+    without_ir.infrared_valid = 1U;
+    without_ir.left_ir_adc = without_ir.right_ir_adc = BYPASS_ADC_MAX;
+    without_ir.left_ir_threshold = without_ir.right_ir_threshold = 0U;
+    without_ir.left_ir_hysteresis = without_ir.right_ir_hysteresis = 0U;
+    input = &without_ir;
+  }
 #if MPU6050_BYPASS_ENABLED
   if (bypass_state != LINE_BYPASS_IDLE && bypass_state != LINE_BYPASS_DONE && bypass_state != LINE_BYPASS_FAULT)
   {
@@ -1592,4 +1606,5 @@ void LineObstacleBypass_GetTelemetry(LineObstacleBypassTelemetry *telemetry)
       guided_turn_mode != BYPASS_GUIDED_TURN_NONE ? 1U : 0U;
   telemetry->fixed_route_phase = (uint8_t)fixed_phase;
   telemetry->fixed_route_fallback = fixed_fallback;
+  telemetry->infrared_enabled = bypass_config.infrared_enabled;
 }

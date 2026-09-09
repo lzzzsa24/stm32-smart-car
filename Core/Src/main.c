@@ -65,6 +65,8 @@
 
 /* 综合模式参数。PWM 周期为 3599。 */
 #define EXP7_LINE_SPEED                 3000
+/* Temporary fixed-route isolation test; remote IR and line probes are separate. */
+#define EXP7_IR_AVOID_ENABLED              0U
 #define EXP7_LIMIT_SPEED               2200
 
 /* 超声波安全层参数。距离阈值由 ultrasonic_avoid.c 实现，速度在这里
@@ -393,6 +395,7 @@ static void bypass_telemetry_task(void)
   DiagnosticUart_WriteString(" CAP="); DiagnosticUart_WriteUnsigned(telemetry.captured_line_mask);
   DiagnosticUart_WriteString(" FIX="); DiagnosticUart_WriteUnsigned(telemetry.fixed_route_phase);
   DiagnosticUart_WriteString(" FB="); DiagnosticUart_WriteUnsigned(telemetry.fixed_route_fallback);
+  DiagnosticUart_WriteString(" IRON="); DiagnosticUart_WriteUnsigned(telemetry.infrared_enabled);
   DiagnosticUart_WriteString(" RM=");
   DiagnosticUart_WriteUnsigned(telemetry.return_travel_mm);
   DiagnosticUart_WriteString(" V=");
@@ -1570,6 +1573,7 @@ int main(void)
   SquareEncoder_Init();
   LineObstacleBypass_GetDefaultConfig(&bypass_config);
   bypass_config.fixed_route_direction = 1; /* Fixed rectangle: right 24 cm, ahead 12 cm, inward 45 deg. */
+  bypass_config.infrared_enabled = EXP7_IR_AVOID_ENABLED;
   bypass_config.emergency_speed_cps = EXP7_EMERGENCY_BRAKE_SPEED_CPS;
   bypass_config.reverse_cps = EXP7_BYPASS_REVERSE_CPS;
   bypass_config.forward_cps = EXP7_BYPASS_FORWARD_CPS;
@@ -1578,6 +1582,14 @@ int main(void)
   bypass_config.turn_cps = EXP7_BYPASS_TURN_CPS;
   LineObstacleBypass_Init(&bypass_config);
   ir_avoid_init();
+  if (!EXP7_IR_AVOID_ENABLED)
+  {
+    ir_avoid_set_enabled(false);
+    /* PE5/PE6 emitters are active low. Keep shared ADC3 initialization for
+       BatteryMonitor, but physically disable the obstacle IR emitters. */
+    HAL_GPIO_WritePin(IR_LEFT_ENABLE_GPIO_Port, IR_LEFT_ENABLE_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(IR_RIGHT_ENABLE_GPIO_Port, IR_RIGHT_ENABLE_Pin, GPIO_PIN_SET);
+  }
   BatteryMonitor_Init();
   DriveBase_Init();
   line_tracking_init();
@@ -1618,10 +1630,10 @@ int main(void)
 
   /* 红外发射管和 ADC 先预热；实验五原版也保留约 1 s，避免刚上电
      读数还未稳定就把基线判成无效，导致红外整段不参与避障。 */
-  HAL_Delay(1000U);
+  if (EXP7_IR_AVOID_ENABLED) HAL_Delay(1000U);
 
   /* 标定期间车头前方保持无遮挡，分别建立左右红外基线。 */
-  if (!ir_avoid_calibrate())
+  if (EXP7_IR_AVOID_ENABLED && !ir_avoid_calibrate())
   {
     /* 红外标定失败时不再无限卡在这里；读数被屏蔽，车辆仍可由
        超声波（包括显式启用的开阔区降级）控制。复位后会重新尝试标定。 */
@@ -1888,7 +1900,8 @@ int main(void)
       continue;
     }
 
-    if (app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_LINE_ONLY)
+    if (EXP7_IR_AVOID_ENABLED &&
+        (app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_LINE_ONLY))
     {
       /* KEY1/KEY2 保留红外状态灯；模式 3/4 关闭 RGB，避免照射标志。 */
       ir_status = ir_avoid_read();
@@ -2081,7 +2094,7 @@ int main(void)
     {
       int8_t confirmed_direction;
 
-      if (confirmed_ir_bypass_direction(&ir_status,
+      if (EXP7_IR_AVOID_ENABLED && confirmed_ir_bypass_direction(&ir_status,
                                         &confirmed_direction) != 0U)
       {
         line_tracking_reset();
