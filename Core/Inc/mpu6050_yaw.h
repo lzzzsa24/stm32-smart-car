@@ -21,6 +21,8 @@ typedef enum { MPU_YAW_STARTING, MPU_YAW_CALIBRATING,
                MPU_YAW_READY, MPU_YAW_FAULT, MPU_YAW_WAIT_STATIONARY } MpuYawState;
 enum { MPU_FAULT_BUS = 1, MPU_FAULT_ID, MPU_FAULT_FIFO,
        MPU_FAULT_STALE, MPU_FAULT_CALIBRATION, MPU_FAULT_RANGE };
+enum { MPU_CAL_NOT_STOPPED=1, MPU_CAL_TILT=2, MPU_CAL_Z=4,
+       MPU_CAL_RAW_LIMIT=8, MPU_CAL_UNSTABLE=16 };
 typedef struct {
   MpuYawState state;
   uint8_t fault;
@@ -34,6 +36,9 @@ typedef struct {
   uint32_t max_service_gap_ms, backlog_events;
   uint32_t generation, restart_count;
   uint8_t last_fault;
+  int16_t raw_accel[3], raw_gyro[3];
+  uint8_t cal_reject, cal_last_reject;
+  uint32_t cal_rejections;
 } MpuYawReading;
 
 /* Sensor service shared by ALL modes; main-loop only, not ISR/reentrant.

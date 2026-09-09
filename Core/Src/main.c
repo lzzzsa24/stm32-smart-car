@@ -1694,6 +1694,19 @@ int main(void)
         DiagnosticUart_WriteString("IMU S="); DiagnosticUart_WriteUnsigned(imu.state);
         DiagnosticUart_WriteString(" F="); DiagnosticUart_WriteUnsigned(imu.fault);
         DiagnosticUart_WriteString(" CAL="); DiagnosticUart_WriteUnsigned(imu.calibration_samples);
+        DiagnosticUart_WriteString(" REJECT="); DiagnosticUart_WriteUnsigned(imu.cal_reject);
+        DiagnosticUart_WriteString(" LAST_REJECT="); DiagnosticUart_WriteUnsigned(imu.cal_last_reject);
+        DiagnosticUart_WriteString(" REJECTS="); DiagnosticUart_WriteUnsigned(imu.cal_rejections);
+        DiagnosticUart_WriteString(" ACC=");
+        for (unsigned axis=0; axis<3; ++axis) {
+          if (axis) DiagnosticUart_WriteString(",");
+          DiagnosticUart_WriteSigned(imu.raw_accel[axis]);
+        }
+        DiagnosticUart_WriteString(" GRAW=");
+        for (unsigned axis=0; axis<3; ++axis) {
+          if (axis) DiagnosticUart_WriteString(",");
+          DiagnosticUart_WriteSigned(imu.raw_gyro[axis]);
+        }
         DiagnosticUart_WriteString(" BIAS_MRAW="); DiagnosticUart_WriteSigned(imu.bias_milliraw);
         DiagnosticUart_WriteString(" YAW_MDEG=");
         DiagnosticUart_WriteSigned((int32_t)(imu.yaw_mdeg % 360000));

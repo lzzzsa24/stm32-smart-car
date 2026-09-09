@@ -6,6 +6,10 @@
 #define FRAME_BYTES 12U
 #define MAX_FRAMES 8U
 #define CAL_SAMPLES 200U
+/* Candidate bias envelope at 65.5 LSB/(deg/s). Uncorrected DC offset must
+   not be treated as motion. Stability still requires <=65 raw span on ALL
+   axes for 200 consecutive samples and a stopped, upright platform. */
+#define CAL_RAW_LIMIT 1310
 static MpuYawReading reading;
 static uint32_t stage_ms, last_poll_ms, calibration_ms;
 static uint8_t init_stage;
@@ -50,23 +54,39 @@ static void sample(const uint8_t *p, uint8_t stationary)
   int16_t gyro[3];
   unsigned i;
   for (i = 0; i < 3; ++i) gyro[i] = signed_be(p + 6 + i * 2);
+  reading.raw_accel[0] = (int16_t)ax;
+  reading.raw_accel[1] = (int16_t)ay;
+  reading.raw_accel[2] = (int16_t)az;
+  for (i = 0; i < 3; ++i) reading.raw_gyro[i] = gyro[i];
   ++reading.samples;
   if (reading.state == MPU_YAW_WAIT_STATIONARY) return;
   if (reading.state == MPU_YAW_CALIBRATING)
   {
     /* Reject a tilted/upside-down mounting and visible motion. Constant very
        slow hand rotation is not distinguishable from bias: keep car still. */
-    if (!stationary || magnitude(ax) > 4500 || magnitude(ay) > 4500 ||
-        az * MPU6050_YAW_SIGN < 14000 || az * MPU6050_YAW_SIGN > 18500 ||
-        magnitude(gyro[0]) > 196 || magnitude(gyro[1]) > 196 ||
-        magnitude(gyro[2]) > 196)
-    { clear_calibration(); return; }
+    uint8_t reject = 0U;
+    if (!stationary) reject |= MPU_CAL_NOT_STOPPED;
+    if (magnitude(ax) > 4500 || magnitude(ay) > 4500) reject |= MPU_CAL_TILT;
+    if (az * MPU6050_YAW_SIGN < 14000 || az * MPU6050_YAW_SIGN > 18500)
+      reject |= MPU_CAL_Z;
+    if (magnitude(gyro[0]) > CAL_RAW_LIMIT || magnitude(gyro[1]) > CAL_RAW_LIMIT ||
+        magnitude(gyro[2]) > CAL_RAW_LIMIT) reject |= MPU_CAL_RAW_LIMIT;
+    reading.cal_reject = reject;
+    if (reject)
+    {
+      reading.cal_last_reject = reject; ++reading.cal_rejections;
+      clear_calibration(); return;
+    }
     for (i = 0; i < 3; ++i)
     {
       if (!reading.calibration_samples) cal_min[i] = cal_max[i] = gyro[i];
       if (gyro[i] < cal_min[i]) cal_min[i] = gyro[i];
       if (gyro[i] > cal_max[i]) cal_max[i] = gyro[i];
-      if (cal_max[i] - cal_min[i] > 65) { clear_calibration(); return; }
+      if (cal_max[i] - cal_min[i] > 65)
+      {
+        reading.cal_reject = reading.cal_last_reject = MPU_CAL_UNSTABLE;
+        ++reading.cal_rejections; clear_calibration(); return;
+      }
     }
     bias_sum += gyro[2];
     if (++reading.calibration_samples == CAL_SAMPLES)
@@ -113,6 +133,8 @@ void MpuYaw_Task(uint32_t now_ms, uint8_t stationary)
       reading.restart_count = previous.restart_count + 1U;
       reading.last_fault = previous.fault;
       reading.samples = previous.samples;
+      reading.cal_last_reject = previous.cal_last_reject;
+      reading.cal_rejections = previous.cal_rejections;
       reading.peak_fifo_bytes = previous.peak_fifo_bytes;
       reading.max_service_gap_ms = previous.max_service_gap_ms;
       reading.backlog_events = previous.backlog_events;

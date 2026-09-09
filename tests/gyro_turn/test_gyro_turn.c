@@ -123,7 +123,8 @@ static void test_calibration_and_faults(void)
   ready(); bad_bus = 1; feed(1, 100, 0); assert(read_imu().fault == MPU_FAULT_BUS);
   boot(0); regs[0x75] = 0; MpuYaw_Init(now); now += 100; MpuYaw_Task(now, 1);
   assert(read_imu().fault == MPU_FAULT_ID);
-  boot(0); for (i = 0; i < 1001; ++i) feed(1, 1000, 1);
+  /* Stable DC is calibratable; persistent variation must still time out. */
+  boot(0); for (i = 0; i < 1001; ++i) feed(1, i % 2 ? 1000 : -1000, 1);
   assert(read_imu().fault == MPU_FAULT_CALIBRATION);
   /* Less than a full packet does not refresh freshness or consume bytes. */
   ready(); fifo_size = 11; now += 10; MpuYaw_Task(now, 0);
