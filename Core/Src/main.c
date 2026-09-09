@@ -1014,25 +1014,24 @@ static void sign_line_task(AppMode mode)
   SignRouteCommand route_command;
   SignRouteStatus route_status;
   WheelEncoderCounts counts;
-  LineTrackingReading line = line_tracking_read();
-  uint32_t now = HAL_GetTick();
+  MpuYawReading yaw;
+  LineTrackingReading line;
+  uint32_t now;
+
+  MpuYaw_Refresh(HAL_GetTick());
+  MpuYaw_GetReading(&yaw);
+  line = line_tracking_read();
+  now = HAL_GetTick();
+  SimpleLine_UpdateYaw(&simple_line_controller,yaw.yaw_mdeg,MpuYaw_IsReady(now),yaw.generation);
 
   sign_line_mask = line_reading_mask(&line);
   /* Keep sampling the real line even while a route preference is active. */
-  SimpleLine_StepSlow(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
 
-  if (route_command.just_started != 0U || route_command.just_finished != 0U)
-  {
-    /* Never resume the old enhanced controller's latched in-place recovery.
-       Both sign modes use the same SL2 path that can follow the user's arc. */
-    SignRoute_GetStatus(now, &route_status);
-    SimpleLine_SetDirection(&simple_line_controller,
-        route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
-                                               route_status.direction);
-  }
+  SignRoute_GetStatus(now, &route_status);
+  SimpleLine_StepRoute(&simple_line_controller, sign_line_mask, &route_status, &route_command);
 
   if (route_command.active != 0U)
   {

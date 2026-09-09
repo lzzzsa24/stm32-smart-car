@@ -23,9 +23,11 @@ assert "SignSlowdown_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
-assert "SimpleLine_StepSlow(" in sign_task
+assert "SimpleLine_StepRoute(" in sign_task
+assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SimpleLine_StepRoute(")
+assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
-assert sign_task.index("SimpleLine_StepSlow(") < sign_task.index("SignRoute_Step(")
+assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
