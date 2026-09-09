@@ -23,10 +23,10 @@ flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572
 flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
 ground_test_status: not_tested_after_v14_8a46fd6_deployment
 k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
-candidate_source_commit: 2ebf64e
-candidate_bin_size_bytes: 101948
-candidate_bin_sha256: A2FC15385A8C30F39151070DD750BC6D1CA5E7B2C604F1D3C2F5D06D4A804509
-candidate_hex_sha256: 51DF3D44412ADC422007F6AF60C429236ACD75AAF696BB2789AF10A5BD91803C
+candidate_source_commit: 9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5
+candidate_bin_size_bytes: 104200
+candidate_bin_sha256: 997E54D55F3F279EB27FBBBE0F32D93FCF6AFD68A768F485E4D4D2F01441F461
+candidate_hex_sha256: 3D82C83C4BD1B0F8004947ED040FE19E72ECF54B14F1961FAAC49C34E381F970
 user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
@@ -46,6 +46,23 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed comprehensive candidate: V15
+
+Source `9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5`, branch
+`test/comprehensive-v15-sign-horn-20260909`, worktree
+`F:/myproject/jidian/worktrees/comprehensive-v15-sign-horn`.
+Merges full V14 and `4c24f1f`: highest-score single left/right/horn selection,
+confirmed PG12 horn event in modes 3/4 now plays five complete phrases
+(nominally 7.65 seconds, nonblocking), preserving STRACE and gyro logic.
+Five-repeat integration assertion, unchanged horn latch regression and formal
+build passed. No new physical or listening test.
+Sign-line/K210/gyro/trace/horn and DFPlayer host tests plus ARM build passed.
+See that worktree's `COMPREHENSIVE_V15_SIGN_HORN.md` for artifacts. No flash,
+physical test or push; deployed STM32 and K210 remain unchanged. Testing the
+new horn end-to-end requires both candidate STM32 and K210 script deployment.
+Main firmware scope remains mode1-only V13 promotion. Candidate hashes above
+now describe V15, not the older main build mentioned below.
 
 ### Current local main: mode1-only V13 promotion
 
