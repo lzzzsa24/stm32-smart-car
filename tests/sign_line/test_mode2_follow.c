@@ -55,14 +55,16 @@ static void init(uint8_t sign, uint32_t origin)
 static uint8_t sample(uint8_t mask,int32_t yaw)
 {
   LineTrackingReading reading;
-  uint8_t action;
+  uint8_t action, paused;
   set_mask(mask); tick+=10U; LineSensorSample_Tick(tick);
   reading=line_tracking_read();
   SignRoute_UpdateEncoders(counts[0],counts[1],counts[2],counts[3]);
   SignRoute_UpdateYaw(3700000LL+yaw,1);
   SimpleLine_UpdateYaw(&follower.guard,3700000LL+yaw,1,1);
+  paused=SignObservation_Paused(tick);
+  SignRoute_UpdateObservationPause(paused,tick);
   SignRoute_Step(mask,tick,&route_command); SignRoute_GetStatus(tick,&route);
-  action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,SignObservation_Paused(tick));
+  action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,paused);
   DriveBase_Task(tick); DriveBase_GetTelemetry(&drive);
   return action;
 }
@@ -293,21 +295,24 @@ static void late_choice(int side)
   assert(drive.requested_cps[0]>0&&drive.requested_cps[2]>0);
   puts("PASS: late confirmed choice preempts shared search at normal turn speed; cancel resumes live line");
 }
-static void mode4_gentle_drive(int side)
+static void mode4_drawn_drive(int side)
 {
   unsigned i,w;
   const int32_t inner=DriveBase_EquivalentCpsFromPwm(SIGN_GYRO_TANGENT_INNER_PWM);
   const int32_t outer=DriveBase_EquivalentCpsFromPwm(SIGN_GYRO_TANGENT_OUTER_PWM);
   init(1,100); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);
   for(i=0;i<203;++i) { observe(side); sample(6,0); }
-  for(i=0;i<3;++i) sample(15,0);
-  sample(side<0?8:1,-side*30000);
-  assert(route.state==SIGN_ROUTE_PROBE && route_command.gentle_arc);
-  assert(drive.requested_cps[0]==(side<0?inner:outer));
-  assert(drive.requested_cps[2]==(side<0?outer:inner));
-  for(i=0;i<4;++i) sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  assert(route.state==SIGN_ROUTE_PROBE && route_command.active && !route_command.gentle_arc);
+  assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]>0 :
+                  drive.requested_cps[2]==0 && drive.requested_cps[0]>0);
+  sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  assert(route.state==SIGN_ROUTE_SELECTING && route_command.active);
+  assert(drive.requested_cps[0]==drive.requested_cps[2] && drive.requested_cps[0]>0);
+  for(w=0;w<4;++w) counts[w]+=400;
+  sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  for(i=0;i<4;++i) sample(side<0?8:1,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   assert(route.state==SIGN_ROUTE_ARC);
-  sample(15,-side*(SIGN_GYRO_TANGENT_ENTRY_MDEG-10000L));
+  sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
   assert(route_command.gentle_arc);
   assert(drive.requested_cps[0]==(side<0?outer:inner));
   assert(drive.requested_cps[2]==(side<0?inner:outer));
@@ -431,7 +436,7 @@ static void exit_releases_direction(int side, uint32_t origin)
 }
 int main(void)
 {
-  mode4_gentle_drive(-1); mode4_gentle_drive(1);
+  mode4_drawn_drive(-1); mode4_drawn_drive(1);
   arc_feedback_and_entry_search();
   exit_releases_direction(-1,100); exit_releases_direction(1,100);
   exit_releases_direction(-1,UINT32_MAX-120U); exit_releases_direction(1,UINT32_MAX-120U);

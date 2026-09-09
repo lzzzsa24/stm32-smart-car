@@ -25,7 +25,8 @@ assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_StepRoute(" not in sign_task
 assert "SimpleLine_ResolveRouteOutput(" not in sign_task
 assert "SignLineFollow_Step(&sign_line_controller, &line, EXP7_LINE_SPEED," in sign_task
-assert "&route_status, &route_command, SignObservation_Paused(now))" in sign_task
+assert "SignRoute_UpdateObservationPause(observation_paused, now);" in sign_task
+assert "&route_status, &route_command, observation_paused)" in sign_task
 assert sign_task.count("SignLineFollow_Step(") == 1
 assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_SetDirection(" not in sign_task

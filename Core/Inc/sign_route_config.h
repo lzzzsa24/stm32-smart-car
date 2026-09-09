@@ -34,12 +34,17 @@
 #define SIGN_EXIT_CLEAR_MM 60L
 #define SIGN_EXIT_CLEAR_TIMEOUT_MS 2000U
 #define SIGN_ROUTE_PWM 2200
-/* Mode-4 trajectory: diagonal entry, half-circle, diagonal heading recovery,
-   then a bounded straight search for the outgoing centre line. */
-#define SIGN_GYRO_TANGENT_ENTRY_MDEG 60000L
-#define SIGN_GYRO_TANGENT_ARC_MDEG 165000L
+/* Mode-4 trajectory from the supplied drawing: turn to a diagonal heading,
+   drive straight to the selected arc, follow that arc with live sensors, turn
+   back to the approach heading, then drive straight to the outgoing line. */
+#define SIGN_GYRO_TANGENT_ENTRY_MDEG 45000L
+#define SIGN_GYRO_TANGENT_ARC_MDEG 90000L
 #define SIGN_GYRO_TANGENT_INNER_PWM 2200
 #define SIGN_GYRO_TANGENT_OUTER_PWM 2400
+#define SIGN_GYRO_TANGENT_ENTRY_MIN_MM 40L
+#define SIGN_GYRO_TANGENT_ENTRY_MAX_MM 400L
+#define SIGN_GYRO_TANGENT_ENTRY_TIMEOUT_MS 3000U
+#define SIGN_GYRO_TANGENT_TURN_TIMEOUT_MS 3000U
 #define SIGN_GYRO_TANGENT_EXIT_CLEAR_MM 80L
 #define SIGN_GYRO_TANGENT_EXIT_MAX_MM 450L
 #define SIGN_GYRO_TANGENT_EXIT_TIMEOUT_MS 3500U

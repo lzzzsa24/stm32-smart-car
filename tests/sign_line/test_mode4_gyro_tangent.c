@@ -28,103 +28,108 @@ static void observe(int side)
   SignRoute_ObserveDetection(&detection);
 }
 
-static void begin_entry(int side, SignRouteProfile profile)
+static void begin_entry_turn(int side)
 {
   unsigned i;
   now=100U; sequence=0U;
   for(i=0;i<4;++i) counts[i]=0;
-  SignRoute_Reset(); SignRoute_SetProfile(profile);
+  SignRoute_Reset(); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);
   SignRoute_UpdateEncoders(0,0,0,0);
+  SignRoute_UpdateYaw(0,1);
+  SignRoute_UpdateObservationPause(1U,now);
   for(i=0;i<3;++i) { observe(side); step(6,0,1,0); }
   assert(status.state==SIGN_ROUTE_ARMED && status.direction==side);
-  for(i=0;i<3;++i) step(15,0,1,0);
-  assert(status.state==SIGN_ROUTE_PROBE);
+
+  /* No crossbar or outer sensor is needed after the completed recognition
+     stop: its falling edge starts the fixed-angle turn at the marked point. */
+  SignRoute_UpdateObservationPause(0U,now);
+  step(6,0,1,0);
+  assert(status.state==SIGN_ROUTE_PROBE && command.active && !command.gentle_arc);
+  assert(side<0 ? (command.left_pwm==0 && command.right_pwm>0) :
+                  (command.right_pwm==0 && command.left_pwm>0));
 }
 
-static void reach_arc(int side, SignRouteProfile profile)
+static void reach_arc(int side)
 {
   unsigned i;
-  uint8_t selected=side<0?8U:1U;
-  begin_entry(side,profile);
-  step(selected,-side*30000LL,1,0);
-  assert(command.active);
-  if(profile==SIGN_ROUTE_PROFILE_GYRO_TANGENT)
-  {
-    assert(command.gentle_arc);
-    assert(command.left_pwm==(side<0?SIGN_GYRO_TANGENT_INNER_PWM:SIGN_GYRO_TANGENT_OUTER_PWM));
-    assert(command.right_pwm==(side<0?SIGN_GYRO_TANGENT_OUTER_PWM:SIGN_GYRO_TANGENT_INNER_PWM));
-    assert(command.left_pwm>0 && command.right_pwm>0);
-  }
-  else assert(!command.gentle_arc && (!command.left_pwm || !command.right_pwm));
-  for(i=0;i<4;++i) step(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG,1,0);
-  assert(status.state==SIGN_ROUTE_ARC);
+  int64_t entry_yaw=-side*SIGN_GYRO_TANGENT_ENTRY_MDEG;
+  begin_entry_turn(side);
+
+  step(6,entry_yaw,1,0);
+  assert(status.state==SIGN_ROUTE_SELECTING && command.active);
+  assert(command.left_pwm==command.right_pwm && command.left_pwm>0);
+
+  /* Leave the original centre line, drive the blue diagonal, then capture the
+     first narrow line of the selected circle. */
+  step(0,entry_yaw,1,400);
+  for(i=0;i<4;++i) step(side<0?8U:1U,entry_yaw,1,0);
+  assert(status.state==SIGN_ROUTE_ARC && status.entry_line_ready);
+  assert(!command.active);
 }
 
-static void mode4_trajectory(int side)
+static void mode4_drawn_trajectory(int side)
 {
   unsigned i;
   int32_t angle;
   int64_t entry_yaw=-side*SIGN_GYRO_TANGENT_ENTRY_MDEG;
-  reach_arc(side,SIGN_ROUTE_PROFILE_GYRO_TANGENT);
+  int64_t arc_end_yaw=entry_yaw+side*SIGN_GYRO_TANGENT_ARC_MDEG;
+  reach_arc(side);
   assert(status.profile==SIGN_ROUTE_PROFILE_GYRO_TANGENT);
 
-  /* Sensor masks cannot send the car around another lap: gyro owns this phase. */
+  /* Visible circle line stays under live sensor control. A brief loss keeps
+     both wheels forward in the arc direction and never requests a spin. */
   for(angle=10000;angle<SIGN_GYRO_TANGENT_ARC_MDEG;angle+=10000)
   {
-    uint8_t mask=(angle/10000)%3==0?15U:((angle/10000)%3==1?0U:(side<0?1U:8U));
-    step(mask,entry_yaw+side*angle,1,angle==20000?1200:0);
-    assert(status.state==SIGN_ROUTE_ARC && command.active && command.gentle_arc);
-    assert(command.left_pwm>0 && command.right_pwm>0);
-    assert(command.left_pwm==(side<0?SIGN_GYRO_TANGENT_OUTER_PWM:SIGN_GYRO_TANGENT_INNER_PWM));
-    assert(command.right_pwm==(side<0?SIGN_GYRO_TANGENT_INNER_PWM:SIGN_GYRO_TANGENT_OUTER_PWM));
+    step(6,entry_yaw+side*angle,1,angle==20000?1100:0);
+    assert(status.state==SIGN_ROUTE_ARC && !command.active);
   }
-  for(i=0;i<4;++i)
-    step(15,entry_yaw+side*SIGN_GYRO_TANGENT_ARC_MDEG,1,0);
-  if(status.state!=SIGN_ROUTE_EXIT_SELECT || !command.active || !command.gentle_arc)
-    fprintf(stderr,"mode4 trigger side=%d state=%d fault=%u mm=%ld yaw=%ld cmd=%u gentle=%u %d/%d\n",
-        side,(int)status.state,status.fault,(long)status.travel_mm,(long)status.yaw_mdeg,
-        command.active,command.gentle_arc,command.left_pwm,command.right_pwm);
-  assert(status.state==SIGN_ROUTE_EXIT_SELECT && command.active && command.gentle_arc);
+  step(0,entry_yaw+side*70000,1,0);
+  assert(status.state==SIGN_ROUTE_ARC && command.active && command.gentle_arc);
   assert(command.left_pwm>0 && command.right_pwm>0);
-  assert(command.left_pwm==(side<0?SIGN_GYRO_TANGENT_INNER_PWM:SIGN_GYRO_TANGENT_OUTER_PWM));
 
-  /* The diagonal exit uses the original entry turn direction until the
-     approach heading is recovered, then drives straight to the outgoing line. */
-  step(0,side*30000LL,1,0);
-  assert(status.state==SIGN_ROUTE_EXIT_SELECT && command.gentle_arc);
+  for(i=0;i<4;++i) step(6,arc_end_yaw,1,0);
+  if(status.state!=SIGN_ROUTE_EXIT_SELECT)
+    fprintf(stderr,"exit trigger side=%d state=%d fault=%u yaw=%ld mm=%ld\n",
+        side,(int)status.state,status.fault,(long)status.yaw_mdeg,(long)status.travel_mm);
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT && command.active && !command.gentle_arc);
+  assert(side<0 ? (command.left_pwm==0 && command.right_pwm>0) :
+                  (command.right_pwm==0 && command.left_pwm>0));
+
+  /* Turn back to the approach heading, leave the circle, then drive the second
+     blue diagonal until the outgoing centre line is seen again. */
+  step(0,side*20000LL,1,0);
+  assert(status.state==SIGN_ROUTE_EXIT_SELECT && command.active);
   step(0,0,1,0);
   assert(status.state==SIGN_ROUTE_EXIT_CLEAR && command.active);
-  assert(!command.gentle_arc && command.left_pwm==command.right_pwm);
-  step(15,0,1,600);
-  assert(status.state==SIGN_ROUTE_EXIT_CLEAR && command.active);
-  for(i=0;i<4;++i)
-  {
-    step(6,0,1,0);
-    if(i<3U)
-    {
-      assert(status.state==SIGN_ROUTE_EXIT_CLEAR && command.active);
-      assert(command.left_pwm==command.right_pwm);
-    }
-  }
+  assert(command.left_pwm==command.right_pwm && command.left_pwm>0);
+  step(0,0,1,600);
+  for(i=0;i<4;++i) step(6,0,1,0);
   assert(status.state==SIGN_ROUTE_LOCKED && !command.active);
 }
 
 static void profile_isolation_and_invalid_gyro(void)
 {
-  reach_arc(-1,SIGN_ROUTE_PROFILE_STANDARD);
-  step(6,60000-30000,1,1000);
-  assert(status.state==SIGN_ROUTE_ARC && !command.active);
-  begin_entry(1,SIGN_ROUTE_PROFILE_GYRO_TANGENT);
-  step(1,-30000,0,0);
+  unsigned i;
+  now=100U; sequence=0U;
+  for(i=0;i<4;++i) counts[i]=0;
+  SignRoute_Reset(); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
+  SignRoute_UpdateEncoders(0,0,0,0); SignRoute_UpdateYaw(0,1);
+  SignRoute_UpdateObservationPause(1U,now);
+  for(i=0;i<3;++i) { observe(-1); step(6,0,1,0); }
+  SignRoute_UpdateObservationPause(0U,now); step(6,0,1,0);
+  assert(status.state==SIGN_ROUTE_ARMED && !command.active);
+
+  begin_entry_turn(1);
+  step(6,0,0,0);
   assert(status.state==SIGN_ROUTE_CANCELLED && !command.active && status.fault==6U);
-  puts("PASS: standard profile unchanged; invalid mode-4 gyro withdraws route ownership without a stop command");
+  puts("PASS: mode 3 ignores pause handoff; invalid mode-4 gyro withdraws without STOP");
 }
 
 int main(void)
 {
   SignRoute_Init();
-  mode4_trajectory(-1); mode4_trajectory(1);
-  puts("PASS: mirrored mode-4 gyro entry, 165-degree half-arc, heading recovery and straight line capture");
+  mode4_drawn_trajectory(-1); mode4_drawn_trajectory(1);
+  puts("PASS: mirrored fixed-angle turn, straight entry, live arc, turn and straight exit");
   profile_isolation_and_invalid_gyro();
   return 0;
 }

@@ -51,6 +51,7 @@ typedef struct
   uint32_t phase_ms, last_step_ms;
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
+  uint8_t observation_pause_active, observation_pause_seen;
   int32_t travel_mm, yaw_mdeg;
   SignRouteProfile profile;
   int32_t arc_peak_mdeg;
@@ -58,6 +59,8 @@ typedef struct
 } SignRouteContext;
 
 static SignRouteContext route;
+
+static void enter_phase(SignRouteState state, uint32_t now);
 
 static uint32_t absolute_difference(uint16_t left, uint16_t right)
 {
@@ -210,6 +213,30 @@ void SignRoute_SetProfile(SignRouteProfile profile)
       SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD;
 }
 
+void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now)
+{
+  paused = paused ? 1U : 0U;
+  if (route.profile != SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+  {
+    route.observation_pause_active = paused;
+    route.observation_pause_seen = 0U;
+    return;
+  }
+  if (paused)
+  {
+    route.observation_pause_seen = 1U;
+  }
+  else if (route.observation_pause_active && route.observation_pause_seen &&
+           route.state == SIGN_ROUTE_ARMED && route.direction != 0)
+  {
+    /* The marked stop point in the supplied trajectory is the spatial handoff:
+       after recognition finishes, begin the fixed-angle entry turn here. */
+    enter_phase(SIGN_ROUTE_PROBE, now);
+    route.observation_pause_seen = 0U;
+  }
+  route.observation_pause_active = paused;
+}
+
 void SignRoute_ObserveDetection(const VisionDetection *detection)
 {
   int8_t candidate;
@@ -301,9 +328,19 @@ static void enter_phase(SignRouteState state, uint32_t now)
     route.entry_extreme_yaw = route.imu_yaw;
   if (state == SIGN_ROUTE_ARC)
   {
-    route.imu_origin = route.entry_extreme_yaw;
-    route.arc_origin_locked = 0U;
     route.arc_peak_mdeg = 0L;
+    if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
+    {
+      /* The drawn path starts the arc only after the straight diagonal has
+         recaptured it. Measure arc yaw from that physical contact. */
+      route.imu_origin = route.imu_yaw;
+      route.arc_origin_locked = 1U;
+    }
+    else
+    {
+      route.imu_origin = route.entry_extreme_yaw;
+      route.arc_origin_locked = 0U;
+    }
   }
   if (state == SIGN_ROUTE_EXIT_SELECT)
   {
@@ -437,6 +474,160 @@ static void tangent_command(SignRouteCommand *command, int8_t direction)
       SIGN_GYRO_TANGENT_OUTER_PWM : SIGN_GYRO_TANGENT_INNER_PWM;
 }
 
+static void straight_command(SignRouteCommand *command)
+{
+  command->active = 1U;
+  command->gentle_arc = 0U;
+  command->left_pwm = SIGN_ROUTE_PWM;
+  command->right_pwm = SIGN_ROUTE_PWM;
+}
+
+static void pivot_command(SignRouteCommand *command, int8_t direction)
+{
+  if (!direction) return;
+  command->active = 1U;
+  command->gentle_arc = 0U;
+  command->left_pwm = direction < 0 ? 0 : SIGN_ROUTE_PWM;
+  command->right_pwm = direction < 0 ? SIGN_ROUTE_PWM : 0;
+}
+
+static uint8_t narrow_line(uint8_t mask)
+{
+  mask &= 0x0FU;
+  return mask != 0U && !is_junction(mask);
+}
+
+/* Mode 4 follows the geometry in the user's drawing as five distinct moves:
+   fixed-angle entry turn, straight diagonal, sensor-followed arc, fixed-angle
+   exit turn and straight diagonal. Mode 3 never enters this function. */
+static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
+                                 SignRouteCommand *command)
+{
+  int32_t turn_yaw;
+  int64_t heading_error;
+
+  if (route.profile != SIGN_ROUTE_PROFILE_GYRO_TANGENT) return 0U;
+  if (route.state == SIGN_ROUTE_IDLE || route.state == SIGN_ROUTE_ARMED ||
+      route.state == SIGN_ROUTE_WAIT_SIGN)
+    return 1U;
+
+  if (route.state == SIGN_ROUTE_PROBE)
+  {
+    turn_yaw = -route.direction * route.yaw_mdeg;
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_TURN_TIMEOUT_MS ||
+        turn_yaw < -15000L ||
+        turn_yaw > SIGN_GYRO_TANGENT_ENTRY_MDEG + 30000L)
+    {
+      cancel_route(7U, now, command);
+      return 1U;
+    }
+    if (turn_yaw >= SIGN_GYRO_TANGENT_ENTRY_MDEG)
+    {
+      enter_phase(SIGN_ROUTE_SELECTING, now);
+      command->just_finished = 1U;
+      straight_command(command);
+      return 1U;
+    }
+    pivot_command(command, route.direction);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_SELECTING)
+  {
+    heading_error = -route.direction *
+        (route.imu_yaw - route.approach_yaw) - SIGN_GYRO_TANGENT_ENTRY_MDEG;
+    if (line_mask == 0U) route.departed = 1U;
+    if (stable((uint8_t)(route.departed && narrow_line(line_mask) &&
+                         route.travel_mm >= SIGN_GYRO_TANGENT_ENTRY_MIN_MM), now))
+    {
+      enter_phase(SIGN_ROUTE_ARC, now);
+      route.entry_line_ready = 1U;
+      command->active = 0U;
+      command->just_finished = 1U;
+      return 1U;
+    }
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_ENTRY_TIMEOUT_MS ||
+        route.travel_mm > SIGN_GYRO_TANGENT_ENTRY_MAX_MM ||
+        heading_error < -30000L || heading_error > 30000L)
+    {
+      cancel_route(2U, now, command);
+      return 1U;
+    }
+    straight_command(command);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_ARC)
+  {
+    int32_t arc_yaw = route.direction * route.yaw_mdeg;
+    if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
+        route.travel_mm > SIGN_ARC_MAX_MM || arc_yaw < -30000L ||
+        arc_yaw > SIGN_GYRO_ARC_MAX_MDEG)
+    {
+      cancel_route(3U, now, command);
+      return 1U;
+    }
+    if (stable((uint8_t)(route.travel_mm >= SIGN_ARC_MIN_MM &&
+                         arc_yaw >= SIGN_GYRO_TANGENT_ARC_MDEG), now))
+    {
+      enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
+      route.departed = 1U;
+      command->just_started = 1U;
+      pivot_command(command, route.direction);
+      return 1U;
+    }
+    /* Visible circle line stays under the same live sensor follower as mode 2.
+       Across a short all-white gap, keep a forward arc instead of spinning. */
+    if (line_mask == 0U) tangent_command(command, (int8_t)-route.direction);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_EXIT_SELECT)
+  {
+    turn_yaw = -route.direction * route.yaw_mdeg;
+    heading_error = route.direction * (route.imu_yaw - route.approach_yaw);
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_TURN_TIMEOUT_MS ||
+        turn_yaw < -15000L || turn_yaw > SIGN_SELECT_MAX_YAW_MDEG)
+    {
+      cancel_route(4U, now, command);
+      return 1U;
+    }
+    if (turn_yaw >= SIGN_EXIT_MIN_MDEG &&
+        heading_error >= -10000LL && heading_error <= 10000LL)
+    {
+      enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
+      command->just_finished = 1U;
+      straight_command(command);
+      return 1U;
+    }
+    pivot_command(command, route.direction);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_EXIT_CLEAR)
+  {
+    if (line_mask == 0U) route.departed = 1U;
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_EXIT_TIMEOUT_MS ||
+        route.travel_mm > SIGN_GYRO_TANGENT_EXIT_MAX_MM)
+    {
+      cancel_route(5U, now, command);
+      return 1U;
+    }
+    straight_command(command);
+    if (stable((uint8_t)(route.departed && is_center_line(line_mask) &&
+                         route.travel_mm >= SIGN_GYRO_TANGENT_EXIT_CLEAR_MM), now))
+    {
+      route.state = SIGN_ROUTE_LOCKED;
+      route.finished_ms = now;
+      route.none_since_ms = 0U;
+      command->active = 0U;
+      command->just_finished = 1U;
+    }
+    return 1U;
+  }
+  return 1U;
+}
+
 static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
@@ -543,6 +734,12 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       route.junction_active = 0U;
       clear_window();
     }
+    return;
+  }
+
+  if (gyro_tangent_step(line_mask, now, command))
+  {
+    command->direction = route.direction;
     return;
   }
 
