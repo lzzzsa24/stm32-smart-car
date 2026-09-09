@@ -1010,7 +1010,7 @@ static void sign_line_slowdown_task(AppMode mode)
     SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))
-      (void)BuzzerPhrase400_Start(1U);
+      (void)BuzzerPhrase400_Start(5U);
   }
   sign_slow_reasons = SignSlowdown_Reasons(HAL_GetTick());
 }

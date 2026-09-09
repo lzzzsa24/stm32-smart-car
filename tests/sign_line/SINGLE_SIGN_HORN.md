@@ -17,7 +17,8 @@ proof of correctness; STM32 arrow multi-frame confirmation remains unchanged.
 
 Mode 3/4 horn handling is independent from route direction/state. Three
 consecutive class-2 frames with score >=20, delivery age <=350 ms and adjacent
-frame gaps <=300 ms trigger BuzzerPhrase400_Start(1) once. Sequence gaps,
+frame gaps <=300 ms trigger BuzzerPhrase400_Start(5) once (five complete
+phrases, nominally 7.65 seconds, nonblocking). Sequence gaps,
 duplicates, low score and stale frames do not accumulate confirmation.
 Continuously visible horn cannot restart the sound. Non-horn observations
 spanning 800 ms with fresh continuous sequence rearm it; silence alone does
