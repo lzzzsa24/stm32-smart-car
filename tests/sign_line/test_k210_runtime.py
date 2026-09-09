@@ -16,13 +16,18 @@ def diff(a, b):
 tree = ast.parse(code)
 helpers = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
 scope = {'time': NS(ticks_diff=diff), 'THRESHOLD': .2, 'BOOT_DEBOUNCE_MS': 30}
+scope.update(ARROW_SCORE_MARGIN=.15, ARROW_OVERLAP_MIN=.35)
 exec(compile(ast.Module(body=helpers, type_ignores=[]), str(SOURCE), 'exec'), scope)
 pick, frame = scope['select_route_detection'], scope['detection_frame']
 left = (10, 10, 40, 40, 0, .25)
 right = (20, 20, 40, 40, 1, .95)
 horn = (20, 20, 40, 40, 2, .99)
 assert pick([horn, left]) == left
-assert pick([left, right]) is None
+assert pick([left, right]) == right
+assert pick([right, left]) == right
+assert pick([left, (10,10,40,40,1,.30)]) is None
+assert pick([left, (200,10,40,40,1,.95)]) is None
+assert pick([horn, (20,20,40,40,0,.95), (20,20,40,40,1,.21)])[4] == 0
 assert pick([horn]) is None
 assert pick([(0, 0, 1, 1, 1, .19), left]) == left
 assert pick([(0, 0, 1, 1, 1, float('nan')), left]) == left
@@ -48,12 +53,14 @@ assert not held.update(0, 1000)  # boot held at initialization
 class EndSimulation(Exception):
     pass
 
-def run_loop(button_enabled, low_memory=False):
+def run_loop(button_enabled, low_memory=False, detections=None):
+    detections = [left, horn] if detections is None else detections
+    expected = frame(pick(detections))
     now, images, tx, events, logs, collections = [PERIOD-300], [], [], [], [], []
     class Image:
-        def __init__(self): self.draws = 0
+        def __init__(self): self.draws = 0; self.text = []
         def draw_rectangle(self, *args, **kwargs): self.draws += 1
-        def draw_string(self, *args, **kwargs): self.draws += 1
+        def draw_string(self, *args, **kwargs): self.draws += 1; self.text.append(args[2])
     class Clock:
         def tick(self): now[0] += 50
         def fps(self): return 20.0
@@ -66,7 +73,7 @@ def run_loop(button_enabled, low_memory=False):
         def init_yolo2(self, anchors, **kwargs):
             assert kwargs['threshold'] == .2 and kwargs['classes'] == 5
         def run_with_output(self, image): events.append(('infer', len(images)))
-        def regionlayer_yolo2(self): return [left, horn]
+        def regionlayer_yolo2(self): return detections
     class UART:
         UART1 = 1
         def __init__(self, *args, **kwargs): pass
@@ -99,16 +106,27 @@ def run_loop(button_enabled, low_memory=False):
     assert len([e for e in events if e[0]=='infer']) == 24
     assert 10 <= len(tx) <= 12
     assert all(b[0]-a[0] >= 100 for a,b in zip(tx,tx[1:]))
-    assert all(v == '$D,0,25,30,30#\n' for _,v in tx)
+    assert all(v == expected for _,v in tx)
     for kind, index in events:
         if kind == 'lcd' and ('tx', index) in events:
             assert events.index(('tx', index)) < events.index(('lcd', index))
     assert len(logs) == 3  # initialization only; no per-frame debug printing
     assert namespace['SHOW_BOXES'] == button_enabled  # held button toggles once
-    assert any(img.draws for img in images) == button_enabled
+    displayed = [img for kind,index in events if kind=='lcd' for img in [images[index-1]]]
+    assert all(any(t.startswith('TX:') for t in img.text) for img in displayed)
+    assert all(img.draws == 1 for img in displayed) if not button_enabled else True
+    chosen = pick(detections)
+    text = scope['transmit_label'](chosen, detections)
+    assert displayed[-1].text[-1] == text
     assert len(collections) >= 24 if low_memory else 4 <= len(collections) < 12
     return tx
 
 assert run_loop(False) == run_loop(True)  # overlay changes must not change wire output
 run_loop(False, low_memory=True)
+run_loop(False, detections=[left,right])
+run_loop(True, detections=[left,(10,10,40,40,1,.30)])
+run_loop(False, detections=[horn])
+assert scope['transmit_label'](None, []) == 'TX:NONE EMPTY'
+assert scope['transmit_label'](None, [horn]) == 'TX:NONE NONARROW'
+assert scope['transmit_label'](None, [left, (10,10,40,40,1,.30)]) == 'TX:NONE CONFLICT'
 print('PASS: K210 helpers, BOOT bounce/hold/wrap, real loop UART before display, overlay isolation, GC fallback')

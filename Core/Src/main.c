@@ -7,8 +7,8 @@
  *     触发 V2 黑线绕障控制器；直线段由编码器限制距离，转弯段由
  *     MPU6050 实测相对偏航角，随后在障碍另一侧重新捕获黑线。
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
- *   - 按下 KEY3：SL2 四线循迹 + K210 圆环入弧/出口导航。
- *   - 遥控数字 4：独立 SL2 简化四线循迹 + 同一套标志选路。
+ *   - 按下 KEY3/遥控数字 4：SL2 四线循迹 + K210 圆环导航；MPU6050
+ *     约束入弧、半圆与出口航向，失效时撤销导航而不盲目转向。
  *   - 遥控数字 5：K210 v4 整线测量 + STM32 曲线循迹，不识别路标。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
  *
@@ -18,6 +18,7 @@
 
 #include "main.h"
 #include "line_fault_log.h"
+#include "sign_trace.h"
 #include "gpio.h"
 
 #include <stdint.h>
@@ -153,6 +154,8 @@ static uint8_t bypass_ir_trigger_candidate;
 static uint32_t bypass_ir_trigger_since_ms;
 static LineWaitGuard line_wait_guard;
 static uint8_t imu_dump_requested, imu_calibrate_requested;
+static uint8_t vision_line_fallback;
+static uint32_t imu_generation;
 static int8_t line_wait_side;
 static SimpleLineController simple_line_controller;
 static uint8_t sign_line_mask;
@@ -468,6 +471,12 @@ static uint8_t app_take_serial_virtual_key(void)
     case 'f':
     case 'F':
       LineFaultLog_RequestDump();
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'j':
+      SignTrace_Request(0U);
+      return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'J':
+      SignTrace_Request(1U);
       return IR_REMOTE_VIRTUAL_KEY_NONE;
     case '0':
       DfPlayerMini_Stop();
@@ -787,7 +796,8 @@ static void oled_application_task(AppMode mode)
           route_status.last_class,
           route_status.last_score,
           route_status.vision_online,
-          route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
+          (route_status.searching && route_status.state != SIGN_ROUTE_PROBE) ?
+              (uint8_t)SIGN_ROUTE_SEARCHING : (uint8_t)route_status.state,
           route_status.direction);
     }
     else
@@ -907,7 +917,10 @@ static void apply_sign_line_pwm(int16_t left_pwm,
   sign_speed_limit_cps = SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm);
   DriveBase_SetSpeedLimitCps(sign_speed_limit_cps);
   DriveBase_SetLineFaultObservation(1U, line_mask, controller_state);
-  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  if ((left_cps < 0 && right_cps > 0) || (left_cps > 0 && right_cps < 0))
+    DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  else
+    DriveBase_PrepareLineTurnAssist(0, 0);
   if (left_cps == 0L && right_cps == 0L)
   {
     DriveBase_Stop(DRIVE_STOP_COAST);
@@ -923,6 +936,8 @@ static void sign_line_telemetry_task(AppMode mode,
 {
   VisionUartStats stats;
   uint32_t now = HAL_GetTick();
+
+  SignTrace_Record(now, sign_line_mask, route_status);
 
   if (!tick_reached(now, last_sign_uart_ms + 500U))
   {
@@ -954,6 +969,8 @@ static void sign_line_telemetry_task(AppMode mode,
   DiagnosticUart_WriteSigned(route_status->travel_mm);
   DiagnosticUart_WriteString(" YAW=");
   DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
+  DiagnosticUart_WriteString(" IMU=");
+  DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
   DiagnosticUart_WriteString(" SLOW=");
   DiagnosticUart_WriteUnsigned(sign_slow_reasons);
   DiagnosticUart_WriteString(" CAP=");
@@ -998,26 +1015,40 @@ static void sign_line_slowdown_task(AppMode mode)
 static void sign_line_task(AppMode mode)
 {
   SignRouteCommand route_command;
+  MpuYawReading yaw;
   SignRouteStatus route_status;
   WheelEncoderCounts counts;
-  LineTrackingReading line = line_tracking_read();
-  uint32_t now = HAL_GetTick();
+  LineTrackingReading line;
+  uint32_t now;
 
+  /* Diagnostics/display may have run after the background service. Consume
+     available FIFO history immediately before this angle-dependent decision. */
+  MpuYaw_Refresh(HAL_GetTick());
+  line = line_tracking_read();
+  now = HAL_GetTick();
   sign_line_mask = line_reading_mask(&line);
   /* Keep sampling the real line even while a route preference is active. */
-  SimpleLine_Step(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
+  MpuYaw_GetReading(&yaw);
+  SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
   SignRoute_Step(sign_line_mask, now, &route_command);
+  SignRoute_GetStatus(now, &route_status);
+  if (route_status.state == SIGN_ROUTE_PROBE && route_status.direction != 0)
+    SimpleLine_SetDirection(&simple_line_controller, route_status.direction);
+  if (route_status.state == SIGN_ROUTE_ARC && route_command.just_finished)
+    SimpleLine_SetDirection(&simple_line_controller, (int8_t)-route_status.direction);
+  /* Both normal following and ARC use the steady profile, after route hints. */
+  SimpleLine_StepSlow(&simple_line_controller, sign_line_mask);
 
-  if (route_command.just_started != 0U || route_command.just_finished != 0U)
+  if ((route_command.just_started != 0U || route_command.just_finished != 0U) &&
+      route_status.state != SIGN_ROUTE_ARC)
   {
     /* Never resume the old enhanced controller's latched in-place recovery.
        Both sign modes use the same SL2 path that can follow the user's arc. */
     SignRoute_GetStatus(now, &route_status);
     SimpleLine_SetDirection(&simple_line_controller,
-        route_status.state == SIGN_ROUTE_ARC ? (int8_t)-route_status.direction :
-                                               route_status.direction);
+        route_status.direction);
   }
 
   if (route_command.active != 0U)
@@ -1070,6 +1101,21 @@ static void vision_line_v4_task(void)
   int32_t right_cps;
 
   VisionLineV4Control_Step(&reading, now, &vision_line_v4_command);
+  /* Camera loss is loss of one input, not an operator STOP. The independent
+     four-channel line sensors remain available on this car. */
+  if (vision_line_v4_command.state == VISION_LINE_V4_WAITING ||
+      vision_line_v4_command.state == VISION_LINE_V4_LINK_STOP)
+  {
+    if (!vision_line_fallback) line_tracking_start_following();
+    vision_line_fallback = 1U;
+    (void)line_tracking_follow_once(2200, (int16_t)MOTOR_PWM_PERIOD);
+    return;
+  }
+  if (vision_line_fallback)
+  {
+    line_tracking_reset();
+    vision_line_fallback = 0U;
+  }
   left_cps = DriveBase_EquivalentCpsFromPwm(
       vision_line_v4_command.left_pwm);
   right_cps = DriveBase_EquivalentCpsFromPwm(
@@ -1413,80 +1459,12 @@ static void experiment7_integrated_once(void)
 /* A running line mode may wait, but no automatic owner may park forever.
    Called before fault/ultrasonic/bypass early returns, after operator mode
    changes. The timeout recovery issues rotation only, then retries owners. */
-static uint8_t service_legacy_line_wait(AppMode mode)
-{
-  DriveBaseTelemetry telemetry;
-  LineWaitAction action;
-  uint32_t now = HAL_GetTick();
-  uint8_t enabled = mode == APP_MODE_INTEGRATED ||
-      mode == APP_MODE_LINE_ONLY;
-  uint8_t paused;
-  DriveBase_GetTelemetry(&telemetry);
-  paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||
-      telemetry.mode == DRIVE_BASE_FAULT || telemetry.fault_mask != 0U;
-  action = LineWaitGuard_Update(&line_wait_guard, enabled, paused, now);
-  if (action == LINE_WAIT_BEGIN_RECOVERY)
-  {
-    LineSearchRecord record = {0};
-    LineTrackingReading line = line_tracking_read();
-    IrAvoidReading infrared = {0};
-    int8_t line_side = line_tracking_direction_evidence(&line);
-    line_wait_side = LineRecovery_GetDirection();
-    if (mode == APP_MODE_INTEGRATED)
-    {
-      infrared = ir_avoid_read();
-    }
-    if (mode == APP_MODE_INTEGRATED &&
-        (infrared.left_obstacle || infrared.right_obstacle))
-      line_wait_side = choose_bypass_direction(&infrared);
-    else if (line_side) line_wait_side = line_side;
-    if (line_wait_side == 0) line_wait_side = -1;
-    record.time_ms = now; record.source = LINE_SEARCH_WAIT_RECOVERY;
-    record.chosen_side = line_wait_side;
-    record.edge_age_ms = record.wide_age_ms = UINT32_MAX;
-    record.drive_fault = telemetry.fault_mask;
-    record.bypass_fault = LineObstacleBypass_GetFaultMask();
-    record.pause_reason = record.drive_fault ? 1U : (record.bypass_fault ? 2U :
-        ((mode == APP_MODE_INTEGRATED && UltrasonicAvoid_GetState() != ULTRASONIC_AVOID_FORWARD) ? 3U : 4U));
-    LineFaultLog_RecordSearch(&record); /* Preserve reason before clearing it. */
-    WheelSpeedObserver_Stop();
-    LineObstacleBypass_Stop();
-    DriveBase_Stop(DRIVE_STOP_COAST); /* ClearFault deliberately rejects active braking. */
-    DriveBase_ClearFault();
-    cancel_vision_action();
-    line_tracking_reset();
-    BuzzerPhrase400_Start(1U);
-  }
-  if (action == LINE_WAIT_BEGIN_RECOVERY || action == LINE_WAIT_RECOVERING)
-  {
-    LineWaitGuard_Drive(line_wait_side);
-    return 1U;
-  }
-  if (action == LINE_WAIT_END_RECOVERY)
-  {
-    DriveBase_Stop(DRIVE_STOP_COAST);
-    BuzzerPhrase400_Stop();
-    line_tracking_reset();
-    if (mode == APP_MODE_INTEGRATED)
-    {
-      bypass_rearm_pending = 1U; bypass_ir_clear_samples = 0U;
-      bypass_ir_trigger_candidate = 0U;
-      bypass_rearm_not_before_ms = now + BYPASS_REARM_DELAY_MS;
-      configure_ultrasonic_avoid();
-    }
-    WheelSpeedObserver_Start();
-    last_fast_speed_cps = 0U; last_fast_speed_ms = now;
-  }
-  return 0U;
-}
-
 static uint8_t service_bounded_line_wait(AppMode mode)
 {
-  if (mode != APP_MODE_INTEGRATED) return service_legacy_line_wait(mode);
   DriveBaseTelemetry telemetry;
   LineWaitAction action;
   uint32_t now = HAL_GetTick();
-  uint8_t enabled = mode == APP_MODE_INTEGRATED;
+  uint8_t enabled = mode != APP_MODE_STOPPED;
   uint8_t paused;
   DriveBase_GetTelemetry(&telemetry);
   paused = telemetry.mode == DRIVE_BASE_STOPPED || telemetry.mode == DRIVE_BASE_BRAKING ||
@@ -1537,6 +1515,10 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     DriveBase_ClearFault();
     LineBypassTurn_Recover();
     DriveBase_SetSpeedLimitCps(0L);
+    SignRoute_Reset();
+    SimpleLine_Stop(&simple_line_controller);
+    SimpleLine_Start(&simple_line_controller);
+    SimpleLine_SetDirection(&simple_line_controller, line_wait_side);
     cancel_vision_action();
     line_tracking_start_following();
     app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
@@ -1607,6 +1589,7 @@ int main(void)
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
+  SignTrace_Init();
   SignSlowdown_Reset();
   VisionLineV4Control_Init();
   vision_uart_init();
@@ -1652,7 +1635,7 @@ int main(void)
 
   OledStatus_Init();
   MpuYaw_Init(HAL_GetTick());
-  DiagnosticUart_WriteString("IMU: KEEP STILL 2s; g=STATUS c=RECALIBRATE IN STOP; KEY1 GYRO OR ENCODER FALLBACK\r\n");
+  DiagnosticUart_WriteString("IMU: KEEP STILL 2s; g=STATUS c=RECALIBRATE IN STOP; KEY1 REQUIRES READY\r\n");
 
   /* 烧录和连线调试期间默认锁存停车；按1/2/3/4/5后才启动对应功能。 */
   line_tracking_set_no_line_forward(0U);
@@ -1698,6 +1681,15 @@ int main(void)
         else DiagnosticUart_WriteString("IMU CAL REJECTED: STOP FIRST\r\n");
       }
       MpuYaw_Task(HAL_GetTick(), stationary);
+      {
+        MpuYawReading imu;
+        MpuYaw_GetReading(&imu);
+        if (imu.generation != imu_generation)
+        {
+          imu_generation = imu.generation;
+          SignRoute_Reset(); /* Never span an unobserved yaw interval. */
+        }
+      }
       /* In operator STOP, acknowledge a transient fault without any motion.
          Active modes use the separately bounded automatic recovery below. */
       if (stationary) (void)GyroTurn_ClearTransientFault();
@@ -1771,6 +1763,7 @@ int main(void)
       SignRoute_Reset();
       vision_uart_reset_detections();
       VisionLineV4Control_Init();
+      vision_line_fallback = 0U;
       vision_uart_reset_line_v4();
 
       advanced_stop();
@@ -1871,6 +1864,7 @@ int main(void)
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
+    SignTrace_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
     if (service_bounded_line_wait(app_mode))
     {
       HAL_Delay(1U);
