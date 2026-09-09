@@ -41,7 +41,7 @@ assert "DRIVE_SIGN_POWERED" not in drive
 adapter = (ROOT / "Core/Src/sign_line_follow.c").read_text(encoding="utf-8")
 tracking = (ROOT / "Core/Src/line_tracking.c").read_text(encoding="utf-8")
 assert "line_tracking_start_following();" in adapter
-assert "line_tracking_compute(reading, base_speed, &output)" in adapter
+assert "line_tracking_compute_slow(reading, base_speed, &output)" in adapter
 assert "line_tracking_apply_command(&output, MOTOR_PWM_PERIOD);" in adapter
 assert "line_tracking_make_route_command(" in adapter
 assert "SignSlowdown" not in adapter

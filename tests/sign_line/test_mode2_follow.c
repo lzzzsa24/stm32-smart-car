@@ -109,11 +109,10 @@ static void parity(uint32_t origin)
         LineTrackingCommand normal;
         LineTrackingAction a;
         reading=line_tracking_read();
-        a=line_tracking_compute(&reading,3000,&normal);
-        /* New sign policy has a fixed normal straight target. All steering
-           and search still use the unmodified KEY2 reference commands. */
+        a=line_tracking_compute_slow(&reading,3000,&normal);
+        /* Shared slow profile; recovery may supply its own straight command. */
         if(normal.valid && (a==LINE_ACTION_FORWARD || a==LINE_ACTION_CROSSING))
-          normal.left_cps=normal.right_cps=DriveBase_EquivalentCpsFromPwm(2700);
+          normal.left_cps=normal.right_cps=DriveBase_EquivalentCpsFromPwm(2200);
         line_tracking_apply_command(&normal,3599);
         action=normalized(a);
       }
@@ -136,17 +135,58 @@ static void parity(uint32_t origin)
       if(!pass)baseline[i].action=action; else assert(baseline[i].action==action);
     }
   }
-  puts("PASS: 4000 sign samples match KEY2 steering/search with steady normal straight speed, all wheel outputs and actions");
+  puts("PASS: 4000 sign samples match shared slow tracking/search, all wheel outputs and actions");
 }
-static void normal_speed_and_recognition(void)
+static uint8_t key2_step(uint8_t mask)
+{
+  LineTrackingReading reading;
+  LineTrackingCommand command;
+  LineTrackingAction action;
+  set_mask(mask); tick+=10U; LineSensorSample_Tick(tick);
+  reading=line_tracking_read();
+  action=line_tracking_compute(&reading,3000,&command);
+  line_tracking_apply_command(&command,3599);
+  DriveBase_Task(tick); DriveBase_GetTelemetry(&drive);
+  return normalized(action);
+}
+static void slow_profile_matches_key2_settle(void)
+{
+  unsigned mask,i,w;
+  int32_t expected[4];
+  uint8_t action;
+  for(mask=0;mask<16;++mask)
+  {
+    /* The ordinary KEY2 API in its actual rejoin/settle state is the oracle,
+       not the new slow-profile entry. The same first contact precedes each mask. */
+    init(0,100); line_tracking_rejoin_from_bypass(6);
+    key2_step(6); action=key2_step((uint8_t)mask);
+    memcpy(expected,drive.requested_cps,sizeof(expected));
+    init(1,100); sample(6,0);
+    assert(sample((uint8_t)mask,0)==action);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==expected[w]);
+  }
+  init(1,100);
+  for(i=0;i<3000;++i)
+  {
+    sample(6,0);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  }
+  /* A sign-mode run must not force KEY2 to stay slow after a mode switch. */
+  SignLineFollow_Stop(&follower); line_tracking_start_following();
+  for(i=0;i<100;++i) key2_step(6);
+  for(w=0;w<4;++w)
+    assert(drive.requested_cps[w]==DriveBase_EquivalentCpsFromPwm(2700));
+  puts("PASS: all 16 masks match actual KEY2 settle targets, 30s steady slow travel, KEY2 cruise restored on switch");
+}
+static void slow_speed_and_recognition(void)
 {
   unsigned i;
   uint32_t pause_start;
-  const int32_t cruise=DriveBase_EquivalentCpsFromPwm(2700);
+  const int32_t cruise=DriveBase_EquivalentCpsFromPwm(2200);
   init(1,100);
   sample(6,0); assert(drive.requested_cps[0]==cruise);
   pause_start=tick;
-  /* Retain exactly two seconds of observation, then restore normal cruise
+  /* Retain exactly two seconds of observation, then restore the slow profile
      with no post-pause speed cap or repeat stop after direction confirmation. */
   for(i=0;i<300;++i)
   {
@@ -169,7 +209,7 @@ static void normal_speed_and_recognition(void)
   assert(drive.requested_cps[0]==-drive.requested_cps[2]&&drive.requested_cps[0]!=0);
   SignLineFollow_Stop(&follower); sample(0,0);
   for(i=0;i<4;++i)assert(!pins[i]&&!drive.requested_cps[i]);
-  puts("PASS: fixed 2-second observation, normal-speed resume, no repeated confirmed stop, all-black normal speed and STOP");
+  puts("PASS: fixed 2-second observation, slow-speed resume, no repeated confirmed stop, same all-black speed and STOP");
 }
 static void ring(int side,uint32_t origin)
 {
@@ -217,7 +257,7 @@ static void ring(int side,uint32_t origin)
     tick+=40; sample(0,-side*12000);
     assert(route.state==SIGN_ROUTE_EXIT_CLEAR);
     assert(drive.requested_cps[0]>0&&drive.requested_cps[0]==drive.requested_cps[2]);
-    assert(drive.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(2700));
+    assert(drive.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(2200));
   }
   for(i=0;i<2;++i){tick+=40;sample(6,-side*12000);}
   assert(route.state==SIGN_ROUTE_LOCKED);
@@ -253,7 +293,8 @@ static void late_choice(int side)
 int main(void)
 {
   parity(100); parity(UINT32_MAX-400U);
-  normal_speed_and_recognition();
+  slow_profile_matches_key2_settle();
+  slow_speed_and_recognition();
   late_choice(-1);late_choice(1);
   ring(-1,100);ring(1,100);ring(-1,UINT32_MAX-120U);ring(1,UINT32_MAX-120U);
   return 0;

@@ -171,8 +171,8 @@ void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
   if (base_speed <= 0) { command_stop(command); return; }
   if (!direction)
   {
-    int16_t cruise = base_speed > TRACKING_NORMAL_CENTER_PWM ?
-        TRACKING_NORMAL_CENTER_PWM : base_speed;
+    int16_t cruise = base_speed > TRACKING_SETTLE_CENTER_PWM ?
+        TRACKING_SETTLE_CENTER_PWM : base_speed;
     command_set_pwm(command, cruise, cruise, LINE_ACTION_FORWARD);
   }
   else
@@ -673,9 +673,10 @@ static void consume_sampled_evidence(uint32_t through_ms)
       LineRecovery_ObserveDirection(&r, sample.time_ms);
   }
 }
-LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
+static LineTrackingAction line_tracking_compute_profile(const LineTrackingReading *reading,
                                          int16_t base_speed,
-                                         LineTrackingCommand *command)
+                                         LineTrackingCommand *command,
+                                         uint8_t hold_slow_profile)
 {
   int16_t turn_inner_speed;
   int16_t turn_outer_speed;
@@ -867,7 +868,7 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
     }
     else settling = 1U;
   }
-  if (settling)
+  if (settling || hold_slow_profile)
   {
     /* Single-side outer evidence already returned to continuous turning.
        Middle and ambiguous/crossing patterns receive low-speed guidance. */
@@ -1046,4 +1047,18 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
   /* active_count==0 已在函数前半段处理，此处只作防御。 */
   command_stop(command);
   return LINE_ACTION_STOP;
+}
+
+LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
+                                         int16_t base_speed,
+                                         LineTrackingCommand *command)
+{
+  return line_tracking_compute_profile(reading, base_speed, command, 0U);
+}
+
+LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command)
+{
+  return line_tracking_compute_profile(reading, base_speed, command, 1U);
 }

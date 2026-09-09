@@ -75,7 +75,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     if (paused) action = 6U;
     else if (route_command->active)
     {
-      /* Route chooses heading; the shared normal profile chooses wheel CPS. */
+      /* Route chooses heading; KEY2's slow rejoin profile chooses wheel CPS. */
       if (route_command->left_pwm > 0 || route_command->right_pwm > 0)
         line_tracking_make_route_command(
             route_command->left_pwm == route_command->right_pwm ? 0 :
@@ -95,10 +95,10 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
   }
   else
   {
-    LineTrackingAction line_action = line_tracking_compute(reading, base_speed, &output);
+    LineTrackingAction line_action = line_tracking_compute_slow(reading, base_speed, &output);
     action = display_action(line_action);
-    /* Sign modes cruise through all-black bars, short gaps and rejoin at the
-       same normal straight target; do not inherit a temporary straight downshift. */
+    /* One slow straight target for bars, gaps, rejoin and exit travel, including
+       commands supplied by recovery. No timed acceleration or recognition cap. */
     if (output.valid && (line_action == LINE_ACTION_FORWARD || line_action == LINE_ACTION_CROSSING))
     {
       line_tracking_make_route_command(0, base_speed, &output);

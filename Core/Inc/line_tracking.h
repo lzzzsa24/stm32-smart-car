@@ -73,8 +73,8 @@ void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t
 /* Yield to a route/observation owner without issuing a stop or a motor command.
    Clears stale recovery/history; the new owner must apply its command next. */
 void line_tracking_yield_to_route(void);
-/* Build a normal profile command without running recovery or moving motors:
-   direction 0 = steady cruise, -1/+1 = normal left/right forward pivot. */
+/* Build a route command using KEY2's slow rejoin profile:
+   direction 0 = settle straight, -1/+1 = existing left/right outer pivot. */
 void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
                                       LineTrackingCommand *command);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才静音搜索。
@@ -101,6 +101,12 @@ int8_t line_tracking_direction_evidence(const LineTrackingReading *reading);
 LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command);
+/* Sign-mode entry: retain KEY2's slow rejoin speeds on visible line instead
+   of accelerating to cruise. Search/history/STOP use the same implementation;
+   this per-call choice cannot leak into another driving mode. */
+LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command);
 
 #ifdef __cplusplus
 }
