@@ -70,7 +70,7 @@ status = main[main.index("/* KEY1/KEY2 保留红外状态灯") - 180:]
 assert "EXP7_IR_AVOID_ENABLED" in status[:180]
 print("PASS: obstacle IR disabled at emitters/calibration/trigger/display; shared battery ADC and remote STOP retained")
 import re
-for name,value in (("STOP_CM",20),("CLEAR_CM",35),("EMERGENCY_MAX_CM",30),("LOOKAHEAD_MS",160),("BYPASS_STOP_CM",15)):
+for name,value in (("STOP_CM",16),("CLEAR_CM",28),("EMERGENCY_MAX_CM",22),("LOOKAHEAD_MS",100),("BYPASS_STOP_CM",15)):
     assert re.search(r"#define EXP7_ULTRASONIC_"+name+r"\s+"+str(value)+r"U\b",main)
 assert "LineBypassRange_Task(" in bypass
 assert "LineObstacleBypass_GetState() == LINE_BYPASS_DRIVING" in bypass
@@ -78,3 +78,5 @@ assert "EXP7_ULTRASONIC_BYPASS_STOP_CM" in bypass
 assert "LineBypassRange_Reset();" in transition
 assert main.count("LineBypassRange_Reset();") == 3
 print("PASS: earlier approach thresholds and reset/forward-only bypass range ownership")
+assert re.search(r"#define EXP7_BYPASS_FORWARD_CPS\s+4000U\b", main)
+assert re.search(r"#define EXP7_BYPASS_RETURN_CPS\s+4000U\b", main)

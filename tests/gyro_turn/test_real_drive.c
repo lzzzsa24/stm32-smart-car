@@ -269,7 +269,7 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
   reset(); LineObstacleBypass_GetDefaultConfig(&config);
   config.fixed_route_direction=(int8_t)direction;
   config.infrared_enabled=infrared;
-  config.forward_cps=2600; config.return_cps=2300; config.turn_cps=2500;
+  config.forward_cps=4000; config.return_cps=4000; config.turn_cps=2500;
   LineObstacleBypass_Init(&config);
   input.infrared_valid=1;
   input.left_ir_adc=input.right_ir_adc=3000;
@@ -284,6 +284,12 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
       printf("fixed failed phase=%u yaw=%ld gyro=%u\n",phase,(long)b.return_yaw_mdeg,GyroTurn_GetFault());
     assert(b.state!=LINE_BYPASS_FAULT && b.state!=LINE_BYPASS_DONE);
     assert(b.bypass_direction==direction && !b.fixed_route_fallback);
+    if(b.fixed_route_phase==LINE_FIXED_OFFSET || b.fixed_route_phase==LINE_FIXED_PARALLEL)
+    {
+      DriveBaseTelemetry d=drive(); unsigned w;
+      if(d.mode==DRIVE_BASE_SPEED)
+        for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
+    }
     if(b.fixed_route_phase!=phase)
     {
       assert(b.fixed_route_phase==phase+1); phase=b.fixed_route_phase; ++changes;
@@ -313,7 +319,7 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
     unsigned w;
     plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
     d=drive(); assert(b.fixed_route_phase==LINE_FIXED_RETURN && b.return_cruise);
-    for(w=0;w<4;++w) assert(d.requested_cps[w]==2100);
+    for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
   }
   ++tick; LineObstacleBypass_ObserveRawSensors(direction>0?8U:2U,tick);
   ++tick; LineObstacleBypass_ObserveRawSensors(0,tick); LineObstacleBypass_Task(&input);

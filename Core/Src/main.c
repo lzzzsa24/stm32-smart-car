@@ -78,10 +78,10 @@
 #define EXP7_ULTRASONIC_SLOW_SPEED     2600
 /* Earlier approach trigger; keep the close guard within an active detour
    separate from the approach threshold to avoid clipping every corner. */
-#define EXP7_ULTRASONIC_STOP_CM          20U
-#define EXP7_ULTRASONIC_CLEAR_CM         35U
-#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 30U
-#define EXP7_ULTRASONIC_LOOKAHEAD_MS    160U
+#define EXP7_ULTRASONIC_STOP_CM          16U
+#define EXP7_ULTRASONIC_CLEAR_CM         28U
+#define EXP7_ULTRASONIC_EMERGENCY_MAX_CM 22U
+#define EXP7_ULTRASONIC_LOOKAHEAD_MS    100U
 #define EXP7_ULTRASONIC_BYPASS_STOP_CM   15U
 #define EXP7_ASSUMED_FAST_SPEED_CPS    5300U
 #define EXP7_EMERGENCY_BRAKE_SPEED_CPS 3500U
@@ -98,9 +98,9 @@
 #define EXP7_ULTRASONIC_GUARD_TIME_MS    60U
 #define EXP7_ULTRASONIC_NO_ECHO_COUNT     3U
 #define EXP7_BYPASS_REVERSE_CPS        1900U
-#define EXP7_BYPASS_FORWARD_CPS        2600U
+#define EXP7_BYPASS_FORWARD_CPS        4000U
 #define EXP7_BYPASS_CLEAR_PROBE_CPS    2200U
-#define EXP7_BYPASS_RETURN_CPS         2300U
+#define EXP7_BYPASS_RETURN_CPS         4000U
 #define EXP7_BYPASS_TURN_CPS           2500U
 #define EXP7_PASSIVE_MEASURE_INTERVAL_MS  70U
 #define EXP7_VISION_ENABLED                 0U

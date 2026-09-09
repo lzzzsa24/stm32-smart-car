@@ -1034,6 +1034,34 @@ static void test_bypass_travel(void)
   puts("PASS: 20/40-mm forward/reverse travel caps cruise at continuous 1800 CPS through old pulse tail; four-wheel PWM, wrap and whole-car completion");
 }
 
+static void test_fixed_travel_speed(void)
+{
+  DriveBaseTelemetry d;
+  unsigned w;
+  LineBypassTravel_Stop(); reset();
+  assert(!LineBypassTravel_StartFixed(0,2600));
+  assert(!LineBypassTravel_StartFixed(-300,2600));
+  assert(!LineBypassTravel_StartFixed(300,4001));
+  assert(LineBypassTravel_StartFixed(300,4000));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==4000);
+  assert(!LineBypassTravel_Start(20,2600));
+  DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTravel_Task();
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_StartFixed(360,1900));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==1900);
+  LineBypassTravel_Stop(); reset();
+  assert(LineBypassTravel_Start(40,3600));
+  DriveBase_GetTelemetry(&d);
+  for(w=0;w<4;++w) assert(d.requested_cps[w]==1800);
+  LineBypassTravel_Stop(); reset();
+  EncoderLinear_Init(); assert(EncoderLinear_Start(40,2600));
+  assert(!LineBypassTravel_StartFixed(300,2600)); EncoderLinear_Stop();
+  puts("PASS: fixed forward 4000-CPS cap, lower requested speed, legacy 1800-CPS probes, STOP and owner exclusivity");
+}
+
 static void test_bypass_travel_ownership(void)
 {
   DriveBaseTelemetry drive;
@@ -1411,6 +1439,7 @@ int main(void)
   test_legacy_bypass_short_tail();
   test_bypass_travel();
   test_bypass_travel_ownership();
+  test_fixed_travel_speed();
   test_bypass_continuous_turn(1,15000);
   test_bypass_continuous_turn(-1,45000);
   tick=UINT32_MAX-200;

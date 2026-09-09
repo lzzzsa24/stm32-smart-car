@@ -30,6 +30,8 @@ void LineBypassTravel_Stop(void) { travel_state=LINE_BYPASS_TRAVEL_IDLE; }
 uint8_t LineBypassTravel_Start(int32_t mm,int32_t cps)
 { travel_request=mm; travel_progress=0; ++travel_calls; travel_state=LINE_BYPASS_TRAVEL_RUNNING; DriveBase_SetSideCps(cps,cps); return 1; }
 void LineBypassTravel_Task(void) {}
+uint8_t LineBypassTravel_StartFixed(int32_t mm,int32_t cps)
+{ assert(mm>0); return LineBypassTravel_Start(mm,cps); }
 LineBypassTravelState LineBypassTravel_GetState(void) { return travel_state; }
 uint32_t LineBypassTravel_GetProgressMm(void) { return travel_progress; }
 uint8_t LineBypassTravel_GetFaultMask(void) { return 0; }
@@ -71,7 +73,7 @@ static LineObstacleBypassInput fixed_setup(int direction)
   test_ready=1; test_imu.yaw_mdeg=1230000; test_imu.generation=7;
   turn_calls=travel_calls=0; turn_achieved=turn_request=travel_request=0; travel_progress=0;
   LineObstacleBypass_GetDefaultConfig(&config); config.fixed_route_direction=(int8_t)direction;
-  config.return_cps=2300; config.turn_cps=2500;
+  config.forward_cps=4000; config.return_cps=4000; config.turn_cps=2500;
   LineObstacleBypass_Init(&config); assert(LineObstacleBypass_Start((int8_t)-direction));
   input.infrared_valid=1; input.left_ir_adc=input.right_ir_adc=3000;
   input.left_ir_threshold=input.right_ir_threshold=1700;
@@ -112,7 +114,13 @@ static void test_fixed_route(void)
     fixed_step(&input); assert(turn_request==47000*direction && turn_calls==3);
     fixed_step(&input); assert(fixed_phase==LINE_FIXED_RETURN && return_cruise);
     for(i=0;i<100;++i) { ++test_ms; LineObstacleBypass_Task(&input); }
-    assert(turn_calls==3 && travel_calls==2 && test_drive.requested_cps[0]==2100);
+    assert(turn_calls==3 && travel_calls==2 && test_drive.requested_cps[0]==4000);
+    /* A 4000-CPS cruise must remain usable after leaving the fixed route. */
+    fixed_phase=LINE_FIXED_NONE;
+    assert(start_linear_motion(BYPASS_INTENT_FOLLOW_FLANK,40,bypass_config.forward_cps));
+    assert(test_drive.requested_cps[0]==3600);
+    drive_return_continuously();
+    assert(test_drive.requested_cps[0]==2100);
 
     /* STOP cancels every phase, including the continuous diagonal. */
     for(phase=LINE_FIXED_ENTRY;phase<=LINE_FIXED_RETURN;++phase)

@@ -438,10 +438,20 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
                                    int32_t distance_mm,
                                    uint16_t cps)
 {
+  uint8_t started;
   LineBypassTurn_Stop();
   LineBypassTravel_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
-  if (LineBypassTravel_Start(distance_mm, (int32_t)cps) == 0U)
+  if (fixed_phase == LINE_FIXED_OFFSET || fixed_phase == LINE_FIXED_PARALLEL)
+    started = LineBypassTravel_StartFixed(distance_mm, (int32_t)cps);
+  else
+  {
+    /* A fixed-route cruise request also reaches adaptive fallback. Keep its
+       short probes within the legacy travel API's accepted input range. */
+    if (cps > 3600U) cps = 3600U;
+    started = LineBypassTravel_Start(distance_mm, (int32_t)cps);
+  }
+  if (started == 0U)
   {
     enter_fault(BYPASS_FAULT_CONTROLLER);
     return 0U;
@@ -1084,10 +1094,11 @@ static uint8_t both_ir_clear(const LineObstacleBypassInput *input)
 static void drive_return_continuously(void)
 {
   int32_t cps = bypass_config.return_cps;
+  int32_t maximum_cps = fixed_phase == LINE_FIXED_RETURN ? 4000L : 2100L;
   if (cps < 1412L) cps = 1412L;
   /* Clear, gyro-aligned continuous return can run faster than the bounded
      short obstacle-probing segments, whose 1800-CPS cap remains separate. */
-  if (cps > 2100L) cps = 2100L;
+  if (cps > maximum_cps) cps = maximum_cps;
   DriveBase_SetLineFaultObservation(1U, latest_line_mask, 254U);
   DriveBase_SetSideCps(cps, cps);
 }
