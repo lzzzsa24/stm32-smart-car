@@ -23,10 +23,10 @@ flashed_bin_sha256: 447312E5EA041F297FAA10773475D56002318A6E4100E493E36777760B77
 flashed_hex_sha256: BCC7AD73FB126F6AC52175177DC657B85102ADC96E73102759F1D840BDBA2BBE
 ground_test_status: not_tested_after_533e355_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 5cb1bd35f90e2f2ab52b73092bc1046cb064bf59
-candidate_bin_size_bytes: 108608
-candidate_bin_sha256: 2E729D03C0AB00F49EED95A6C02E78B278F6873DA738C005DB2AF0C7676E6D8A
-candidate_hex_sha256: 62C0F9C4544AF8C9E51EE717FF8A05DF2A541023DBA0F5F3C40714DB7FF15889
+candidate_source_commit: a6c61d30f4936aabf25ecc70ff9ae2bd304c088a
+candidate_bin_size_bytes: 108800
+candidate_bin_sha256: 8D35B9376F602C68DD8B05BF62D7360DB7DD3973C89F9EB30CAF131EEBD500CB
+candidate_hex_sha256: FFD47049FE1210E9B0ED9521EBB25B0F08A530C33407A3ACB7FEAB2F1331E0E8
 user_reported_flash: tool_verified_533e355_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed candidate: a6c61d3
+
+b67ca7b integrated onto5cb1bd3. Sign control now mode3 only,4=STOP/reserved;
+ARC live feedback and phase-anchored110-degree entry search updated. Mode1
+250/300-mm fast bypass retained; side IR disabled. Full sign/line/gyro suites
+and build passed. No serial/flash/physical test/push. Board remains533e355;
+K210 and main code unchanged. See
+docs/history/candidates/COMPREHENSIVE_A6C61D3_20260909.md.
+Supersedes older candidate statements only.
 
 ### Latest unflashed candidate: 5cb1bd3
 
