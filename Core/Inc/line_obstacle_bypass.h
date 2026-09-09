@@ -65,7 +65,7 @@ typedef struct
   uint8_t line_clear_samples;
   uint8_t line_confirm_samples;
   /* 0=adaptive; +1=fixed right route; -1=mirrored left route. Distances are
-     wheel-centre travel: outward 240 mm, parallel 120 mm, then inward 45 deg. */
+     wheel-centre travel: outward 360 mm, parallel 600 mm, then inward 45 deg. */
   int8_t fixed_route_direction;
   /* Explicit test policy: zero ignores side IR, including invalid samples.
      Front ultrasonic and line contact remain authoritative. Default is on. */

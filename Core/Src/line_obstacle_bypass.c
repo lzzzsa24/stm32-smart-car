@@ -13,8 +13,8 @@
 #define BYPASS_FAULT_INFRARED_INVALID       0x40U
 #define BYPASS_FAULT_INPUT_INVALID          0x80U
 #define BYPASS_ADC_MAX                      4095U
-#define FIXED_OFFSET_MM                      240U
-#define FIXED_PARALLEL_MM                    120U
+#define FIXED_OFFSET_MM                      360U
+#define FIXED_PARALLEL_MM                    600U
 
 typedef enum
 {
@@ -1200,7 +1200,7 @@ static void fixed_task(const LineObstacleBypassInput *input)
   { enter_fault(BYPASS_FAULT_CONTROLLER); return; }
   /* The inside diagonal sensor normally sees the rectangle during the
      parallel leg. Only a close boundary interrupts; far/in-band chatter
-     cannot split the 240/120-mm legs into old 20/40-mm probes. */
+     cannot split the 360/600-mm legs into old 20/40-mm probes. */
   if (input->front_obstacle || raw_relation == BYPASS_RELATION_TOO_CLOSE ||
       (fixed_phase == LINE_FIXED_RETURN &&
        (input->left_ir_adc < input->left_ir_threshold ||
