@@ -9,32 +9,32 @@ or physical test.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-08
+state_updated_at: 2026-09-09
 integration_branch: main
-repository_head_at_update: ff4bbc9
-latest_code_commit: 7dbcb84
-flashed_source_commit: 4589a25
-flash_record_commit: 0344d43
-deployed_tag: deployed/2026-09-08-comprehensive-v5-dfplayer-4589a25
+repository_head_at_update: 2ebf64e
+latest_code_commit: 2ebf64e
+flashed_source_commit: 8a46fd6696870efa98a97b6a1524fdf5901ad4ab
+flash_record_commit: 068db96
+deployed_tag: deployed/2026-09-09-v14-8a46fd6
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 90380
-flashed_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
-flashed_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
-ground_test_status: not_tested_after_comprehensive_v5_4589a25_deployment
-k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
-candidate_source_commit: ff4bbc9
-candidate_bin_size_bytes: 90380
-candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
-candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
-user_reported_flash: tool_verified_4589a25_STM32_flash_readback_and_GO_listening_test_pending
-k210_candidate_source_commit: 0a02d3d
+formal_bin_size_bytes: 103688
+flashed_bin_sha256: 7794CDE27E306CCC904E2CFEA79AF796087C0676EAFBB4361152904EF572C3F1
+flashed_hex_sha256: B5EA30A82BB4A0043FCEB9BEF2F72F49AD098F03B973AFFF2431EF4E9D2346BC
+ground_test_status: not_tested_after_v14_8a46fd6_deployment
+k210_status: COM14_SIGN34_c767baa_script_and_model_verified_20260909_STARTUP_OK_no_board_link_test
+candidate_source_commit: c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821
+candidate_bin_size_bytes: 104232
+candidate_bin_sha256: 2C980CA65E5C267D604AB70806C55B21F478E2998E3A1A1643A73497EBFD0DB8
+candidate_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9974263
+user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
+k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
-remote_sync_branch: main
-stm32_runtime_status: COM11_4589a25_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
-k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
-temporary_flash_selector_commit: 4589a25_comprehensive_v5_dfplayer_flashed
+remote_sync_status: github_pr13_current_main_and_docs_reorganization
+remote_sync_branch: docs/organize-markdown-20260909
+stm32_runtime_status: COM11_8a46fd6_readback_GO_no_post_GO_query_IMU_prior_V13_pass
+k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
+temporary_flash_selector_commit: 8a46fd6_comprehensive_v14_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,119 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed comprehensive candidate: V15
+
+Latest source is now `c50d3c81a992fc3d5cd7e91d42ceeaa9c3385821`, merging
+`6908938` RGB-off in modes 3/4 while retaining five-repeat horn and gyro/trace.
+Full sign-line host suite and ARM build passed. Flash requested but blocked:
+live enumeration found Bluetooth ports only, no STM32 USB serial device.
+No erase/write/GO attempted; both boards unchanged. Prepared artifact hashes
+above supersede the older V15 hashes. See
+`docs/history/candidates/PREPARED_C50D3C8_RGB_OFF.md`.
+
+Source `9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5`, branch
+`test/comprehensive-v15-sign-horn-20260909`, worktree
+`F:/myproject/jidian/worktrees/comprehensive-v15-sign-horn`.
+Merges full V14 and `4c24f1f`: highest-score single left/right/horn selection,
+confirmed PG12 horn event in modes 3/4 now plays five complete phrases
+(nominally 7.65 seconds, nonblocking), preserving STRACE and gyro logic.
+Five-repeat integration assertion, unchanged horn latch regression and formal
+build passed. No new physical or listening test.
+Sign-line/K210/gyro/trace/horn and DFPlayer host tests plus ARM build passed.
+See that worktree's `COMPREHENSIVE_V15_SIGN_HORN.md` for artifacts. No flash,
+physical test or push; deployed STM32 and K210 remain unchanged. Testing the
+new horn end-to-end requires both candidate STM32 and K210 script deployment.
+Main firmware scope remains mode1-only V13 promotion. Candidate hashes above
+now describe V15, not the older main build mentioned below.
+
+### Current local main: mode1-only V13 promotion
+
+Main code 2ebf64e promotes V13 mode1 and required MPU6050/calibration modules.
+Includes gyro/fallback bypass, sonar continuity, measured >45-degree inward
+continuous return and queued outer-contact rejoin. Modes3/4 and mode5 retain
+their previous main controllers and adapters. Mode2 retains legacy recovery;
+its normal follow path is an equivalent shared-helper extraction. All five host
+suites and ARM build passed (101948-byte BIN, hashes above). See
+`docs/history/candidates/MAIN_MODE1_V13_20260909.md`. Rollback tag:
+rollback/2026-09-09-before-mode1-v13. This local main image is NOT flashed or
+pushed; hardware remains comprehensive V13 b326a6a with its separate evidence.
+Older statements that main is still rc.4 are superseded by this paragraph.
+
+### Latest deployment override — 2026-09-09
+
+Current STM32 is V14 8a46fd6: includes 576fdbc route trace and K210-source
+prerequisite 624e8b4 on full V13. Build, full 103688-byte readback and GO passed.
+K210 hardware unchanged (new TX-selection source has NOT been deployed).
+No post-GO runtime or motion test. GitHub PR #13 later published the current
+local-main history together with the documentation reorganization; this remote
+operation did not flash either board. See
+`docs/history/deployments/DEPLOYMENT_V14_8A46FD6_20260909.md`.
+Older board-source statements below are history; main retains mode1-only scope.
+
+Current board is V13 b326a6a: rebuilt, 102636 bytes written/read back, GO OK.
+Twenty stationary IMU queries all reported READY/CAL=200/F=0, AGE=18..23 ms,
+no backlog or restart. Displayed yaw changed +0.129 degree over 19.328 seconds.
+ACC_WARN=1 remains (mean AZ=21874); accelerometer magnitude is not calibrated.
+One initial unstable acceleration window was rejected before successful bias
+calibration. No physical turn/ground accuracy test. K210 unchanged.
+See `docs/history/deployments/DEPLOYMENT_B326A6A_20260909.md`. V12/V11 failure
+statements below are historical.
+
+Newest: V12 c177c3d supersedes V11 below. Build, 102148-byte readback and GO
+passed. Five stationary IMU queries showed CAL=0, REJECT=4: Z acceleration
+21806..21940 exceeds calibration maximum 18500. Fresh FIFO data with no backlog.
+Gyro Y=-222..-217 also exceeded the old +/-196 threshold; V12 fixed that barrier,
+but Z rejection still prevents READY. Actual offset/scale/acquisition cause of
+the Z reading is not yet established. K210 unchanged; no motion test.
+Evidence: `docs/history/deployments/DEPLOYMENT_C177C3D_20260909.md`. Old
+deployment statements are history.
+
+Latest: comprehensive V11 `fda63ce` has replaced V8 on STM32. Exact build,
+99488-byte full readback and GO passed; audio and calibration pages preserved.
+User-requested STOP-only IMU checks found communication and fresh samples but
+repeated calibration failure: `CAL=0`, `LAST_F=5`, restart count 1 then 4.
+IMU is NOT READY; zero yaw must not be treated as valid. The failed raw-axis
+condition is not exposed by current telemetry, so the physical cause remains
+unconfirmed. K210 unchanged; no motion test. Details:
+`docs/history/deployments/DEPLOYMENT_FDA63CE_20260909.md`. Older V8 deployment
+statements below are history.
+
+Follow-up: user reports flat, component-side-up, stationary mounting. Repeated
+STOP-only queries still showed CAL=0 and calibration-timeout restarts (41).
+Explicit `c` was accepted (`IMU CAL START: KEEP STILL`); five subsequent `g`
+samples again showed CAL=0, fresh AGE=8..13 ms, no backlog, no transport fault.
+Thus a stale latched calibration state is not the explanation. Raw acceleration
+and gyro samples are not exposed by this firmware, so no exact rejected axis is
+known. Inspect raw acceptance limits before changing hardware: absolute gyro
+raw >196 (about 3 deg/s before bias removal), accel orientation and sample span
+all reset progress. No firmware changes or flash in this follow-up.
+
+Subsequently, the user requested the modes 3/4 K210 program. COM14 identified
+CanMV_Yahboom 2.1.1 with GC2145. The existing `/sd/main.py` (7256 bytes) already
+matched V8 `c767baa`'s `K210/sign_mode34.py`; it and `/flash/main.py` were backed
+up before the requested rewrite. Full script readback matched SHA-256
+`2BCFCC5E08671EE0F0E3BD0712A1DD217A3450BFDBD3C3DDA7EFE8807D38A3D8`.
+The existing 571432-byte `/sd/KPU/road_sign_det/road_sign_det.kmodel` matched
+`B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`
+on-device and was not rewritten. Soft reboot reported SD mount OK, model load
+success and `SIGN34 ready`, threshold 0.20, vflip/hmirror 0/0. Backup, manifest
+and startup log: `F:/myproject/jidian/validation/k210-sign34-20260909/backup-20260909-092318`.
+STM32 was not accessed in this K210 deployment. No board-link or motion test
+was performed; the active K210 application supports modes 3/4, not mode 5.
+
+At the user's explicit request, the STM32 now runs temporary comprehensive V8
+source `c767baa158a25cbf411aae6c1dadb5b631a2e51e`. Its exact clean worktree
+was rebuilt (99460-byte BIN), then COM11 selectively erased 49 application
+pages, wrote all bytes, passed full readback `VERIFY OK` and completed
+`GO OK: 0x08000000`. Audio memory and calibration pages were outside the
+erase/write range. No post-GO zero-output query, wheel test or ground test was
+performed. K210 was untouched. Main firmware and its candidate artifacts remain
+rc.4; V8 was not merged. See
+`docs/history/deployments/DEPLOYMENT_C767BAA_20260909.md`.
+All board-source statements about `4589a25` in the older sections below are
+historical and superseded by this entry. These deployment records are local;
+no GitHub push was requested in this turn.
 
 Since 2026-09-07, `main` is the only canonical integration and deployment
 branch, checked out at
@@ -95,7 +208,7 @@ the HEX SHA-256 is
 DFPlayer protocol/driver/Flash-store tests and all line-recovery, sign-line and
 vision-line-v4 regressions passed. PR #11 merged the release note as `ff4bbc9`.
 This exact firmware has not been flashed or physically tested. Release notes:
-`RELEASE_V1.2.0_RC4.md`.
+`docs/releases/RELEASE_V1.2.0_RC4.md`.
 
 ## Previous protected main source (`f543639`)
 
@@ -122,7 +235,7 @@ the HEX SHA-256 is
 `D63E0222BE881FC775BC18A9D2C50D0FBE514F25A3E1586F6ACBD1DF50840B3F`.
 PR #8 merged this source and its release preparation as `4a343dd`. This exact
 main BIN has not been flashed or physically tested. Release notes:
-`RELEASE_V1.2.0_RC3.md`.
+`docs/releases/RELEASE_V1.2.0_RC3.md`.
 
 ## Previous local main source (`453cad2`)
 
@@ -146,7 +259,7 @@ The formal ARM build passed with text/data/bss `83824/64/11584`, producing an
 the HEX SHA-256 is
 `E5FE872642E0D49DD66271D2778FE624026DBA4EEF3E938F0B7D2762C648B8CE`.
 This local main integration was not flashed or pushed. Details:
-`PREPARED_MAIN_BYPASS_CONTINUOUS_453CAD2_20260908.md`.
+`docs/history/candidates/PREPARED_MAIN_BYPASS_CONTINUOUS_453CAD2_20260908.md`.
 
 ## Previous published main source and deployment (`3170221`)
 
@@ -170,7 +283,8 @@ reserved-last-page preservation, full readback `VERIFY OK` and
 `GO OK: 0x08000000`. STOP telemetry before and after programming showed mode 0
 and zero target/measured/PWM output on all four wheels. K210 was not opened,
 reset or rewritten. No lifted-wheel or ground test was performed. Detailed
-evidence: `DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
+evidence:
+`docs/history/deployments/DEPLOYMENT_MAIN_MODE1_POWER_3170221_20260908.md`.
 
 ## Previous flashed comprehensive test (`0a02d3d`)
 
@@ -202,7 +316,8 @@ The existing 571432-byte road-sign model already matched SHA-256
 `B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901`
 and was not rewritten. Soft reboot reported `model load succeed` and
 `SIGN34 ready`. No board-link, lifted-wheel or ground-driving test was run.
-Detailed evidence: `DEPLOYMENT_COMPREHENSIVE_V4_0A02D3D_20260908.md`.
+Detailed evidence:
+`docs/history/deployments/DEPLOYMENT_COMPREHENSIVE_V4_0A02D3D_20260908.md`.
 
 ## Previous flashed comprehensive test (`f34e7dd`)
 
@@ -231,7 +346,7 @@ retry erased the same bounded region, wrote and read back all 84488 bytes with
 `VERIFY OK`, and completed `GO OK: 0x08000000`. No routine post-GO serial
 check was performed at the user's request. K210 was not accessed, and no
 lifted-wheel or ground test was performed. Detailed evidence:
-`DEPLOYMENT_COMPREHENSIVE_V3_F34E7DD_20260908.md`.
+`docs/history/deployments/DEPLOYMENT_COMPREHENSIVE_V3_F34E7DD_20260908.md`.
 
 ## Previous flashed comprehensive test (`2c2ed97`)
 
@@ -264,7 +379,7 @@ and zero four-wheel output. At the user's request, the routine post-GO serial
 STOP/zero-output check was omitted. K210 was not accessed. No lifted-wheel or
 ground test was performed. This source remains an unmerged local test branch
 and was not pushed during this operation. Detailed evidence:
-`DEPLOYMENT_COMPREHENSIVE_V2_2C2ED97_20260908.md`.
+`docs/history/deployments/DEPLOYMENT_COMPREHENSIVE_V2_2C2ED97_20260908.md`.
 
 ## Previous flashed comparison candidate (`c5a4c76`)
 
@@ -288,8 +403,9 @@ predates `3170221`, so it does not contain the new mode-1 power profile. COM11
 programmed all 84636 bytes with selective last-page-preserving erase, full
 readback `VERIFY OK` and `GO OK`. STOP telemetry before and after programming
 showed mode 0 and zero four-wheel outputs. K210 was not accessed. No lifted or
-ground test was performed. Details: `PREPARED_C5A4C76_20260908.md` and
-`DEPLOYMENT_C5A4C76_20260908.md`.
+ground test was performed. Details:
+`docs/history/candidates/PREPARED_C5A4C76_20260908.md` and
+`docs/history/deployments/DEPLOYMENT_C5A4C76_20260908.md`.
 
 ## Previous flashed temporary test image (`074ef682`)
 
@@ -315,7 +431,7 @@ reserved final calibration page. All 84628 bytes were written and read back
 with `VERIFY OK`, followed by `GO OK: 0x08000000`. A second STOP after GO again
 showed mode 0 and zero four-wheel outputs. K210 was not opened, reset or
 rewritten. No mode start, lifted-wheel test or ground test was performed.
-Detailed evidence: `DEPLOYMENT_074EF682_20260908.md`.
+Detailed evidence: `docs/history/deployments/DEPLOYMENT_074EF682_20260908.md`.
 Rollback: `rollback/2026-09-08-before-074ef682-test` -> `36551f3`.
 
 ## Previous flashed temporary test image (`4947f9c`)
@@ -396,7 +512,7 @@ script, verified the unchanged model on-device and observed `SIGN34 ready`.
 A STOP-only board-link query saw 24 new parsed SIGN frames while `DRV M=0` and
 all wheel targets, measurements and PWM outputs remained zero. No mode start,
 lifted-wheel or ground test was performed. Detailed evidence is in
-`DEPLOYMENT_V1.2.0_RC1_MODE34_20260908.md`. Rollback tag
+`docs/history/deployments/DEPLOYMENT_V1.2.0_RC1_MODE34_20260908.md`. Rollback tag
 `rollback/2026-09-08-before-v1.2.0-rc1-flash` points to prior board source
 `4947f9c`.
 

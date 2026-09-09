@@ -1,33 +1,32 @@
 # STM32 实验七统一四轮运动控制
 
-这是 YB-DSF01-V1.1 四轮小车（STM32F103ZETx）的当前统一运动控制基准工程。
-后续改进从 Git 标签 `v1.0.0-lift-tested` 建立分支，避免覆盖已经验证的基线。
+这是 YB-DSF01-V1.1 四轮小车（STM32F103ZETx）的统一固件仓库。仓库同时
+保留 STM32、K210、循迹、避障、编码器、陀螺仪、OLED、红外遥控和音频模块。
 
-## 当前功能
+## 从这里开始
 
-- KEY1：黑线循迹 + 红外/超声波绕障。
-- KEY2：仅黑线循迹。
-- KEY3：编码器闭环八字轨迹，完成后停车。
-- 遥控/串口 `4`：编码器闭环正方形轨迹。
-- 遥控/串口 `0`：锁存停车。
-- 四轮编码器、四轮独立速度/位置控制、外接 OLED 电量显示、RGB 状态灯和蜂鸣器均已整合。
-- K210 当前停用，但 USART2 和视觉接口代码保留。
+- [PROJECT_STATE.md](PROJECT_STATE.md)：当前主干、候选版本、已烧录版本和实物验证边界的唯一状态入口。
+- [AGENTS.md](AGENTS.md)：修改、构建、烧录和多任务协作规则。
+- [BRANCH_WORKFLOW.md](BRANCH_WORKFLOW.md)：分支、工作树、PR 和回滚流程。
+- [MULTI_MODEL_WORKFLOW.md](MULTI_MODEL_WORKFLOW.md)：不同 Codex 任务之间的交接方式。
+- [docs/README.md](docs/README.md)：组件指南、Release、历史候选和部署记录总索引。
 
-控制架构、引脚、模式和安全边界见 [README_UNIFIED_MOTION.md](README_UNIFIED_MOTION.md)。
+不要从某一份旧实验或部署记录推断当前程序。源代码状态以 Git 为准，硬件状态
+以 `PROJECT_STATE.md` 中最新、明确标注的记录为准。
 
 ## 工程结构
 
-- `Core/Inc`、`Core/Src`：应用和驱动源码。
+- `Core/Inc`、`Core/Src`：STM32 应用和驱动源码。
 - `Drivers`：STM32F1 HAL/CMSIS 依赖。
+- `K210`：视觉寻线与路标识别程序。
+- `tests`：主机端回归测试及与测试紧邻的设计说明。
+- `reusable`：可复用模块示例。
+- `docs`：整理后的项目文档。
 - `test-exp7-unified-motion-v1.ioc`：CubeMX 配置。
-- `.project`、`.cproject`、`.settings`：STM32CubeIDE 工程配置。
-- `build_unified_motion.ps1`：已验证的独立构建脚本。
-- `REFACTOR_VERIFICATION.md`：重构、静态检查、编译和固件证据。
-- `LIFT_TEST_20260904.md`：2026-09-04 悬空测试记录与未覆盖项。
-- `BASELINE_SHA256SUMS.txt`：基准 Release 固件校验和。
+- `build_unified_motion.ps1`：正式固件构建脚本。
 
-`Debug/` 和 `manual-build-unified-motion/` 是本地生成目录，不进入 Git 历史。
-与本标签对应的 HEX/BIN 应从 GitHub Release 下载并用 SHA-256 校验。
+`Debug/` 和 `manual-build-*` 是本地生成目录，不进入 Git 历史。需要复现固件时，
+应检出对应提交后重新构建，并核对生成文件的 SHA-256。
 
 ## 构建
 
@@ -37,24 +36,17 @@
 .\build_unified_motion.ps1
 ```
 
-脚本当前使用本机 STM32CubeIDE 1.16.0 自带的 GNU Arm 工具链；若安装位置不同，
-需要调整脚本中的 `$toolRoot`。输出位于 `manual-build-unified-motion/`。
+输出位于 `manual-build-unified-motion/`。构建成功只证明电脑端编译和链接通过；
+烧录/读回、四轮悬空测试和地面测试是相互独立的验证层级。
 
-## 当前验证边界
+## 文档放置约定
 
-- 电脑端编译、链接和 HEX/BIN 生成：已成功。
-- 目标板写入、逐字节读回、启动：已成功。
-- 四轮悬空自动测试：默认停车、完整 KEY3、正方形首边/首角、运行中停车已成功。
-- 地面循迹、绕障、八字和正方形：尚未在该重构版本完成系统验收。
+仓库根目录只保留项目入口和协作规则。新增文档按用途放入：
 
-编码器计数达标不能等同于车身角度或轨迹达标；地面负载、轮胎打滑、电池电压和场地
-都会影响结果。继续改动前请先创建分支，硬件测试后把条件和结果写入新的验证记录。
-
-## 基准固件
-
-标签：`v1.0.0-lift-tested`
-
-- `exp7_unified_motion.hex`
-- `exp7_unified_motion.bin`
-
-详见 [BASELINE_SHA256SUMS.txt](BASELINE_SHA256SUMS.txt)。
+- `docs/guides/`：仍可复用的组件与接口说明；
+- `docs/refactor/`：架构重构计划和验证记录；
+- `docs/releases/`：版本发布说明；
+- `docs/history/candidates/`：候选版本与合并记录；
+- `docs/history/deployments/`：与具体提交绑定的烧录证据；
+- `docs/history/experiments/`：已被后续实现取代的实验说明；
+- `docs/history/baselines/`：早期基线、备份和悬空验证资料。
