@@ -23,10 +23,10 @@ flashed_bin_sha256: 299BB620B19A61EB36A2DC5B2BB8A8FFD132CF197D07936855D9B7B1F4C5
 flashed_hex_sha256: 13D91D45B7FE63F16EC6441E4F2E1FA3F8BD051E80A2BD160A7306B42CAD5976
 ground_test_status: not_tested_after_a56f6c7_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: a56f6c7da7e49c4df75f1a737f3f09753dfd113f
-candidate_bin_size_bytes: 105536
-candidate_bin_sha256: 299BB620B19A61EB36A2DC5B2BB8A8FFD132CF197D07936855D9B7B1F4C5C66E
-candidate_hex_sha256: 13D91D45B7FE63F16EC6441E4F2E1FA3F8BD051E80A2BD160A7306B42CAD5976
+candidate_source_commit: 3a00fa8022a2bf991bbbc3fac878df5e62ebcc79
+candidate_bin_size_bytes: 106384
+candidate_bin_sha256: 4E83C0EB990FEF6E44B56F368B2CA8D5A16A5DE25DB586E97523588D692BB36F
+candidate_hex_sha256: A7E7266BC2234AEB5F81E165DB4B41F4BB6CA4B06660BC7C58B4ABC37BF82233
 user_reported_flash: tool_verified_a56f6c7_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -46,6 +46,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest unflashed comprehensive candidate: 3a00fa8
+
+93b408b and bf3e8e1 integrated onto a56f6c7 in comprehensive-v15-sign-horn.
+Mode1 stable straight/clear return speed increase and modes3/4 verified
+entry-line handoff coexist. Line (both speeds), sign and gyro suites passed,
+formal build passed. Obsolete gyro test assertion corrected, not controller.
+No serial/flash/push/physical test; board stays a56f6c7, K210 stays 20e8c72.
+Hashes above identify candidate; see docs/history/candidates/COMPREHENSIVE_3A00FA8_20260909.md.
 
 ### Latest comprehensive deployment: a56f6c7
 
