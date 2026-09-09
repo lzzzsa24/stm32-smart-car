@@ -9,32 +9,32 @@ or physical test.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-08
+state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: ff4bbc9
 latest_code_commit: 7dbcb84
-flashed_source_commit: 4589a25
-flash_record_commit: 0344d43
-deployed_tag: deployed/2026-09-08-comprehensive-v5-dfplayer-4589a25
+flashed_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
+flash_record_commit: 2aa1e69
+deployed_tag: deployed/2026-09-09-comprehensive-v8-c767baa
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 90380
-flashed_bin_sha256: 54EDEDE5D61F644EE0F025293F5556BD22E6EA78054DC99287CBDC517B3FE150
-flashed_hex_sha256: 2DB3801A43AEA64686A3492BA4903CFF28F3D08D181E6BFBCDAF8637B28229C2
-ground_test_status: not_tested_after_comprehensive_v5_4589a25_deployment
+formal_bin_size_bytes: 99460
+flashed_bin_sha256: 7268C24CD4B0C8534AD509E477495EAE6CAAB5C453DFD869ABC89FA028EE382B
+flashed_hex_sha256: F661FB276C15B97D4186C9A2D7E47192BC4E7EBA7FA6C1E2B9CD284FD04994C7
+ground_test_status: not_tested_after_comprehensive_v8_c767baa_deployment
 k210_status: COM14_SIGN34_0a02d3d_script_and_model_readback_verified_startup_no_new_board_link_test
 candidate_source_commit: ff4bbc9
 candidate_bin_size_bytes: 90380
 candidate_bin_sha256: 56A9FD8D9DFA5CF1903C7608EE1552919B66D5213AC3FABAB3AD0BCC346408D8
 candidate_hex_sha256: 3965EE4492E87AB0C90BEDA37BB7287055FF310D6523FC3343EEF35B6F9E6D04
-user_reported_flash: tool_verified_4589a25_STM32_flash_readback_and_GO_listening_test_pending
+user_reported_flash: tool_verified_c767baa_STM32_flash_readback_and_GO
 k210_candidate_source_commit: 0a02d3d
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
 remote_sync_status: github_main_pr10_audio_and_pr11_rc4_synced
 remote_sync_branch: main
-stm32_runtime_status: COM11_4589a25_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
+stm32_runtime_status: COM11_c767baa_readback_verified_GO_post_GO_runtime_check_skipped_by_user_request
 k210_requested_deployment: SIGN34_comprehensive_v4_modes3_4_complete
-temporary_flash_selector_commit: 4589a25_comprehensive_v5_dfplayer_flashed
+temporary_flash_selector_commit: c767baa_comprehensive_v8_auto_recovery_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,20 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment override — 2026-09-09
+
+At the user's explicit request, the STM32 now runs temporary comprehensive V8
+source `c767baa158a25cbf411aae6c1dadb5b631a2e51e`. Its exact clean worktree
+was rebuilt (99460-byte BIN), then COM11 selectively erased 49 application
+pages, wrote all bytes, passed full readback `VERIFY OK` and completed
+`GO OK: 0x08000000`. Audio memory and calibration pages were outside the
+erase/write range. No post-GO zero-output query, wheel test or ground test was
+performed. K210 was untouched. Main firmware and its candidate artifacts remain
+rc.4; V8 was not merged. See `DEPLOYMENT_C767BAA_20260909.md`.
+All board-source statements about `4589a25` in the older sections below are
+historical and superseded by this entry. These deployment records are local;
+no GitHub push was requested in this turn.
 
 Since 2026-09-07, `main` is the only canonical integration and deployment
 branch, checked out at
