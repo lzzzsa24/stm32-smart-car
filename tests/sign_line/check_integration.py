@@ -35,6 +35,8 @@ assert "SignHorn_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
 assert "SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm)" in main
 assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
+assert "left_cps = SignSlowdown_ForwardCps(left_pwm)" in main
+assert "right_cps = SignSlowdown_ForwardCps(right_pwm)" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable

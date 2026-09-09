@@ -95,7 +95,7 @@ void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask)
     int8_t direction = mask & 8U ? -1 : 1;
     controller->last_direction = direction;
     set_output(controller, SIMPLE_LINE_TRACK,
-        direction < 0 ? 2000 : 2300, direction < 0 ? 2300 : 2000);
+        direction < 0 ? 800 : 2300, direction < 0 ? 2300 : 800);
   }
   else
     set_output(controller, mask == 6U ? SIMPLE_LINE_TRACK : SIMPLE_LINE_WIDE, 2300, 2300);

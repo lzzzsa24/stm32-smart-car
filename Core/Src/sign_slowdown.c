@@ -42,10 +42,19 @@ uint8_t SignSlowdown_Reasons(uint32_t now)
                    (vision_valid ? SIGN_SLOWDOWN_VISION : 0U));
 }
 
+int32_t SignSlowdown_ForwardCps(int16_t request)
+{
+  /* Sign requests are relative steering weights, not motor startup PWM.
+     The shared PWM conversion floors every nonzero value <=2200 equally. */
+  if (request <= 0) return 0;
+  if (request >= 2300) return SIGN_SLOWDOWN_LIMIT_CPS;
+  return (int32_t)request * SIGN_SLOWDOWN_LIMIT_CPS / 2300;
+}
+
 int32_t SignSlowdown_TargetLimit(uint8_t reasons, int16_t left_pwm, int16_t right_pwm)
 {
-  (void)reasons; /* Sign modes are always slow; frame expiry must not accelerate. */
   if ((left_pwm < 0 && right_pwm > 0) || (left_pwm > 0 && right_pwm < 0))
     return 0L;
+  if (reasons & SIGN_SLOWDOWN_BLACK) return SIGN_SLOWDOWN_BLACK_LIMIT_CPS;
   return SIGN_SLOWDOWN_LIMIT_CPS;
 }

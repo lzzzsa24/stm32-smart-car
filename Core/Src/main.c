@@ -913,6 +913,12 @@ static void apply_sign_line_pwm(int16_t left_pwm,
   int32_t left_cps = DriveBase_EquivalentCpsFromPwm(left_pwm);
   int32_t right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
 
+  if (left_pwm >= 0 && right_pwm >= 0)
+  {
+    left_cps = SignSlowdown_ForwardCps(left_pwm);
+    right_cps = SignSlowdown_ForwardCps(right_pwm);
+  }
+
   /* Choose the limit once, at the final owner. Applying 1200 before the next
      DriveBase_Task would otherwise keep re-clamping an ongoing search. */
   sign_speed_limit_cps = SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm);
