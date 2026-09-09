@@ -10,8 +10,11 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-09
-comprehensive_candidate_source_commit: fd8472beb296f436b1b99c7ea88a152d550f5f7f
-comprehensive_candidate_status: merged_locally_build_sign_line_gyro_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
+comprehensive_candidate_status: mode45_integrated_all_host_suites_build_passed_not_flashed_not_pushed
+comprehensive_candidate_bin_size_bytes: 111280
+comprehensive_candidate_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
+comprehensive_candidate_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -48,6 +51,22 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: ed7eb3b (not flashed)
+
+On comprehensive-v15-sign-horn,852ade1 merged as7baf411 preservingfd8472b;
+fb311e3 adapted ased7eb3b. Mode4 uses turn/straight-entry/live-arc/turn/exit.
+Mode5 now fixed bypass plus fast four-line follow, replacing visual control.
+Mode1/2 parameters and mode3 exit release retained; K210 unchanged. Main
+firmware remains rc.5. Full sign, line (both speeds), gyro/bypass, archived
+vision and audio suites, composite mode5 checks and exact ARM build passed.
+BIN111280 bytes with hashes in the comprehensive fields above. Worktree:
+F:/myproject/jidian/worktrees/comprehensive-v15-sign-horn; artifacts in its
+manual-build-unified-motion directory. Rollback tag:
+rollback/2026-09-09-before-comprehensive-mode45. Integration notes are in that
+candidate's docs/history/candidates/COMPREHENSIVE_MODE45_20260909.md.
+No serial access, flash, physical test or GitHub push. Board remains58c3744.
+This supersedes the older comprehensive candidate below, not main rc.5.
 
 ### Latest comprehensive candidate: fd8472b (not flashed)
 
