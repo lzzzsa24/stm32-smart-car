@@ -1,4 +1,5 @@
 #include "simple_line_mode.h"
+#include "sign_route_config.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -8,6 +9,9 @@
 #define SIMPLE_LINE_SLOW_PWM     2200
 #define SIMPLE_LINE_OUTER_PWM    2600
 #define SIMPLE_LINE_TURN_PWM     2700
+
+_Static_assert(SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG < SIGN_ENTRY_MAX_MDEG,
+               "Entry search must reverse before the route yaw cancellation bound");
 
 static void set_output(SimpleLineController *controller,
                        SimpleLineMode mode,
@@ -106,7 +110,7 @@ void SimpleLine_UpdateYaw(SimpleLineController *controller, int64_t yaw_mdeg,
 {
   if (!controller) return;
   if (!valid || !controller->yaw_configured || controller->yaw_generation != generation)
-    controller->line_yaw_valid = controller->sector_active = 0U;
+    controller->line_yaw_valid = controller->sector_active = controller->curve_yaw_valid = 0U;
   controller->yaw_configured=1U; controller->yaw_valid=valid;
   controller->yaw_generation=generation; controller->yaw_mdeg=yaw_mdeg;
 }
@@ -124,7 +128,10 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
   if (entry_guard && !controller->entry_guard_active) controller->sector_active=0U;
   controller->entry_guard_active=entry_guard;
   if (controller->route_state != (uint8_t)route->state)
+  {
     controller->route_hint = 0;
+    controller->curve_yaw_valid = 0U;
+  }
   if (route->state == SIGN_ROUTE_PROBE && route->direction && !controller->route_hint)
   {
     SimpleLine_SetDirection(controller, route->direction);
@@ -153,11 +160,31 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
     controller->sector_active=0U;
     if (controller->yaw_valid)
     {
+      /* A centred sensor pair has no turn direction. On an acquired arc,
+         use observed curvature rather than retaining the entry sign forever.
+         One-sided line evidence remains authoritative; white/search motion
+         must never be learned as the curve's direction. */
+      if (route->state == SIGN_ROUTE_ARC)
+      {
+        int64_t curve_delta=controller->yaw_mdeg-controller->curve_yaw_mdeg;
+        if (controller->curve_yaw_valid && tracking_mask == 6U &&
+            (curve_delta >= SIMPLE_LINE_ARC_TREND_MDEG ||
+             curve_delta <= -SIMPLE_LINE_ARC_TREND_MDEG))
+        {
+          controller->last_direction=curve_delta > 0 ? -1 : 1;
+          controller->curve_yaw_valid=0U;
+        }
+        if (!controller->curve_yaw_valid || tracking_mask != 6U)
+          controller->curve_yaw_mdeg=controller->yaw_mdeg;
+        controller->curve_yaw_valid=1U;
+      }
+      else controller->curve_yaw_valid=0U;
       controller->line_yaw_mdeg=controller->yaw_mdeg;
       controller->line_yaw_valid=1U;
     }
     return;
   }
+  controller->curve_yaw_valid=0U;
   if (!controller->yaw_valid)
   {
     /* No trustworthy heading: withdraw search rather than rotate unbounded.
@@ -179,8 +206,14 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
   upper = SIMPLE_LINE_SEARCH_SECTOR_MDEG;
   if (entry_guard)
   {
-    if (route->direction < 0) lower=0;
-    else upper=0;
+    /* Keep a phase-anchored selected-side sector large enough to acquire the
+       entry tangent. Repeated contacts must not walk its far bound around
+       the circle. Ordinary acquired-arc searches retain the +/-25-degree guard. */
+    int64_t phase_origin=controller->yaw_mdeg-route->yaw_mdeg-controller->line_yaw_mdeg;
+    if (route->direction < 0)
+    { lower=phase_origin; upper=lower+SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG; }
+    else
+    { upper=phase_origin; lower=upper-SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG; }
   }
   if (controller->yaw_mdeg-controller->line_yaw_mdeg >= upper)
     controller->sector_direction=1; /* positive yaw is left; steer back right */

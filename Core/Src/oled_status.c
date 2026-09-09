@@ -448,7 +448,7 @@ static void build_screen(uint8_t app_mode,
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
     case 2U: draw_battery_header("M3 LINE"); break;
-    case 3U: draw_battery_header("M4 LINE"); break;
+    case 3U: draw_battery_header("M4 RESERVED"); break;
     case 4U: draw_battery_header("M5 VISION"); break;
     case 5U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
@@ -605,8 +605,7 @@ static uint8_t append_line_mask(char *line, uint8_t index, uint8_t mask)
   return index;
 }
 
-static void build_sign_line_screen(uint8_t mode_number,
-                                   uint8_t line_mask,
+static void build_sign_line_screen(uint8_t line_mask,
                                    uint8_t line_action,
                                    int8_t vision_class,
                                    uint8_t vision_score,
@@ -618,7 +617,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 LINE");
+  draw_battery_header("M3 LINE");
 
   index = append_string(line, 0U, "LINE:");
   index = append_line_mask(line, index, line_mask);
@@ -843,8 +842,7 @@ void OledStatus_SetSquareData(uint8_t state,
   next_page = 0U;
 }
 
-void OledStatus_SetSignLineData(uint8_t mode_number,
-                                uint8_t line_mask,
+void OledStatus_SetSignLineData(uint8_t line_mask,
                                 uint8_t line_action,
                                 int8_t vision_class,
                                 uint8_t vision_score,
@@ -853,7 +851,7 @@ void OledStatus_SetSignLineData(uint8_t mode_number,
                                 int8_t route_direction)
 {
   cached_mode = 0xFFU;
-  build_sign_line_screen(mode_number, line_mask, line_action,
+  build_sign_line_screen(line_mask, line_action,
                          vision_class, vision_score, vision_online,
                          route_state, route_direction);
   oled_dirty = 1U;

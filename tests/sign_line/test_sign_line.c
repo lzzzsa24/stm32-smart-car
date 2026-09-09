@@ -192,6 +192,46 @@ static void test_search_sector(void)
   CHECK(c.left_pwm==0 && c.right_pwm==0);
   puts("PASS: measured-yaw sector contains repeated search, stale yaw withdrawal, generation reset and STOP");
 }
+static void test_arc_yaw_direction(void)
+{
+  SimpleLineController c;
+  SignRouteStatus r={0}; SignRouteCommand cmd={0};
+  int64_t origin=10000000;
+  unsigned i;
+  SimpleLine_Init(&c); SimpleLine_Start(&c);
+  r.state=SIGN_ROUTE_ARC; r.direction=-1; r.yaw_valid=1;
+  SimpleLine_UpdateYaw(&c,origin,1,1);
+  SimpleLine_StepRoute(&c,6,&r,&cmd);
+  for(i=0;i<100;++i)
+  {
+    SimpleLine_UpdateYaw(&c,origin+(i%2?1000:-1000),1,1);
+    SimpleLine_StepRoute(&c,6,&r,&cmd);
+    CHECK(c.last_direction==-1); /* small gyro noise must not reverse the hint */
+  }
+  for(i=1;i<=6;++i)
+  {
+    SimpleLine_UpdateYaw(&c,origin-i*1000,1,1);
+    SimpleLine_StepRoute(&c,6,&r,&cmd);
+  }
+  CHECK(c.last_direction==1);
+  SimpleLine_UpdateYaw(&c,origin-6000,1,1);
+  SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(c.left_pwm>0 && !c.curve_yaw_valid);
+  SimpleLine_UpdateYaw(&c,origin+20000,1,1);
+  SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(!c.curve_yaw_valid); /* search motion is not a measured road curvature */
+  SimpleLine_UpdateYaw(&c,origin-30000,1,1);
+  SimpleLine_StepRoute(&c,8,&r,&cmd);
+  CHECK(c.last_direction==-1); /* real outer contact beats opposing gyro change */
+  SimpleLine_UpdateYaw(&c,origin-30000,0,1);
+  CHECK(!c.curve_yaw_valid);
+  SimpleLine_UpdateYaw(&c,-5000000,1,2);
+  SimpleLine_StepRoute(&c,6,&r,&cmd);
+  CHECK(c.curve_yaw_mdeg==-5000000 && c.last_direction==-1);
+  SimpleLine_Stop(&c); SimpleLine_StepRoute(&c,0,&r,&cmd);
+  CHECK(c.left_pwm==0 && c.right_pwm==0);
+  puts("PASS: measured ARC trend rejects jitter/search motion, respects live edge, IMU reset and STOP");
+}
 int main(void)
 {
   test_parser();
@@ -199,5 +239,6 @@ int main(void)
   test_sign_route();
   test_entry_direction();
   test_search_sector();
+  test_arc_yaw_direction();
   return 0;
 }

@@ -85,7 +85,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     }
     else
     {
-      /* Preserve the selected half-sector/yaw reversal bounds, with KEY2's
+      /* Preserve the entry/arc yaw reversal bounds, with KEY2's
          calibrated encoder search target rather than SL2's 2700-PWM mapping. */
       output.left_cps = c->guard.left_pwm < 0 ? -LINE_SEARCH_TARGET_CPS :
           (c->guard.left_pwm > 0 ? LINE_SEARCH_TARGET_CPS : 0L);
@@ -95,7 +95,9 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
   }
   else
   {
-    LineTrackingAction line_action = line_tracking_compute_slow(reading, base_speed, &output);
+    LineTrackingAction line_action = arc ?
+        line_tracking_compute_arc(reading, base_speed, &output) :
+        line_tracking_compute_slow(reading, base_speed, &output);
     action = display_action(line_action);
     /* One slow straight target for bars, gaps, rejoin and exit travel, including
        commands supplied by recovery. No timed acceleration or recognition cap. */

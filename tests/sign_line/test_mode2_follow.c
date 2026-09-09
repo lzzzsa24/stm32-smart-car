@@ -87,7 +87,7 @@ static void parity(uint32_t origin)
   unsigned pass,i,j,w;
   const uint8_t patterns[]={0,6,4,6,2,6,8,8,12,0,6,1,1,3,0,6,15,0,7,14,5,10,9,11,13};
   const unsigned dt[]={1,2,10,20,40,80};
-  for(pass=0;pass<3;++pass) /* KEY2 baseline, then both identical sign bindings */
+  for(pass=0;pass<2;++pass) /* shared slow baseline, then the sole KEY3 sign binding */
   {
     init(pass!=0,origin);
     for(i=0;i<2000;++i)
@@ -135,7 +135,7 @@ static void parity(uint32_t origin)
       if(!pass)baseline[i].action=action; else assert(baseline[i].action==action);
     }
   }
-  puts("PASS: 4000 sign samples match shared slow tracking/search, all wheel outputs and actions");
+  puts("PASS: 2000 sign samples match shared slow tracking/search, all wheel outputs and actions");
 }
 static uint8_t key2_step(uint8_t mask)
 {
@@ -290,8 +290,66 @@ static void late_choice(int side)
   assert(drive.requested_cps[0]>0&&drive.requested_cps[2]>0);
   puts("PASS: late confirmed choice preempts shared search at normal turn speed; cancel resumes live line");
 }
+static void enter_test_arc(int side, uint32_t origin)
+{
+  unsigned i;
+  init(1,origin);
+  for(i=0;i<203;++i) { observe(side); sample(6,0); }
+  for(i=0;i<3;++i) sample(15,0);
+  sample(side<0?8:1,-side*20000);
+  for(i=0;i<4;++i) sample(6,-side*20000);
+  assert(route.state==SIGN_ROUTE_ARC && route.entry_line_ready);
+}
+static void arc_feedback_and_entry_search(void)
+{
+  unsigned i,w,failures=0;
+  int side,angle;
+  for(side=-1;side<=1;side+=2)
+  {
+    uint8_t opposite=side<0?1:8;
+    enter_test_arc(side,100);
+    sample(15,-side*20000);
+    sample(opposite,-side*20000);
+    if (!(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
+                  drive.requested_cps[0]==0 && drive.requested_cps[2]==2200))
+    {
+      fprintf(stderr,"ARC bar->outer lost feedback side=%d targets=%ld/%ld\n",
+          side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
+    }
+    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+
+    /* Both middle sensors cannot describe curve direction. Fresh yaw shows
+       the actual curvature has reversed after the entry apex. */
+    enter_test_arc(side,UINT32_MAX-120U);
+    for(angle=1;angle<=6;++angle) sample(6,side*(angle-20)*1000);
+    sample(0,-side*14000);
+    if (!(side<0 ? drive.requested_cps[0]>0 : drive.requested_cps[2]>0))
+    {
+      fprintf(stderr,"ARC loss reused entry direction side=%d targets=%ld/%ld\n",
+          side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
+    }
+
+    init(1,100);
+    for(i=0;i<203;++i) { observe(side); sample(6,0); }
+    for(i=0;i<3;++i) sample(15,0);
+    for(angle=0;angle<=100;++angle)
+    {
+      sample(0,-side*angle*1000);
+      if (!(side<0 ? drive.requested_cps[0]<0 : drive.requested_cps[2]<0))
+      {
+        fprintf(stderr,"Entry search reversed before corner side=%d at %d degrees\n",side,angle);
+        ++failures; break;
+      }
+    }
+    SignLineFollow_Stop(&follower); sample(0,0);
+    for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  }
+  assert(failures==0);
+  puts("PASS: ARC raw-line priority, measured curve search direction, entry sweep beyond 25 degrees and STOP");
+}
 int main(void)
 {
+  arc_feedback_and_entry_search();
   parity(100); parity(UINT32_MAX-400U);
   slow_profile_matches_key2_settle();
   slow_speed_and_recognition();

@@ -9,17 +9,17 @@ k210 = (ROOT / "K210/sign_mode34.py").read_text(encoding="utf-8")
 manifest = json.loads((ROOT / "K210/model-manifest.json").read_text(encoding="utf-8"))
 model = ROOT / "K210/road_sign_det_20260906.kmodel"
 
-assert "return APP_MODE_SIGN_LINE_ADVANCED;" in main
-assert "return APP_MODE_SIGN_LINE_SIMPLE;" in main
+assert "return APP_MODE_SIGN_LINE;" in main
+assert "APP_MODE_SIGN_LINE_SIMPLE" not in main and "APP_MODE_RESERVED4" in main
 assert "Figure8Encoder_Start();" not in main
 assert "SquareEncoder_Start();" not in main
-assert "sign_line_task(app_mode);" in main
+assert "sign_line_task();" in main
 assert main.index("sign_line_detection_task(app_mode);") < main.index("if (service_bounded_line_wait(app_mode))")
 assert "SignRoute_ObserveDetection(&detection);" in main
 assert "SignSlowdown" not in main
 transition = main[main.index("if (requested_mode != app_mode)"):main.index("sign_line_detection_task(app_mode);")]
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
-sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
+sign_task = main[main.index("static void sign_line_task(void)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_StepRoute(" not in sign_task
 assert "SimpleLine_ResolveRouteOutput(" not in sign_task
@@ -31,7 +31,7 @@ assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
 assert sign_task.index("SignRoute_Step(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
-detection_task = main[main.index("static void sign_line_detection_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
+detection_task = main[main.index("static void sign_line_detection_task(AppMode mode)\n{"):main.index("static void sign_line_task(void)\n{")]
 # Power rollback: keep the established encoder speed interface as the owner.
 assert "DriveBase_SetSignLowSpeedMode" not in main
 drive = (ROOT / "Core/Src/drive_base.c").read_text(encoding="utf-8")
@@ -42,6 +42,7 @@ adapter = (ROOT / "Core/Src/sign_line_follow.c").read_text(encoding="utf-8")
 tracking = (ROOT / "Core/Src/line_tracking.c").read_text(encoding="utf-8")
 assert "line_tracking_start_following();" in adapter
 assert "line_tracking_compute_slow(reading, base_speed, &output)" in adapter
+assert "line_tracking_compute_arc(reading, base_speed, &output)" in adapter
 assert "line_tracking_apply_command(&output, MOTOR_PWM_PERIOD);" in adapter
 assert "line_tracking_make_route_command(" in adapter
 assert "SignSlowdown" not in adapter
@@ -53,7 +54,7 @@ assert "forward_limit_cps" not in adapter
 assert "pwm_motor" not in adapter and "DriveBase_SetSideCps" not in adapter
 assert "DriveBase_PrepareLineTurnAssist(left, right);" in tracking
 assert "DriveBase_SetSideCps(left, right);" in tracking
-assert transition.count("SignLineFollow_Start(&sign_line_controller);") == 2
+assert transition.count("SignLineFollow_Start(&sign_line_controller);") == 1
 assert "pwm_motor" not in sign_task
 assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in detection_task
 assert "SignHorn_Reset();" in transition
@@ -62,9 +63,8 @@ assert not (ROOT / "Core/Inc/sign_slowdown.h").exists()
 assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
-assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
-assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
-assert 'SIGN3 KEY2 RING NAV START' in main and 'SIGN4 KEY2 RING NAV START' in main
+assert "mode != APP_MODE_SIGN_LINE" in enable
+assert 'SIGN3 KEY2 RING NAV START' in main and 'SIGN4 KEY2 RING NAV START' not in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.15" in k210
@@ -73,4 +73,4 @@ assert 'print("SIGN34 ready;' in k210
 assert model.stat().st_size == manifest["bytes"]
 assert hashlib.sha256(model.read_bytes()).hexdigest() == manifest["sha256"]
 compile(k210, str(ROOT / "K210/sign_mode34.py"), "exec")
-print("PASS: mode 3/4 bindings, USART2 IRQ, preserved sign script and model identity")
+print("PASS: mode 3 binding and reserved mode 4, USART2 IRQ, preserved sign script and model identity")

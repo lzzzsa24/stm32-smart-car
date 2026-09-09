@@ -9,6 +9,10 @@
 #define SIMPLE_LINE_RIGHT_INNER 2U
 #define SIMPLE_LINE_RIGHT_OUTER 1U
 #define SIMPLE_LINE_SEARCH_SECTOR_MDEG 25000L
+/* Entry approaches a quarter-turn; leave 10 degrees before the route's
+   120-degree invalid-entry bound. Measured phase yaw anchors this sector. */
+#define SIMPLE_LINE_ENTRY_SEARCH_SECTOR_MDEG 110000L
+#define SIMPLE_LINE_ARC_TREND_MDEG 5000L
 
 typedef enum
 {
@@ -31,9 +35,11 @@ typedef struct
   uint8_t route_state;
   int8_t route_hint;
   int64_t yaw_mdeg, line_yaw_mdeg;
+  int64_t curve_yaw_mdeg;
   uint32_t yaw_generation;
   uint8_t yaw_configured, yaw_valid, line_yaw_valid, sector_active;
   uint8_t entry_guard_active;
+  uint8_t curve_yaw_valid;
   int8_t sector_direction;
   int16_t left_pwm;
   int16_t right_pwm;
@@ -47,7 +53,7 @@ void SimpleLine_SetDirection(SimpleLineController *controller,
 void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask);
 /* Legacy standalone arc API; production sign modes use StepRoute. */
 void SimpleLine_StepArc(SimpleLineController *controller, uint8_t raw_mask);
-/* Mode 3/4 slow visible-line profile; white retains powered search. */
+/* Sign helper profile; production mode 3 uses shared tracking for visible line. */
 void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask);
 /* Protect uncompleted branch selection; follow live line after selected capture. */
 void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,

@@ -23,14 +23,13 @@ assert "imu.generation != imu_generation" in runtime and "SignRoute_Reset();" in
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "mode != APP_MODE_STOPPED" in enable
-assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
-assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
+assert "mode != APP_MODE_SIGN_LINE" in enable
 assert "APP_MODE_INTEGRATED" not in enable and "APP_MODE_LINE_ONLY" not in enable
 assert "LineBypassTurn_Recover();" in main
 assert main.index("if (service_bounded_line_wait(app_mode))") < main.index("if (DriveBase_GetFaultMask() != 0U &&")
 
 sign_task = main[
-    main.index("static void sign_line_task(AppMode mode)\n{"):
+    main.index("static void sign_line_task(void)\n{"):
     main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")
 ]
 assert "SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));" in sign_task

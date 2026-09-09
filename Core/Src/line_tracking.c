@@ -676,7 +676,8 @@ static void consume_sampled_evidence(uint32_t through_ms)
 static LineTrackingAction line_tracking_compute_profile(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command,
-                                         uint8_t hold_slow_profile)
+                                         uint8_t hold_slow_profile,
+                                         uint8_t current_line_priority)
 {
   int16_t turn_inner_speed;
   int16_t turn_outer_speed;
@@ -745,7 +746,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   update_direction_hint(reading, active_count, now);
   if (crossing_active)
   {
-    if (now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
+    if (!(current_line_priority && active_count) &&
+        now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
       command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM, LINE_ACTION_CROSSING);
       return command->action;
@@ -1053,12 +1055,19 @@ LineTrackingAction line_tracking_compute(const LineTrackingReading *reading,
                                          int16_t base_speed,
                                          LineTrackingCommand *command)
 {
-  return line_tracking_compute_profile(reading, base_speed, command, 0U);
+  return line_tracking_compute_profile(reading, base_speed, command, 0U, 0U);
 }
 
 LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading,
                                               int16_t base_speed,
                                               LineTrackingCommand *command)
 {
-  return line_tracking_compute_profile(reading, base_speed, command, 1U);
+  return line_tracking_compute_profile(reading, base_speed, command, 1U, 0U);
+}
+
+LineTrackingAction line_tracking_compute_arc(const LineTrackingReading *reading,
+                                             int16_t base_speed,
+                                             LineTrackingCommand *command)
+{
+  return line_tracking_compute_profile(reading, base_speed, command, 1U, 1U);
 }
