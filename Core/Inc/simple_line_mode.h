@@ -36,5 +36,7 @@ void SimpleLine_Stop(SimpleLineController *controller);
 void SimpleLine_SetDirection(SimpleLineController *controller,
                              int8_t direction);
 void SimpleLine_Step(SimpleLineController *controller, uint8_t raw_mask);
+/* Mode 3/4 slow visible-line profile; white retains powered search. */
+void SimpleLine_StepSlow(SimpleLineController *controller, uint8_t raw_mask);
 
 #endif

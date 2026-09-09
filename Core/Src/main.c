@@ -907,7 +907,10 @@ static void apply_sign_line_pwm(int16_t left_pwm,
   sign_speed_limit_cps = SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm);
   DriveBase_SetSpeedLimitCps(sign_speed_limit_cps);
   DriveBase_SetLineFaultObservation(1U, line_mask, controller_state);
-  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  if ((left_cps < 0 && right_cps > 0) || (left_cps > 0 && right_cps < 0))
+    DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  else
+    DriveBase_PrepareLineTurnAssist(0, 0);
   if (left_cps == 0L && right_cps == 0L)
   {
     DriveBase_Stop(DRIVE_STOP_COAST);
@@ -1005,7 +1008,7 @@ static void sign_line_task(AppMode mode)
 
   sign_line_mask = line_reading_mask(&line);
   /* Keep sampling the real line even while a route preference is active. */
-  SimpleLine_Step(&simple_line_controller, sign_line_mask);
+  SimpleLine_StepSlow(&simple_line_controller, sign_line_mask);
   WheelEncoder_GetCounts(&counts);
   SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
   SignRoute_Step(sign_line_mask, now, &route_command);
