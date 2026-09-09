@@ -23,16 +23,16 @@ flashed_bin_sha256: 104AE011959E5D1A18757D0829EAB9621D6B3745A4B97B9E378A6B590213
 flashed_hex_sha256: 59972A5DD4C109E975ADE467D2B963AF7158BE00EBCBB0DAB22EF76223EC7EBA
 ground_test_status: not_tested_after_0987233_deployment
 k210_status: COM14_0987233_SIGN34_7334_bytes_readback_model_hash_startup_verified
-candidate_source_commit: 0987233fc291cc77e93ec4d077dde4d6078225e3
-candidate_bin_size_bytes: 104804
-candidate_bin_sha256: 104AE011959E5D1A18757D0829EAB9621D6B3745A4B97B9E378A6B5902133E9E
-candidate_hex_sha256: 59972A5DD4C109E975ADE467D2B963AF7158BE00EBCBB0DAB22EF76223EC7EBA
+candidate_source_commit: 771586e768dbf8659ebba3648b39f8780e59b18a
+candidate_bin_size_bytes: 104940
+candidate_bin_sha256: D740EB4E8BBA4E9189D74A95669E824C5918B6511F30D07EDBF4AC03FE03E89A
+candidate_hex_sha256: F14F6617956ABAFE1ABDEAB31E054571647588CC8214D6EC00F4A8381BD8D19B
 user_reported_flash: tool_verified_0987233_STM32_flash_readback_and_GO
 k210_candidate_source_commit: 0987233fc291cc77e93ec4d077dde4d6078225e3
 k210_candidate_status: deployed_7334_bytes_E2C6B101_readback_model_verified_SIGN34_startup
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_0987233_readback_GO_no_post_GO_query
+stm32_runtime_status: 771586e_flash_bootloader_sync_failed_before_erase_old_0987233_flash_execution_unconfirmed
 k210_requested_deployment: SIGN34_modes3_4_complete_20260909_0987233
 temporary_flash_selector_commit: 0987233_comprehensive_sign_entry_recovery_flashed
 github_release_tag: v1.2.0-rc.4
@@ -46,6 +46,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest candidate 771586e; deployment blocked
+
+b357a4d final delta integrated into comprehensive 0987233: proportional
+forward steering weights and 700-CPS all-black cap. Build and relevant checks
+passed. Two COM11 bootloader-sync attempts failed before erase/write; old
+0987233 Flash remains, but execution after reset probing is unconfirmed.
+K210 unchanged. Replug required; see
+docs/history/candidates/PREPARED_771586E_20260909.md for artifacts/evidence.
 
 ### Latest paired deployment: 0987233
 
