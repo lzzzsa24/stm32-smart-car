@@ -11,7 +11,8 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-09
 comprehensive_candidate_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
-comprehensive_candidate_status: mode45_integrated_all_host_suites_build_passed_not_flashed_not_pushed
+comprehensive_candidate_status: mode45_integrated_all_host_suites_build_passed_github_pushed_not_flashed
+comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 111280
 comprehensive_candidate_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
 comprehensive_candidate_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
@@ -51,6 +52,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### GitHub comprehensive synchronization (2026-09-09)
+
+Remote test/comprehensive-v15-sign-horn-20260909 now containsed7eb3b,
+includingfd8472b,852ade1 and the adaptedfb311e3 fast mode5. Both local
+pre-integration rollback tags were pushed. Main receives shared-state docs
+only through its protected-branch PR workflow; comprehensive code is not
+promoted to main. No new release, hardware access or deployment.
+This supersedes the older not-pushed statements for this candidate below.
 
 ### Latest comprehensive candidate: ed7eb3b (not flashed)
 
