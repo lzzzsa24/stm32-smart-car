@@ -50,6 +50,12 @@ typedef struct
 
 void line_tracking_init(void);
 void line_tracking_reset(void);
+/* Shared KEY1/KEY2 entry: fresh history, smooth tracking, normal gain,
+   and search rather than blind forward travel before the first line. */
+void line_tracking_start_following(void);
+/* One snapshot/compute/apply cycle. Call only while the line owner is active;
+   obstacle/STOP arbitration stays with the caller. KEY1 supplies its cap. */
+LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward_limit_pwm);
 /* Apply a freshly computed line command after the owner's forward speed cap.
    Rebind bounded turn assistance to the final targets. valid=0 keeps recovery
    ownership. Nonzero commands respect drive faults, braking and position

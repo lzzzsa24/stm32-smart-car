@@ -29,6 +29,10 @@ typedef struct
   uint32_t last_frame_ms;
   uint32_t last_sequence;
   uint32_t armed_ms;
+  int64_t imu_yaw, imu_origin, approach_yaw;
+  uint8_t imu_valid;
+  uint32_t probe_hold_since_ms;
+  uint8_t probe_hold_started;
   uint32_t junction_since_ms;
   uint32_t capture_since_ms;
   uint32_t finished_ms;
@@ -246,12 +250,24 @@ void SignRoute_UpdateEncoders(int32_t m1, int32_t m2, int32_t m3, int32_t m4)
   route.right_counts += (int64_t)delta[2] + delta[3];
 }
 
+void SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid)
+{
+  route.imu_yaw = yaw_mdeg;
+  route.imu_valid = valid;
+}
+
 static void enter_phase(SignRouteState state, uint32_t now)
 {
+  if (state == SIGN_ROUTE_PROBE)
+  {
+    route.probe_hold_started = 0U;
+    route.approach_yaw = route.imu_yaw;
+  }
   route.state = state;
   route.phase_ms = now;
   route.origin_left = route.left_counts;
   route.origin_right = route.right_counts;
+  route.imu_origin = route.imu_yaw;
   route.capture_active = route.departed = 0U;
   route.fault = 0U;
   route.travel_mm = route.yaw_mdeg = 0L;
@@ -266,6 +282,13 @@ static void update_geometry(void)
   route.travel_mm = (int32_t)((left_mm + right_mm) / 2LL);
   route.yaw_mdeg = (int32_t)((right_mm - left_mm) * 180000LL * 10000LL /
       (VEHICLE_TRACK_WIDTH_MM * 31416LL));
+#if SIGN_ROUTE_REQUIRE_IMU
+  {
+    int64_t yaw = route.imu_yaw - route.imu_origin;
+    route.yaw_mdeg = yaw > 1000000 ? 1000000 :
+        (yaw < -1000000 ? -1000000 : (int32_t)yaw);
+  }
+#endif
 }
 
 /* A gap cannot stand in for repeated sensor observations. */
@@ -327,6 +350,14 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   route.step_valid = 1U;
   route.last_step_ms = now;
   update_geometry();
+#if SIGN_ROUTE_REQUIRE_IMU
+  if (!route.imu_valid && route.state != SIGN_ROUTE_IDLE &&
+      route.state != SIGN_ROUTE_LOCKED && route.state != SIGN_ROUTE_CANCELLED)
+  {
+    cancel_route(6U, now, command);
+    return;
+  }
+#endif
 
   /* All-white belongs to SL2's continuous counter-rotation search. Neither
      elapsed time nor a fresh sign is allowed to replace it with a zero target. */
@@ -366,12 +397,58 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       return;
     }
     if (now - route.junction_since_ms < SIGN_JUNCTION_CONFIRM_MS) return;
+#if SIGN_ROUTE_REQUIRE_IMU
+    if (!route.imu_valid) { cancel_route(6U, now, command); return; }
+#endif
     enter_phase(SIGN_ROUTE_PROBE, now);
     command->just_started = 1U;
   }
 
   if (route.state == SIGN_ROUTE_PROBE)
   {
+#if SIGN_PROBE_HOLD_MS > 0
+    if (route.direction != 0)
+    {
+      if (!route.probe_hold_started)
+      {
+        route.probe_hold_started = 1U;
+        route.probe_hold_since_ms = now;
+      }
+      if (now - route.probe_hold_since_ms < SIGN_PROBE_HOLD_MS)
+      {
+        uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
+        /* Remember the choice, not a compulsory ten-second motor turn.
+           A crossbar alone does not prove that we took a branch. */
+        if (line_mask != 15U && (line_mask & selected_edge))
+          route.departed = 1U;
+        uint8_t angle_ready = 1U;
+#if SIGN_ROUTE_REQUIRE_IMU
+        int32_t entry_angle = -route.direction * route.yaw_mdeg;
+        if (entry_angle > SIGN_ENTRY_MAX_MDEG || entry_angle < -30000L)
+        { cancel_route(7U, now, command); return; }
+        angle_ready = entry_angle >= SIGN_ENTRY_MIN_MDEG;
+#endif
+        if (stable(route.departed && center && angle_ready, now))
+        {
+          enter_phase(SIGN_ROUTE_ARC, now);
+          command->just_finished = 1U;
+          return;
+        }
+        /* Prefer the selected visible branch; a full crossbar is ambiguous.
+           No black on that side: leave live tracking in control. */
+        if (line_mask != 15U && (line_mask & selected_edge))
+        {
+          command->active = 1U;
+          command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
+          command->right_pwm = route.direction < 0 ? SIGN_ROUTE_PWM : 0;
+        }
+        return;
+      }
+      /* Ten seconds is a maximum selection window, never a required turn. */
+      cancel_route(1U, now, command);
+      return;
+    }
+#endif
     /* Observe while the ordinary line controller keeps motor ownership. */
     if (route.travel_mm > SIGN_PROBE_MAX_MM ||
         now - route.phase_ms > SIGN_PROBE_TIMEOUT_MS)
@@ -437,7 +514,14 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       return;
     }
     if (!junction && !center) route.departed = 1U;
-    if (stable(route.departed && center, now))
+    if (stable(route.departed && center
+#if SIGN_ROUTE_REQUIRE_IMU
+        && turn_yaw >= SIGN_EXIT_MIN_MDEG
+        && (route.state != SIGN_ROUTE_EXIT_SELECT ||
+            (route.imu_yaw - route.approach_yaw >= -15000 &&
+             route.imu_yaw - route.approach_yaw <= 15000))
+#endif
+        , now))
     {
       if (route.state == SIGN_ROUTE_SELECTING)
       {
@@ -459,7 +543,12 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     directed_arc_yaw = route.direction * route.yaw_mdeg;
     if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
         route.travel_mm > SIGN_ARC_MAX_MM ||
-        directed_arc_yaw > SIGN_ARC_MAX_YAW_MDEG ||
+        directed_arc_yaw >
+#if SIGN_ROUTE_REQUIRE_IMU
+        SIGN_GYRO_ARC_MAX_MDEG ||
+#else
+        SIGN_ARC_MAX_YAW_MDEG ||
+#endif
         directed_arc_yaw < -90000L)
     {
       cancel_route(3U, now, command);
@@ -468,7 +557,12 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     /* Curvature toward the circle is opposite the selected entry side.
        The outgoing line appears on the outside after substantial arc travel. */
     if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
-               directed_arc_yaw >= SIGN_ARC_MIN_YAW_MDEG &&
+               directed_arc_yaw >=
+#if SIGN_ROUTE_REQUIRE_IMU
+               SIGN_GYRO_ARC_MIN_MDEG &&
+#else
+               SIGN_ARC_MIN_YAW_MDEG &&
+#endif
                line_mask == (exit_side == 8U ? 12U : 3U), now))
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
@@ -502,6 +596,7 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
 {
   if (status == NULL) return;
   status->state = route.state;
+  status->yaw_valid = route.imu_valid;
   status->direction = route.direction;
   status->last_class = route.last_class;
   status->last_score = route.last_score;
