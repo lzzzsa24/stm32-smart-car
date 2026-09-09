@@ -287,7 +287,7 @@ static void test_fixed_rectangle(int direction)
     {
       assert(b.fixed_route_phase==phase+1); phase=b.fixed_route_phase; ++changes;
       if(phase==LINE_FIXED_OFFSET) assert(b.return_yaw_mdeg>=-94000 && b.return_yaw_mdeg<=-86000);
-      if(phase==LINE_FIXED_PARALLEL_TURN) assert(b.acquire_travel_mm>=180 && b.acquire_travel_mm<220);
+      if(phase==LINE_FIXED_PARALLEL_TURN) assert(b.acquire_travel_mm>=240 && b.acquire_travel_mm<280);
       if(phase==LINE_FIXED_PARALLEL) assert(b.return_yaw_mdeg>=-4000 && b.return_yaw_mdeg<=4000);
       if(phase==LINE_FIXED_RETURN_TURN) assert(b.flank_travel_mm>=120 && b.flank_travel_mm<160);
       if(phase==LINE_FIXED_RETURN) break;
@@ -315,7 +315,7 @@ static void test_fixed_rectangle(int direction)
   LineObstacleBypass_Stop();
   for(i=0;i<100;++i) { plant(1); LineObstacleBypass_Task(&input); }
   assert(LineObstacleBypass_GetState()==LINE_BYPASS_IDLE && drive().mode==DRIVE_BASE_STOPPED);
-  puts("PASS: real fixed rectangle: three absolute-heading turns, 180/120-mm continuous legs, 5s diagonal return and queued outer capture");
+  puts("PASS: real fixed rectangle: three absolute-heading turns, 240/120-mm continuous legs, 5s diagonal return and queued outer capture");
 }
 
 int main(void)
