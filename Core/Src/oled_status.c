@@ -447,8 +447,8 @@ static void build_screen(uint8_t app_mode,
   {
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
-    case 2U: draw_battery_header("M3 ADV"); break;
-    case 3U: draw_battery_header("M4 SIMPLE"); break;
+    case 2U: draw_battery_header("M3 LINE"); break;
+    case 3U: draw_battery_header("M4 LINE"); break;
     case 4U: draw_battery_header("M5 VISION"); break;
     case 5U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
@@ -618,7 +618,7 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 ADV" : "M4 SIMPLE");
+  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 LINE");
 
   index = append_string(line, 0U, "LINE:");
   index = append_line_mask(line, index, line_mask);

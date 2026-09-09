@@ -208,15 +208,21 @@ static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCom
 }
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm)
 {
+  line_tracking_apply_command_cps(command,
+      DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm)));
+}
+
+void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t forward_limit_cps)
+{
   int32_t left, right, maximum, limit;
   if (!command || !command->valid) return;
   /* Persistent visible-edge correction can now counter-rotate too. A caller
      explicitly stopping must still win even when one target is negative. */
-  if (forward_limit_pwm <= 0) { DriveBase_Stop(DRIVE_STOP_COAST); return; }
+  if (forward_limit_cps <= 0) { DriveBase_Stop(DRIVE_STOP_COAST); return; }
   left = command->left_cps; right = command->right_cps;
   if (left >= 0L && right >= 0L)
   {
-    limit = DriveBase_EquivalentCpsFromPwm(clamp_speed(forward_limit_pwm));
+    limit = forward_limit_cps;
     maximum = left > right ? left : right;
     if (maximum > limit && maximum > 0L)
     {
@@ -456,6 +462,14 @@ void line_tracking_start_following(void)
   line_tracking_set_no_line_forward(0U);
   line_tracking_set_smooth_mode(1U);
   line_tracking_set_turn_gain_percent(100U);
+}
+
+void line_tracking_yield_to_route(void)
+{
+  /* Commit releases recovery ownership without the STOP performed by Reset
+     on an active search. This does not claim a successful route completion. */
+  LineRecovery_Commit();
+  line_tracking_reset();
 }
 
 LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward_limit_pwm)

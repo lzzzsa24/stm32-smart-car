@@ -67,6 +67,12 @@ LineTrackingAction line_tracking_follow_once(int16_t base_speed, int16_t forward
    ownership. Nonzero commands respect drive faults, braking and position
    ownership; a zero forward cap remains an explicit stop request. */
 void line_tracking_apply_command(const LineTrackingCommand *command, int16_t forward_limit_pwm);
+/* Same final owner, with an explicit CPS cap (0 requests STOP). This avoids
+   converting a recognition cap below the continuous PWM floor back to PWM. */
+void line_tracking_apply_command_cps(const LineTrackingCommand *command, int32_t forward_limit_cps);
+/* Yield to a route/observation owner without issuing a stop or a motor command.
+   Clears stale recovery/history; the new owner must apply its command next. */
+void line_tracking_yield_to_route(void);
 /* enable=1：尚未见过黑线时允许无黑线直行。窄中线短缺口先低速跨越，再丢线才静音搜索。
    仅外侧识黑时内侧停、外侧低速前进；相邻双探头正向差速；横线多点优先低速穿越。
    同一最外侧单独持续识黑 120 ms 后以两侧反向强修正；其他原始状态立即解除。

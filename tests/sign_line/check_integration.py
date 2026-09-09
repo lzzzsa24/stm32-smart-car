@@ -23,16 +23,16 @@ assert "SignSlowdown_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
-assert "SimpleLine_StepRoute(" in sign_task
-assert "SimpleLine_ResolveRouteOutput(&simple_line_controller," in sign_task
-assert "&route_command, SignSlowdown_Paused(now), &left_request, &right_request)" in sign_task
-assert "apply_sign_line_pwm(left_request, right_request, sign_line_mask, sign_line_action)" in sign_task
-assert sign_task.count("apply_sign_line_pwm(") == 1
+assert "SimpleLine_StepRoute(" not in sign_task
+assert "SimpleLine_ResolveRouteOutput(" not in sign_task
+assert "SignLineFollow_Step(&sign_line_controller, &line, EXP7_LINE_SPEED," in sign_task
+assert "&route_status, &route_command, SignSlowdown_Paused(now), sign_slow_reasons)" in sign_task
+assert sign_task.count("SignLineFollow_Step(") == 1
 assert "SignSlowdown_AllowPause(pause_route.direction == 0 &&" in main
-assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SimpleLine_StepRoute(")
+assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
-assert sign_task.index("SignRoute_Step(") < sign_task.index("SimpleLine_StepRoute(")
+assert sign_task.index("SignRoute_Step(") < sign_task.index("SignLineFollow_Step(")
 assert "SimpleLine_Stop(" not in sign_task  # don't reset away current line evidence
 slow_task = main[main.index("static void sign_line_slowdown_task(AppMode mode)\n{"):main.index("static void sign_line_task(AppMode mode)\n{")]
 # Power rollback: keep the established encoder speed interface as the owner.
@@ -41,23 +41,28 @@ drive = (ROOT / "Core/Src/drive_base.c").read_text(encoding="utf-8")
 assert "sign_low_speed_mode" not in drive
 assert "low_speed_budget" not in drive
 assert "DRIVE_SIGN_POWERED" not in drive
-adapter_start = main.index("static void apply_sign_line_pwm(", main.index("static void apply_sign_line_pwm(") + 1)
-adapter = main[adapter_start:main.index("static void sign_line_slowdown_task(AppMode mode)\n{")]
-assert "DriveBase_SetSideCps(left_cps, right_cps)" in adapter
-assert "pwm_motor" not in adapter
+adapter = (ROOT / "Core/Src/sign_line_follow.c").read_text(encoding="utf-8")
+tracking = (ROOT / "Core/Src/line_tracking.c").read_text(encoding="utf-8")
+assert "line_tracking_start_following();" in adapter
+assert "line_tracking_compute(reading, base_speed, &output)" in adapter
+assert "line_tracking_apply_command_cps(&output, limit);" in adapter
+assert "pwm_motor" not in adapter and "DriveBase_SetSideCps" not in adapter
+assert "DriveBase_PrepareLineTurnAssist(left, right);" in tracking
+assert "DriveBase_SetSideCps(left, right);" in tracking
+assert transition.count("SignLineFollow_Start(&sign_line_controller);") == 2
 assert "pwm_motor" not in sign_task
 assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in slow_task
 assert "SignHorn_Reset();" in transition
 assert "DriveBase_SetSpeedLimitCps" not in slow_task[slow_task.index("sign_slow_reasons = SignSlowdown_Reasons"):]
-assert "SignSlowdown_TargetLimit(sign_slow_reasons, left_pwm, right_pwm)" in main
+assert "SignSlowdown_ForwardCps" not in main
+assert "SignSlowdown_ForwardCps(route_command->left_pwm)" in adapter
+assert "SignSlowdown_ForwardCps(route_command->right_pwm)" in adapter
 assert "route_status.searching && route_status.state != SIGN_ROUTE_PROBE" in main
-assert "left_cps = SignSlowdown_ForwardCps(left_pwm)" in main
-assert "right_cps = SignSlowdown_ForwardCps(right_pwm)" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
 assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
-assert 'SIGN3 SL2 RING NAV START' in main and 'SIGN4 SL2 RING NAV START' in main
+assert 'SIGN3 KEY2 RING NAV START' in main and 'SIGN4 KEY2 RING NAV START' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.15" in k210
