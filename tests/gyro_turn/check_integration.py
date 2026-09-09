@@ -20,7 +20,12 @@ assert runtime.index("MpuYaw_Task(HAL_GetTick(), stationary);") < runtime.index(
 )
 assert "requested_mode = APP_MODE_STOPPED;" not in runtime
 assert "imu.generation != imu_generation" in runtime and "SignRoute_Reset();" in runtime
-assert "uint8_t enabled = mode != APP_MODE_STOPPED;" in main
+wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):]
+enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
+assert "mode != APP_MODE_STOPPED" in enable
+assert "mode != APP_MODE_SIGN_LINE_ADVANCED" in enable
+assert "mode != APP_MODE_SIGN_LINE_SIMPLE" in enable
+assert "APP_MODE_INTEGRATED" not in enable and "APP_MODE_LINE_ONLY" not in enable
 assert "LineBypassTurn_Recover();" in main
 assert main.index("if (service_bounded_line_wait(app_mode))") < main.index("if (DriveBase_GetFaultMask() != 0U &&")
 
@@ -39,4 +44,4 @@ assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
 assert "if (using_gyro) { GyroTurn_Task(); return; }" in bypass
 assert "return encoder_Start(angle_mdeg, cps);" in bypass
 
-print("PASS: shared IMU epochs, all-mode bounded recovery before fault gates, no sensor-forced operator STOP, action-boundary encoder fallback")
+print("PASS: shared IMU epochs, non-sign bounded recovery before fault gates, sign pause/search ownership, action-boundary encoder fallback")
