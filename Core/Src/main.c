@@ -996,6 +996,7 @@ static void sign_line_task(AppMode mode)
   WheelEncoderCounts counts;
   LineTrackingReading line;
   uint32_t now;
+  uint8_t observation_paused;
 
   SignRoute_SetProfile(mode == APP_MODE_SIGN_GYRO_TANGENT ?
       SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD);
@@ -1011,10 +1012,12 @@ static void sign_line_task(AppMode mode)
   MpuYaw_GetReading(&yaw);
   SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
   SimpleLine_UpdateYaw(&sign_line_controller.guard, yaw.yaw_mdeg, MpuYaw_IsReady(now), yaw.generation);
+  observation_paused = SignObservation_Paused(now);
+  SignRoute_UpdateObservationPause(observation_paused, now);
   SignRoute_Step(sign_line_mask, now, &route_command);
   SignRoute_GetStatus(now, &route_status);
   sign_line_action = SignLineFollow_Step(&sign_line_controller, &line, EXP7_LINE_SPEED,
-      &route_status, &route_command, SignObservation_Paused(now));
+      &route_status, &route_command, observation_paused);
   if (sign_line_action == 5U) UltrasonicMotion_Reset();
 
   SignRoute_GetStatus(now, &route_status);

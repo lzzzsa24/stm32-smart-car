@@ -58,6 +58,9 @@ typedef struct
 void SignRoute_Init(void);
 /* Mode 4 selects the gyro-tangent profile; mode 3 keeps STANDARD. */
 void SignRoute_SetProfile(SignRouteProfile profile);
+/* Mode 4 starts its drawn entry trajectory only on the falling edge of the
+   completed two-second observation pause and only with a confirmed direction. */
+void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now);
 /* Fresh continuous MPU yaw: positive left, millidegrees. No motor ownership. */
 void SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid);
 void SignRoute_Reset(void);
