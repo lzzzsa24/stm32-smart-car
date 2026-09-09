@@ -30,8 +30,8 @@ candidate_hex_sha256: 4B3C026C7E18D0670452438C8D4952B0A4E41867030D84F4D94000E3D9
 user_reported_flash: tool_verified_8a46fd6_STM32_flash_readback_and_GO
 k210_candidate_source_commit: c767baa158a25cbf411aae6c1dadb5b631a2e51e
 k210_candidate_status: deployed_readback_verified_7256_bytes_model_verified_SIGN34_startup_no_new_board_link_test
-remote_sync_status: requested_sync_blocked_by_approval_specific_public_repo_confirmation_required
-remote_sync_branch: main
+remote_sync_status: github_pr13_current_main_and_docs_reorganization
+remote_sync_branch: docs/organize-markdown-20260909
 stm32_runtime_status: COM11_8a46fd6_readback_GO_no_post_GO_query_IMU_prior_V13_pass
 k210_requested_deployment: SIGN34_comprehensive_v8_modes3_4_complete_20260909
 temporary_flash_selector_commit: 8a46fd6_comprehensive_v14_flashed
@@ -90,9 +90,9 @@ Older statements that main is still rc.4 are superseded by this paragraph.
 Current STM32 is V14 8a46fd6: includes 576fdbc route trace and K210-source
 prerequisite 624e8b4 on full V13. Build, full 103688-byte readback and GO passed.
 K210 hardware unchanged (new TX-selection source has NOT been deployed).
-No post-GO runtime or motion test. GitHub push explicitly requested but automatic
-approval requires user confirmation of publication to the specific public repo;
-no remote writes completed. See
+No post-GO runtime or motion test. GitHub PR #13 later published the current
+local-main history together with the documentation reorganization; this remote
+operation did not flash either board. See
 `docs/history/deployments/DEPLOYMENT_V14_8A46FD6_20260909.md`.
 Older board-source statements below are history; main retains mode1-only scope.
 
