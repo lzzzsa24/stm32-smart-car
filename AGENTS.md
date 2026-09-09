@@ -106,6 +106,11 @@ See `MULTI_MODEL_WORKFLOW.md` for role selection and prompt examples.
 
 - Preserve unrelated user changes and use `apply_patch` for source/document
   edits.
+- Keep repository-root Markdown limited to `README.md`, `AGENTS.md`,
+  `PROJECT_STATE.md`, `BRANCH_WORKFLOW.md`, and `MULTI_MODEL_WORKFLOW.md`.
+  Put component guides, refactor notes, release notes, candidate records and
+  deployment evidence in the matching directory documented by
+  `docs/README.md`; keep test-specific notes beside their tests.
 - Do not copy changes into several candidate projects. This repository is the
   integration target unless the user names another project.
 - Build the formal project with:
