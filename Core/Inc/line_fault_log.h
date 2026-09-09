@@ -16,6 +16,7 @@ typedef struct
   int8_t chosen_side, hint;
   LineSearchSource source;
   uint8_t pause_reason, drive_fault, bypass_fault;
+  uint8_t gyro_fault, imu_fault;
   /* Actual accepted hint origin, including inner probes and adjacent triples.
      edge_mask retains its original narrow-outer-only meaning. */
   uint8_t hint_mask;

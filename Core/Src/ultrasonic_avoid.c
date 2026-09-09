@@ -11,6 +11,7 @@
 #include "ultrasonic.h"
 #include "ultrasonic_avoid.h"
 #include "ultrasonic_motion.h"
+#include <stddef.h>
 
 #define AVOID_MEASURE_INTERVAL_MS    60U
 #define AVOID_MEASURE_STALE_MS       250U
@@ -127,6 +128,7 @@ static void accept_distance(uint16_t distance_cm, uint32_t now_ms)
 
 static void begin_turn(uint32_t now_ms)
 {
+  no_echo_fallback_active = 0U;
   stop_motors();
   /* 转弯后声束指向的目标已经改变，墙面相对位移参考必须重建。 */
   UltrasonicMotion_Reset();
@@ -134,6 +136,25 @@ static void begin_turn(uint32_t now_ms)
   avoid_state = ULTRASONIC_AVOID_STOPPING;
   obstacle_count = 0U;
   emergency_count = 0U;
+}
+
+static void continue_degraded(void)
+{
+  /* Preserve line-following ownership. A bad echo is not a brake request.
+     Discard the old median so three new valid samples must restore cruise. */
+  no_echo_fallback_active = 1U;
+  avoid_state = ULTRASONIC_AVOID_FORWARD;
+  clear_filter();
+  if (drive_callback != NULL) drive_callback(slow_speed, slow_speed);
+}
+
+void UltrasonicAvoid_ResumeFollowing(void)
+{
+  last_trigger_ms = HAL_GetTick() - AVOID_MEASURE_INTERVAL_MS;
+  last_valid_measurement_ms = HAL_GetTick();
+  no_echo_timeout_count = 0U;
+  UltrasonicMotion_Reset();
+  continue_degraded();
 }
 
 void UltrasonicAvoid_Init(UltrasonicAvoidDriveCallback drive,
@@ -366,13 +387,31 @@ void UltrasonicAvoid_Task(void)
   }
 
   measurement_result = Ultrasonic_GetResult(&measured_distance_cm);
+  if (now_ms - last_valid_measurement_ms > AVOID_MEASURE_STALE_MS)
+  {
+    /* A late packet cannot complete a near-obstacle pair or median assembled
+       before a long sampling gap. Do not count repeated main-loop reads. */
+    clear_filter();
+    if (no_echo_fallback_enabled && avoid_state == ULTRASONIC_AVOID_FORWARD)
+      no_echo_fallback_active = 1U;
+  }
+  /* Explicitly enabled integrated-mode degradation also covers malformed
+     echoes and a driver that never finishes, not just TIMEOUT packets.
+     A fresh valid close echo below is always processed before degradation. */
+  if (no_echo_fallback_enabled && measurement_result != ULTRASONIC_RESULT_OK &&
+      now_ms - last_valid_measurement_ms >= 700U)
+  {
+    UltrasonicMotion_NoteInvalid(now_ms);
+    continue_degraded();
+    return;
+  }
   if (measurement_result == ULTRASONIC_RESULT_OK)
   {
     accept_distance(measured_distance_cm, now_ms);
     UltrasonicMotion_Update(Ultrasonic_GetLastDistanceMm(), now_ms);
     accepted_measurement = 1U;
     no_echo_timeout_count = 0U;
-    no_echo_fallback_active = 0U;
+    if (distance_valid) no_echo_fallback_active = 0U;
 
     if ((avoid_state == ULTRASONIC_AVOID_WAIT_SAFE ||
          avoid_state == ULTRASONIC_AVOID_FORWARD) &&
@@ -413,6 +452,12 @@ void UltrasonicAvoid_Task(void)
   else if (measurement_result == ULTRASONIC_RESULT_TIMEOUT)
   {
     UltrasonicMotion_NoteInvalid(now_ms);
+    emergency_count = 0U;
+    if (no_echo_fallback_enabled && avoid_state == ULTRASONIC_AVOID_FORWARD)
+    {
+      continue_degraded();
+      return;
+    }
     if (no_echo_timeout_count < no_echo_timeout_limit)
     {
       no_echo_timeout_count++;
@@ -453,6 +498,11 @@ void UltrasonicAvoid_Task(void)
   else if (measurement_result == ULTRASONIC_RESULT_OUT_RANGE)
   {
     UltrasonicMotion_NoteInvalid(now_ms);
+    if (no_echo_fallback_enabled && avoid_state == ULTRASONIC_AVOID_FORWARD)
+    {
+      continue_degraded();
+      return;
+    }
     /* 有 ECHO 但脉宽越界，按传感器/接线异常处理，不进入开阔区降级。 */
     no_echo_timeout_count = 0U;
     no_echo_fallback_active = 0U;
@@ -464,8 +514,8 @@ void UltrasonicAvoid_Task(void)
 
   if (no_echo_fallback_active != 0U)
   {
-    /* 降级期间没有新回波时保持低速；有效回波会在上面的分支清除
-       降级标志，随后重新要求连续三次有效测量。 */
+    /* Hold the continuous cap through isolated good echoes. Only a complete
+       new median releases degradation; confirmed near echoes already won. */
     if (drive_callback != NULL)
     {
       drive_callback(slow_speed, slow_speed);
@@ -530,6 +580,11 @@ void UltrasonicAvoid_Task(void)
   if (!distance_valid ||
       (now_ms - last_valid_measurement_ms > AVOID_MEASURE_STALE_MS))
   {
+    if (no_echo_fallback_enabled)
+    {
+      continue_degraded();
+      return;
+    }
     stop_motors();
     avoid_state = ULTRASONIC_AVOID_WAIT_SAFE;
     clear_filter();
