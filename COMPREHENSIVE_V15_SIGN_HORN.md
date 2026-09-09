@@ -1,5 +1,18 @@
 # Comprehensive V15 single-sign horn candidate
 
+## Five-repeat follow-up
+
+Latest source: `9cea6bcc2b9b943ae79a53040b2517dda3c8a6b5` changes only
+the confirmed horn event to five complete phrases (nominally 7.65 seconds).
+Continuous visibility still does not retrigger. Nonblocking playback and safety
+preemption remain unchanged. Integration assertion, horn latch regression and
+formal ARM build passed; no flashing or physical listening test.
+Latest BIN SHA256: `997E54D55F3F279EB27FBBBE0F32D93FCF6AFD68A768F485E4D4D2F01441F461`.
+Latest HEX SHA256: `3D82C83C4BD1B0F8004947ED040FE19E72ECF54B14F1961FAAC49C34E381F970`.
+BIN remains 104200 bytes at the paths below. Earlier hashes below are historical.
+
+## Original one-repeat merge
+
 - Source merge: `91f2e3999762f93c0ecea58999c7a9464a974caf`.
 - Branch: `test/comprehensive-v15-sign-horn-20260909`.
 - Started from canonical main `7588116`, merged full V14 `8a46fd6`, then `4c24f1f`.
