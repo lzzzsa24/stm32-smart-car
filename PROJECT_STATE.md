@@ -10,6 +10,8 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-09
+comprehensive_candidate_source_commit: fd8472beb296f436b1b99c7ea88a152d550f5f7f
+comprehensive_candidate_status: merged_locally_build_sign_line_gyro_passed_not_flashed_not_pushed
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -46,6 +48,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: fd8472b (not flashed)
+
+Comprehensive-v15-sign-horn fast-forwarded from58c3744 tofd8472b. Mode3
+releases route direction and motor ownership after confirmed exit; visible
+line feedback takes priority during exit, and OLED/STRACE expose real phase
+and requested wheel speeds. Mode4 driving profile, mode1 bypass, K210,
+motor mapping and main firmware code remain unchanged. Full sign, line and
+gyro host suites and formal build passed. BIN111196 bytes; detailed hashes
+and rollback are in docs/history/candidates/COMPREHENSIVE_FD8472B_20260909.md.
+No serial access, flash, physical test or GitHub push. Board remains58c3744.
+The main rc.5 candidate fields/artifacts above remain separate and unchanged.
 
 ### Published main rc.5: mode5 fixed black-line bypass
 
