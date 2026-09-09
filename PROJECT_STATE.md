@@ -13,28 +13,28 @@ state_updated_at: 2026-09-09
 integration_branch: main
 repository_head_at_update: 2ebf64e
 latest_code_commit: 2ebf64e
-flashed_source_commit: 6bd0c894203cfd59ebbf967fe77463c47cb74f67
-flash_record_commit: 97bd80c
-deployed_tag: deployed/2026-09-09-6bd0c89
+flashed_source_commit: 917df4763fdfd0a669b3f5366cc2eae2ed508048
+flash_record_commit: 1a56305
+deployed_tag: deployed/2026-09-09-917df47
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 105728
-flashed_bin_sha256: 221D53F8E7F349D94C15DEF5C6C83189BD05EB92141E6CAEAD7171E3134ECB17
-flashed_hex_sha256: 6027B49F07F6174BAFF744E2E47BDB8B08562B20AFF078956E9AFCCF42510B74
-ground_test_status: not_tested_after_6bd0c89_deployment
+formal_bin_size_bytes: 105612
+flashed_bin_sha256: 3A0AF2618594AF6F88D8C94F73D81989F06D8A91EA1B2A84E5972ADBE38C53DD
+flashed_hex_sha256: D76A3CCA24947183C4F99E367643AC34F39A6554DD844925A028129B20D0742F
+ground_test_status: not_tested_after_917df47_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 6bd0c894203cfd59ebbf967fe77463c47cb74f67
-candidate_bin_size_bytes: 105728
-candidate_bin_sha256: 221D53F8E7F349D94C15DEF5C6C83189BD05EB92141E6CAEAD7171E3134ECB17
-candidate_hex_sha256: 6027B49F07F6174BAFF744E2E47BDB8B08562B20AFF078956E9AFCCF42510B74
-user_reported_flash: tool_verified_6bd0c89_readback_GO
+candidate_source_commit: 917df4763fdfd0a669b3f5366cc2eae2ed508048
+candidate_bin_size_bytes: 105612
+candidate_bin_sha256: 3A0AF2618594AF6F88D8C94F73D81989F06D8A91EA1B2A84E5972ADBE38C53DD
+candidate_hex_sha256: D76A3CCA24947183C4F99E367643AC34F39A6554DD844925A028129B20D0742F
+user_reported_flash: tool_verified_917df47_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_pr13_docs_reorganization_and_pr14_latest_deployment_sync
 remote_sync_branch: sync/docs-reorg-main-20260909
-stm32_runtime_status: COM11_6bd0c89_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_917df47_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 6bd0c89_comprehensive_gyro_exit_flashed
+temporary_flash_selector_commit: 917df47_exact_requested_test_flashed
 github_release_tag: v1.2.0-rc.4
 github_release_source_commit: ff4bbc9
 github_release_firmware_commit: ff4bbc9
@@ -46,6 +46,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest exact test deployment: 917df47
+
+Requested source 917df4763fdfd0a669b3f5366cc2eae2ed508048 rebuilt in
+worktrees/sign-gyro-exit-straight; full sign suite passed. COM11 full
+105612-byte readback and GO passed, reserved pages preserved. No source merge.
+K210 unchanged at 20e8c72 threshold .15; no post-GO or physical test.
+Docs: docs/history/deployments/DEPLOYMENT_917DF47_20260909.md.
+Supersedes older STM32 deployment entries. Comprehensive-v15 branch still
+points to 6bd0c89; do not mistake that checkout's older BIN for this board image.
 
 ### Latest STM32 deployment: 6bd0c89
 
