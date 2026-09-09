@@ -22,6 +22,11 @@ static void start(int side)
   }
   for(i=0;i<3;++i) step(15,0,1);
   assert(s.state==SIGN_ROUTE_PROBE);
+  step(6,0,1); assert(!c.active); /* crossbar on straight approach is not a fork */
+  step(side<0?1:8,0,1); /* opposite fork must not reverse the confirmed choice */
+  assert(c.active && (side<0 ? c.left_pwm==0 && c.right_pwm>0 : c.right_pwm==0 && c.left_pwm>0));
+  step(0,-side*10000,1);
+  assert(c.active && (side<0 ? c.left_pwm==0 : c.right_pwm==0));
   step(side<0?8:1,-side*20000,1);
   for(i=0;i<4;++i) step(6,-side*20000,1);
   assert(s.state==SIGN_ROUTE_PROBE); /* line capture alone cannot finish */
@@ -36,16 +41,24 @@ static void test(int side)
   for(i=0;i<4;++i) step(side<0?12:3,entry+side*70000,1);
   assert(s.state==SIGN_ROUTE_ARC); /* early edge cannot exit */
   for(i=0;i<4;++i) step(15,entry+side*170000,1);
-  assert(s.state==SIGN_ROUTE_ARC); /* wide bar still not exit */
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* measured angle, not mask triggers exit */
   for(i=0;i<4;++i) step(side<0?12:3,entry+side*170000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT);
   for(i=0;i<4;++i) step(6,entry+side*170000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* no yaw: not completed */
-  for(i=0;i<4;++i) step(6,0,1);
+  for(i=0;i<4;++i) step(0,0,1);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
+  assert(c.active && c.left_pwm==c.right_pwm && c.left_pwm>0);
   SignRoute_UpdateEncoders(2500,2500,2500,2500);
   for(i=0;i<4;++i) step(6,0,1);
   assert(s.state==SIGN_ROUTE_LOCKED);
+  start(side);
+  SignRoute_UpdateEncoders(2000,2000,2000,2000);
+  for(i=0;i<4;++i) step(0,entry+side*170000,1);
+  for(i=0;i<4;++i) step(0,0,1);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
+  now+=2100; step(0,0,1);
+  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active);
   start(side); step(6,entry,0);
   assert(s.state==SIGN_ROUTE_CANCELLED && s.fault==6 && !c.active);
   start(side); step(6,entry-side*100000,1);

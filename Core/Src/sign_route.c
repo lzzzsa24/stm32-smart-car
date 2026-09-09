@@ -320,6 +320,22 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
 static void select_command(SignRouteCommand *command, uint8_t mask)
 {
   uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
+#if SIGN_ROUTE_REQUIRE_IMU
+  if (route.direction && route.imu_valid &&
+      (route.state == SIGN_ROUTE_EXIT_SELECT ||
+       ((route.state == SIGN_ROUTE_PROBE || route.state == SIGN_ROUTE_SELECTING) &&
+        -route.direction * route.yaw_mdeg < SIGN_ENTRY_MIN_MDEG && mask != 15U &&
+        (route.departed || (mask & 9U) || mask == 0U))))
+  {
+    /* Finite entry/exit ownership: opposite branch contact or white must not
+       replace the confirmed choice. Both phases have angle/time withdrawal. */
+    command->active = 1U;
+    route.departed = 1U;
+    command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
+    command->right_pwm = route.direction < 0 ? SIGN_ROUTE_PWM : 0;
+    return;
+  }
+#endif
   /* A sign is only a branch preference. It cannot drive off the black line,
      override a current centre line, or steer across an all-black bar. */
   if (route.direction == 0 || !(mask & selected_edge) || mask == 15U)
@@ -427,6 +443,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         if (entry_angle > SIGN_ENTRY_MAX_MDEG || entry_angle < -30000L)
         { cancel_route(7U, now, command); return; }
         angle_ready = entry_angle >= SIGN_ENTRY_MIN_MDEG;
+        if (angle_ready) route.departed = 1U;
 #endif
         if (stable(route.departed && center && angle_ready, now))
         {
@@ -434,14 +451,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
           command->just_finished = 1U;
           return;
         }
-        /* Prefer the selected visible branch; a full crossbar is ambiguous.
-           No black on that side: leave live tracking in control. */
-        if (line_mask != 15U && (line_mask & selected_edge))
-        {
-          command->active = 1U;
-          command->left_pwm = route.direction < 0 ? 0 : SIGN_ROUTE_PWM;
-          command->right_pwm = route.direction < 0 ? SIGN_ROUTE_PWM : 0;
-        }
+        /* Before capture the confirmed branch owns a bounded forward pivot.
+           Do not initiate a turn on an ordinary centered approach line. */
+        select_command(command, line_mask);
         return;
       }
       /* Ten seconds is a maximum selection window, never a required turn. */
@@ -513,6 +525,18 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       cancel_route(2U, now, command);
       return;
     }
+#if SIGN_ROUTE_REQUIRE_IMU
+    if (route.state == SIGN_ROUTE_EXIT_SELECT &&
+        turn_yaw >= SIGN_EXIT_MIN_MDEG &&
+        route.imu_yaw-route.approach_yaw >= -10000 &&
+        route.imu_yaw-route.approach_yaw <= 10000)
+    {
+      enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
+      command->active=1U;
+      command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+      return;
+    }
+#endif
     if (!junction && !center) route.departed = 1U;
     if (stable(route.departed && center
 #if SIGN_ROUTE_REQUIRE_IMU
@@ -539,7 +563,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_ARC)
   {
+#if !SIGN_ROUTE_REQUIRE_IMU
     uint8_t exit_side = route.direction < 0 ? 8U : 1U;
+#endif
     directed_arc_yaw = route.direction * route.yaw_mdeg;
     if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
         route.travel_mm > SIGN_ARC_MAX_MM ||
@@ -554,16 +580,16 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       cancel_route(3U, now, command);
       return;
     }
-    /* Curvature toward the circle is opposite the selected entry side.
-       The outgoing line appears on the outside after substantial arc travel. */
+    /* The gyro phase plus travel opens exit alignment even if the outgoing
+       branch's exact two-sensor pattern was missed. */
     if (stable(route.travel_mm >= SIGN_ARC_MIN_MM &&
                directed_arc_yaw >=
 #if SIGN_ROUTE_REQUIRE_IMU
-               SIGN_GYRO_ARC_MIN_MDEG &&
+               SIGN_GYRO_EXIT_TRIGGER_MDEG, now))
 #else
                SIGN_ARC_MIN_YAW_MDEG &&
-#endif
                line_mask == (exit_side == 8U ? 12U : 3U), now))
+#endif
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
       route.departed = 1U;
@@ -575,11 +601,16 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 
   if (route.state == SIGN_ROUTE_EXIT_CLEAR)
   {
-    if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS)
+    if (now - route.phase_ms > SIGN_EXIT_CLEAR_TIMEOUT_MS ||
+        route.travel_mm > SIGN_EXIT_STRAIGHT_MAX_MM)
     {
       cancel_route(5U, now, command);
       return;
     }
+#if SIGN_ROUTE_REQUIRE_IMU
+    command->active=1U;
+    command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+#endif
     if (stable(center && route.travel_mm >= SIGN_EXIT_CLEAR_MM, now))
     {
       route.state = SIGN_ROUTE_LOCKED;
