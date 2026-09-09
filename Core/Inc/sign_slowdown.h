@@ -12,6 +12,8 @@
 #define SIGN_SLOWDOWN_VISION 2U
 
 void SignSlowdown_Reset(void);
+void SignSlowdown_AllowPause(uint8_t allowed);
+uint8_t SignSlowdown_Paused(uint32_t now);
 void SignSlowdown_ObserveBlack(uint32_t sampled_ms);
 /* Call only for a complete, validated parser frame in an active sign mode. */
 void SignSlowdown_ObserveDetection(const VisionDetection *frame, uint32_t now);

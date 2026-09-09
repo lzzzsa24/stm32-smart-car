@@ -307,6 +307,39 @@ static void test_search_sector(void)
   CHECK(c.left_pwm==0 && c.right_pwm==0);
   puts("PASS: measured-yaw sector contains repeated search, stale yaw withdrawal, generation reset and STOP");
 }
+static void test_observation_pause(void)
+{
+  VisionDetection f={0}; unsigned i;
+  SignRouteStatus r;
+  SignSlowdown_Reset(); SignRoute_Reset();
+  SignSlowdown_AllowPause(1);
+  f.class_id=0; f.score=25; f.center_x=160; f.center_y=120;
+  for(i=0;i<30;++i)
+  {
+    f.sequence=i+1; f.received_ms=100+i*100;
+    SignSlowdown_ObserveDetection(&f,f.received_ms);
+    SignRoute_ObserveDetection(&f);
+    CHECK(SignSlowdown_Paused(f.received_ms)==(i<20));
+  }
+  SignRoute_GetStatus(3000,&r); CHECK(r.direction==-1);
+  /* Continuous/noisy detections cannot renew or rearm the deadline. */
+  f.class_id=1; f.sequence++; f.received_ms=3100;
+  SignSlowdown_ObserveDetection(&f,3100); CHECK(!SignSlowdown_Paused(3100));
+  f.class_id=-1;
+  for(i=0;i<=15;++i)
+  { f.sequence++; f.received_ms=3200+i*100; SignSlowdown_ObserveDetection(&f,f.received_ms); }
+  f.class_id=1; f.sequence++; f.received_ms=4800;
+  SignSlowdown_ObserveDetection(&f,4800); CHECK(SignSlowdown_Paused(4800));
+  CHECK(SignSlowdown_Paused(6799)); CHECK(!SignSlowdown_Paused(6800));
+  SignSlowdown_Reset(); CHECK(!SignSlowdown_Paused(4801));
+  SignSlowdown_AllowPause(0); f.sequence++; f.received_ms=5000;
+  SignSlowdown_ObserveDetection(&f,5000); CHECK(!SignSlowdown_Paused(5000));
+  SignSlowdown_Reset(); SignSlowdown_AllowPause(1);
+  f.sequence++; f.received_ms=UINT32_MAX-999U;
+  SignSlowdown_ObserveDetection(&f,f.received_ms);
+  CHECK(SignSlowdown_Paused(999)); CHECK(!SignSlowdown_Paused(1000));
+  puts("PASS: fixed 2s observation, votes while stopped, no renewal, fresh rearm, reset and wrap");
+}
 int main(void)
 {
   test_parser();
@@ -316,5 +349,6 @@ int main(void)
   test_slow_profile();
   test_entry_direction();
   test_search_sector();
+  test_observation_pause();
   return 0;
 }

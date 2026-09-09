@@ -1013,6 +1013,11 @@ static void sign_line_slowdown_task(AppMode mode)
   }
   while (vision_uart_take_detection(&detection) != 0U)
   {
+    SignRouteStatus pause_route;
+    SignRoute_GetStatus(HAL_GetTick(), &pause_route);
+    SignSlowdown_AllowPause(pause_route.state == SIGN_ROUTE_IDLE ||
+        pause_route.state == SIGN_ROUTE_ARMED || pause_route.state == SIGN_ROUTE_PROBE ||
+        pause_route.state == SIGN_ROUTE_WAIT_SIGN);
     SignSlowdown_ObserveDetection(&detection, HAL_GetTick());
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))
@@ -1057,7 +1062,12 @@ static void sign_line_task(AppMode mode)
   SignRoute_GetStatus(now, &route_status);
   SimpleLine_StepRoute(&simple_line_controller, sign_line_mask, &route_status, &route_command);
 
-  if (route_command.active != 0U)
+  if (SignSlowdown_Paused(now))
+  {
+    sign_line_action = 6U; /* finite recognition observation, not manual STOP */
+    apply_sign_line_pwm(0, 0, sign_line_mask, sign_line_action);
+  }
+  else if (route_command.active != 0U)
   {
     sign_line_action = 5U; /* route-select turn */
     apply_sign_line_pwm(route_command.left_pwm,

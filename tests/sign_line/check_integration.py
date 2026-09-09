@@ -24,6 +24,8 @@ assert "DriveBase_SetSpeedLimitCps(0L);" in transition
 sign_task = main[main.index("static void sign_line_task(AppMode mode)\n{"):main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")]
 assert "line_tracking_compute(" not in sign_task
 assert "SimpleLine_StepRoute(" in sign_task
+assert sign_task.index("if (SignSlowdown_Paused(now))") < sign_task.index("else if (route_command.active")
+assert "apply_sign_line_pwm(0, 0, sign_line_mask, sign_line_action)" in sign_task
 assert sign_task.index("SimpleLine_UpdateYaw(") < sign_task.index("SimpleLine_StepRoute(")
 assert "SimpleLine_SetDirection(" not in sign_task
 assert "SignRoute_UpdateEncoders(" in sign_task
