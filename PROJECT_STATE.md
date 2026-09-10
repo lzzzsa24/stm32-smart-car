@@ -38,12 +38,12 @@ temporary_flash_selector_commit: a217df8_previous_five_mode_board
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
 k210_candidate_status: paired_script_in_K210_sign_mode34_py_for_new_mode3_only
-remote_sync_status: four_mode_PR_preparing
+remote_sync_status: four_mode_main_merged_PR19_release_rc6_published
 remote_sync_branch: integration/main-four-mode-20260910
-github_release_tag: v1.2.0-rc.5
-github_release_source_commit: 71b2e7f
-github_release_firmware_commit: 71b2e7f
-github_release_status: previous_release_rc6_preparing
+github_release_tag: v1.2.0-rc.6
+github_release_source_commit: ce503cae2875bacc6fa79a7b9032f41fef35c298
+github_release_firmware_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
+github_release_status: prerelease_published_7_assets_size_SHA256_verified_not_flashed
 ```
 
 The repository anchor is the latest firmware commit. Newer documentation-only
@@ -111,10 +111,14 @@ SHA256 B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901.
 Mode4 needs no K210; do not deploy historical K210/main.py visual-line code
 for this four-mode release. This task did not rewrite K210 hardware.
 
-Preparing v1.2.0-rc.6 via protected-main PR; see
-docs/releases/RELEASE_V1.2.0_RC6.md. Pre-release because this exact new
-combination is not ground-tested. Publish BIN/HEX, checksums, paired script,
-model/manifest and release notes; no unrelated files.
+Published v1.2.0-rc.6 from main merge ce503ca (PR19); firmware c2ed15d.
+https://github.com/lzzzsa24/test-exp7-unified-motion-v1/releases/tag/v1.2.0-rc.6
+All7 assets verified against GitHub sizes/SHA256: BIN/HEX, checksums, paired
+script, model/manifest and release notes. Release manifest filename is adapted
+to packaged road_sign_det.kmodel, model contents unchanged. Pre-release because
+this exact new combination is not ground-tested. See docs/releases/RELEASE_V1.2.0_RC6.md.
+The composite source branch and rollback/deployed provenance tags were also
+pushed. No hardware action. Follow-up publication bookkeeping is docs-only.
 
 ## Future workflow
 
