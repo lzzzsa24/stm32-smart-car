@@ -43,6 +43,7 @@ typedef struct
   uint8_t departed;
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
   uint8_t exit_line_seen;
+  uint8_t exit_region_seen;
   uint32_t entry_center_ms;
   uint8_t capture_active;
   int32_t previous_counts[4];
@@ -52,6 +53,8 @@ typedef struct
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   uint8_t observation_pause_active, observation_pause_seen;
+  uint8_t approach_from_pause;
+  uint32_t pause_reference_ms;
   int32_t travel_mm, yaw_mdeg;
   SignRouteProfile profile;
   int32_t arc_peak_mdeg;
@@ -218,6 +221,19 @@ void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now)
   paused = paused ? 1U : 0U;
   if (route.profile != SIGN_ROUTE_PROFILE_GYRO_TANGENT)
   {
+    /* The caller supplies the actual fixed-two-second observation flag after
+       refreshing MPU yaw. Freeze the latest heading on its falling edge;
+       do not confuse the later crossbar correction with the straight road. */
+    if (paused && !route.observation_pause_active) route.approach_from_pause=0U;
+    if (!paused && route.observation_pause_active && route.imu_valid &&
+        (route.state==SIGN_ROUTE_IDLE || route.state==SIGN_ROUTE_ARMED ||
+         route.state==SIGN_ROUTE_PROBE || route.state==SIGN_ROUTE_WAIT_SIGN ||
+         route.state==SIGN_ROUTE_SELECTING))
+    {
+      route.approach_yaw=route.imu_yaw;
+      route.approach_from_pause=1U;
+      route.pause_reference_ms=now;
+    }
     route.observation_pause_active = paused;
     route.observation_pause_seen = 0U;
     return;
@@ -317,7 +333,12 @@ static void enter_phase(SignRouteState state, uint32_t now)
   if (state == SIGN_ROUTE_PROBE)
   {
     route.probe_hold_started = 0U;
-    route.approach_yaw = route.imu_yaw;
+    if (route.profile != SIGN_ROUTE_PROFILE_STANDARD || !route.approach_from_pause ||
+        now-route.pause_reference_ms > SIGN_PENDING_MAX_AGE_MS)
+    {
+      route.approach_yaw = route.imu_yaw; /* no usable observation stop: explicit fallback */
+      route.approach_from_pause=0U;
+    }
   }
   route.state = state;
   route.phase_ms = now;
@@ -329,6 +350,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
   if (state == SIGN_ROUTE_ARC)
   {
     route.arc_peak_mdeg = 0L;
+    route.exit_region_seen = 0U;
     if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
     {
       /* The drawn path starts the arc only after the straight diagonal has
@@ -413,6 +435,7 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
   route.fault = reason;
   route.direction = 0;
   route.finished_ms = now;
+  route.approach_from_pause=0U;
   route.none_since_ms = 0U;
   route.capture_active = route.junction_active = 0U;
   clear_window();
@@ -424,6 +447,7 @@ static void complete_route(uint32_t now, SignRouteCommand *command)
   route.state=SIGN_ROUTE_LOCKED;
   route.direction=0;
   route.finished_ms=now;
+  route.approach_from_pause=0U;
   route.none_since_ms=0U;
   route.capture_active=route.junction_active=0U;
   clear_window();
@@ -645,11 +669,13 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
       route.departed = 1U;
       return;
     }
-    /* Current line owns steering once it is seen. An angle threshold must
-       not pull a car that has already exited away from its new track. */
-    if (mask != 0U) return;
+    /* The ring itself remains black at the exit. Until heading alignment is
+       complete, a narrow contact must not cancel the qualified exit choice.
+       Wide/both-side evidence still cannot authorize a turn. EXIT_CLEAR,
+       not this unfinished turn, releases control on outgoing-line capture. */
+    if (is_junction(mask)) return;
     steer = heading_error() > 0 ? 1 : -1;
-    /* Only qualified, all-white exit alignment may own a blind pivot. */
+    /* Existing KEY2 forward pivot; never request counter-rotation here. */
     command->active = 1U;
     route.departed = 1U;
     command->left_pwm = steer < 0 ? 0 : SIGN_ROUTE_PWM;
@@ -717,6 +743,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
        now - route.last_frame_ms > SIGN_ONLINE_MAX_AGE_MS))
   {
     route.direction = 0;
+    route.approach_from_pause=0U;
     clear_window();
     if (route.state == SIGN_ROUTE_ARMED) route.state = SIGN_ROUTE_IDLE;
   }
@@ -892,7 +919,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
            error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG);
       route.exit_previous_error=error;
       if (magnitude < route.exit_best_error_mdeg) route.exit_best_error_mdeg=magnitude;
-      if (line_mask==0U && magnitude > route.exit_best_error_mdeg+SIGN_EXIT_DIVERGE_MDEG)
+      if (command->active && magnitude > route.exit_best_error_mdeg+SIGN_EXIT_DIVERGE_MDEG)
       { cancel_route(2U, now, command); return; }
       if (aligned)
       {
@@ -955,22 +982,21 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 #endif
     directed_arc_yaw = route.direction * route.yaw_mdeg;
 #if SIGN_ROUTE_REQUIRE_IMU
-    if (!route.arc_origin_locked &&
-        -route.direction * (route.imu_yaw-route.approach_yaw) > SIGN_ENTRY_MAX_MDEG)
+    int32_t road_heading=route.direction * heading_error();
+    /* Mode 4 has already dispatched above. Mode 3 locates the exit region
+       directly from the signed straight-road reference, not an estimated
+       entry tangent or an accumulated 150/170-degree arc. */
+    if (road_heading < -SIGN_ENTRY_MAX_MDEG || road_heading > SIGN_EXIT_HEADING_MAX_MDEG)
     {
       cancel_route(3U, now, command);
       return;
     }
 #endif
-    if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
-        route.travel_mm > SIGN_ARC_MAX_MM ||
-        directed_arc_yaw >
-#if SIGN_ROUTE_REQUIRE_IMU
-        SIGN_GYRO_ARC_MAX_MDEG ||
-#else
-        SIGN_ARC_MAX_YAW_MDEG ||
+    if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS || route.travel_mm > SIGN_ARC_MAX_MM
+#if !SIGN_ROUTE_REQUIRE_IMU
+        || directed_arc_yaw > SIGN_ARC_MAX_YAW_MDEG || directed_arc_yaw < -90000L
 #endif
-        directed_arc_yaw < -90000L)
+        )
     {
       cancel_route(3U, now, command);
       return;
@@ -979,15 +1005,22 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     if (route.profile == SIGN_ROUTE_PROFILE_STANDARD)
     {
       int32_t error=heading_error();
+      uint8_t exit_edge=route.direction < 0 ? 8U : 1U;
       if (is_track_line(line_mask) && route.arc_origin_locked && route.travel_mm >= SIGN_ARC_MIN_MM &&
           directed_arc_yaw > route.arc_peak_mdeg)
-        route.arc_peak_mdeg=directed_arc_yaw;
-      uint8_t natural_exit=route.arc_peak_mdeg >= SIGN_GYRO_ARC_MIN_MDEG && center &&
+        route.arc_peak_mdeg=directed_arc_yaw; /* diagnostic only; not an exit threshold */
+      if (is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
+          road_heading >= SIGN_EXIT_HEADING_MIN_MDEG)
+        route.exit_region_seen=1U;
+      uint8_t natural_exit=route.exit_region_seen && center &&
           error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
-      uint8_t turn_ready=is_track_line(line_mask) && route.arc_origin_locked &&
-          route.travel_mm >= SIGN_ARC_MIN_MM && directed_arc_yaw >= SIGN_GYRO_EXIT_TRIGGER_MDEG;
+      uint8_t edge_ready=(line_mask & exit_edge) &&
+          road_heading >= SIGN_EXIT_HEADING_MIN_MDEG;
+      uint8_t turn_ready=is_track_line(line_mask) &&
+          route.travel_mm >= SIGN_ARC_MIN_MM &&
+          (edge_ready || road_heading >= SIGN_EXIT_HEADING_TRIGGER_MDEG);
       /* All-white search and full-black backgrounds cannot trigger exit.
-         Natural rejoin can finish before a hard 170-degree crossing is seen. */
+         The signed upper-half heading, not a guessed apex, authorizes it. */
       if (stable(natural_exit ? 2U : (turn_ready ? 1U : 0U), now))
       {
         if (natural_exit)
@@ -998,7 +1031,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
         route.departed=1U;
         command->just_started=1U;
-        /* Fresh visible line retains motor ownership in either transition. */
+        select_command(command,line_mask);
       }
       return;
     }
@@ -1084,4 +1117,5 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->profile = route.profile;
   status->heading_error_mdeg = heading_error();
   status->arc_peak_mdeg = route.arc_peak_mdeg;
+  status->approach_from_pause = route.approach_from_pause;
 }

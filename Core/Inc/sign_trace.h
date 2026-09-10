@@ -8,6 +8,7 @@ typedef struct {
   int32_t yaw_mdeg, travel_mm;
   int32_t heading_error_mdeg, arc_peak_mdeg, left_cps, right_cps;
   uint8_t mask, state, fault, online, score;
+  uint8_t approach_from_pause;
   int8_t direction, class_id;
 } SignTraceRecord;
 void SignTrace_Init(void);
