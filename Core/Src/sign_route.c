@@ -44,6 +44,10 @@ typedef struct
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
   uint8_t exit_line_seen;
   uint8_t exit_region_seen;
+  uint8_t arc_lower_seen, exit_straight_active;
+  uint32_t exit_straight_since_ms;
+  int64_t exit_straight_origin_counts;
+  int32_t exit_straight_min_yaw, exit_straight_max_yaw, exit_heading_peak_mdeg;
   uint32_t entry_center_ms;
   uint8_t capture_active;
   int32_t previous_counts[4];
@@ -351,6 +355,10 @@ static void enter_phase(SignRouteState state, uint32_t now)
   {
     route.arc_peak_mdeg = 0L;
     route.exit_region_seen = 0U;
+    route.exit_heading_peak_mdeg = 0L;
+    route.exit_straight_active = 0U;
+    route.arc_lower_seen = route.imu_valid && is_track_line(route.last_line_mask) &&
+        -route.direction * heading_error() >= 15000L;
     if (route.profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT)
     {
       /* The drawn path starts the arc only after the straight diagonal has
@@ -450,10 +458,40 @@ static void complete_route(uint32_t now, SignRouteCommand *command)
   route.approach_from_pause=0U;
   route.none_since_ms=0U;
   route.capture_active=route.junction_active=0U;
+  route.exit_straight_active=0U;
   clear_window();
   memset(command,0,sizeof(*command));
   command->just_finished=1U;
 }
+
+#if SIGN_ROUTE_REQUIRE_IMU
+static uint8_t natural_departure_confirmed(uint8_t mask, int32_t road_heading, uint32_t now)
+{
+  int64_t forward_mm;
+  uint8_t returning=route.arc_lower_seen && is_track_line(mask) &&
+      route.exit_heading_peak_mdeg >= SIGN_EXIT_RETURN_PEAK_MDEG &&
+      route.exit_heading_peak_mdeg-road_heading >= SIGN_EXIT_RETURN_DROP_MDEG &&
+      road_heading >= -SIGN_EXIT_RETURN_RANGE_MDEG && road_heading <= SIGN_EXIT_RETURN_RANGE_MDEG;
+  if (!returning) { route.exit_straight_active=0U; return 0U; }
+  if (road_heading < route.exit_straight_min_yaw) route.exit_straight_min_yaw=road_heading;
+  if (road_heading > route.exit_straight_max_yaw) route.exit_straight_max_yaw=road_heading;
+  if (!route.exit_straight_active ||
+      route.exit_straight_max_yaw-route.exit_straight_min_yaw > SIGN_EXIT_STEADY_RANGE_MDEG)
+  {
+    route.exit_straight_active=1U;
+    route.exit_straight_since_ms=now;
+    route.exit_straight_origin_counts=route.left_counts+route.right_counts;
+    route.exit_straight_min_yaw=route.exit_straight_max_yaw=road_heading;
+    return 0U;
+  }
+  forward_mm=(route.left_counts+route.right_counts-route.exit_straight_origin_counts) *
+      VEHICLE_WHEEL_DIAMETER_MM * 31416LL / (4160LL * 10000LL);
+  /* Current line owns every sample during confirmation. Time alone, stationary
+     search rotation, or merely passing the circle midpoint cannot finish ARC. */
+  return is_center_line(mask) && now-route.exit_straight_since_ms >= SIGN_EXIT_STEADY_MS &&
+      forward_mm >= SIGN_EXIT_STEADY_MM;
+}
+#endif
 
 static void capture_arc(uint32_t now, SignRouteCommand *command)
 {
@@ -783,6 +821,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   center = is_center_line(line_mask);
   if (route.step_valid && now - route.last_step_ms > SIGN_SAMPLE_MAX_GAP_MS)
   {
+    route.exit_straight_active = 0U;
     route.capture_active = 0U;
     route.entry_center_active = 0U;
     route.junction_active = 0U;
@@ -1073,13 +1112,24 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       if (is_track_line(line_mask) && route.arc_origin_locked && route.travel_mm >= SIGN_ARC_MIN_MM &&
           directed_arc_yaw > route.arc_peak_mdeg)
         route.arc_peak_mdeg=directed_arc_yaw; /* diagnostic only; not an exit threshold */
+      if (is_track_line(line_mask) && road_heading <= -15000L) route.arc_lower_seen=1U;
+      if (route.arc_lower_seen && is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
+          road_heading > route.exit_heading_peak_mdeg)
+        route.exit_heading_peak_mdeg=road_heading;
+      if (natural_departure_confirmed(line_mask,road_heading,now))
+      {
+        complete_route(now,command);
+        return;
+      }
       if (is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
           road_heading >= SIGN_EXIT_HEADING_MIN_MDEG)
         route.exit_region_seen=1U;
       uint8_t natural_exit=route.exit_region_seen && center &&
           error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
       uint8_t edge_ready=(line_mask & exit_edge) &&
-          road_heading >= SIGN_EXIT_HEADING_MIN_MDEG;
+          (road_heading >= SIGN_EXIT_HEADING_MIN_MDEG ||
+           (route.arc_lower_seen && road_heading >= SIGN_EXIT_EARLY_MIN_MDEG &&
+            route.exit_heading_peak_mdeg-road_heading >= SIGN_EXIT_EARLY_DROP_MDEG));
       uint8_t turn_ready=is_track_line(line_mask) &&
           route.travel_mm >= SIGN_ARC_MIN_MM &&
           (edge_ready || road_heading >= SIGN_EXIT_HEADING_TRIGGER_MDEG);
@@ -1182,4 +1232,5 @@ void SignRoute_GetStatus(uint32_t now, SignRouteStatus *status)
   status->heading_error_mdeg = heading_error();
   status->arc_peak_mdeg = route.arc_peak_mdeg;
   status->approach_from_pause = route.approach_from_pause;
+  status->exit_heading_peak_mdeg = route.exit_heading_peak_mdeg;
 }

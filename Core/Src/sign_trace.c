@@ -32,6 +32,7 @@ void SignTrace_Record(uint32_t now, uint8_t mask, const SignRouteStatus *s,
   r.heading_error_mdeg=s->heading_error_mdeg; r.arc_peak_mdeg=s->arc_peak_mdeg;
   r.left_cps=left_cps; r.right_cps=right_cps;
   r.approach_from_pause=s->approach_from_pause;
+  r.exit_heading_peak_mdeg=s->exit_heading_peak_mdeg;
   records[head]=r; head=(uint16_t)((head+1)%SIGN_TRACE_CAPACITY);
   if(count<SIGN_TRACE_CAPACITY) ++count;
   if(s->state==SIGN_ROUTE_CANCELLED) frozen=1;
@@ -45,7 +46,7 @@ void SignTrace_Task(uint8_t stopped)
   if(request==1U)
   {
     request=0; cursor=0; dumping=1;
-    DiagnosticUart_WriteString("STRACE BEGIN t,mask,state,dir,fault,yaw,mm,seq,online,class,score,heading_error,arc_peak,left_cps,right_cps,pause_ref\r\n");
+    DiagnosticUart_WriteString("STRACE BEGIN t,mask,state,dir,fault,yaw,mm,seq,online,class,score,heading_error,arc_peak,left_cps,right_cps,pause_ref,exit_heading_peak\r\n");
     return;
   }
   if(!dumping) return;
@@ -60,6 +61,7 @@ void SignTrace_Task(uint8_t stopped)
   FIELD(r.online); FIELD(r.class_id); FIELD(r.score);
   FIELD(r.heading_error_mdeg); FIELD(r.arc_peak_mdeg); FIELD(r.left_cps); FIELD(r.right_cps);
   FIELD(r.approach_from_pause);
+  FIELD(r.exit_heading_peak_mdeg);
 #undef FIELD
   DiagnosticUart_WriteString("\r\n");
 }

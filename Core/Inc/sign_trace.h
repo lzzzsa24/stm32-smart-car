@@ -7,6 +7,7 @@ typedef struct {
   uint32_t time_ms, sequence;
   int32_t yaw_mdeg, travel_mm;
   int32_t heading_error_mdeg, arc_peak_mdeg, left_cps, right_cps;
+  int32_t exit_heading_peak_mdeg;
   uint8_t mask, state, fault, online, score;
   uint8_t approach_from_pause;
   int8_t direction, class_id;
