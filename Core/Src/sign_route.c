@@ -1127,7 +1127,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       uint8_t natural_exit=route.exit_region_seen && center &&
           error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
       uint8_t edge_ready=(line_mask & exit_edge) &&
-          (road_heading >= SIGN_EXIT_HEADING_MIN_MDEG ||
+          (road_heading >= SIGN_EXIT_EDGE_HEADING_MDEG ||
            (route.arc_lower_seen && road_heading >= SIGN_EXIT_EARLY_MIN_MDEG &&
             route.exit_heading_peak_mdeg-road_heading >= SIGN_EXIT_EARLY_DROP_MDEG));
       uint8_t turn_ready=is_track_line(line_mask) &&
