@@ -40,7 +40,7 @@ static void start(int side,int32_t stopped)
 }
 static void stopped_exit(int side,int32_t stopped,uint8_t edge,int32_t apex)
 {
-  unsigned i; int32_t threshold=edge?45000:55000;
+  unsigned i; int32_t threshold=edge?30000:40000;
   uint8_t mask=edge?(side<0?8:1):6;
   start(side,stopped);
   step(6,stopped-side*apex,1500);
@@ -94,6 +94,6 @@ int main(void)
   for(i=0;i<4;++i) step(6,55000,12);
   step(0,45000,0); step(8,45000,12);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active); /* reacquisition before alignment */
-  puts("PASS: stopped pose is primary, moving/entry yaw cannot replace it; mirrored 45/55 exit, 25 alignment, 35 natural return and no sweep gates");
+  puts("PASS: stopped pose is primary, moving/entry yaw cannot replace it; mirrored 30/40 exit, 25 alignment, 35 natural return and no sweep gates");
   return 0;
 }

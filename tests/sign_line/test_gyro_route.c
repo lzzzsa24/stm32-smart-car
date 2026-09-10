@@ -134,8 +134,8 @@ static void natural_exit(int side)
   start(side);
   step(6,-side*120000,1); /* a larger estimated entry apex must not advance the exit */
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,side*50000,1);
-  assert(s.state==SIGN_ROUTE_ARC); /* phase yaw is 170, but signed road heading is only 50 */
+  for(i=0;i<4;++i) step(6,side*35000,1);
+  assert(s.state==SIGN_ROUTE_ARC); /* phase yaw is 155, but signed road heading is below 40 */
   for(i=0;i<4;++i) step(6,side*90000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
   step(0,side*10000,1);
