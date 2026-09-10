@@ -51,13 +51,20 @@ The repository anchor is the latest firmware commit. Newer documentation-only
 commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
+## Repository identity
+
+GitHub renamed on 2026-09-11 at the user's request:
+https://github.com/lzzzsa24/stm32-smart-car
+Canonical origin updated; local checkout and linked worktree paths unchanged.
+History, tags and v1.2.0 release retained. No firmware or hardware changes.
+
 ## Latest board update
 
 Final publication: user explicitly approved public source/history/firmware
 upload to lzzzsa24/test-exp7-unified-motion-v1. PR21 merged main as2ba7892;
 v1.2.0 published as the latest non-prerelease, all7 asset sizes/SHA256 checked.
 Firmware exactly matches deployed2b4fc1f. No new flash or ground-test claim.
-https://github.com/lzzzsa24/test-exp7-unified-motion-v1/releases/tag/v1.2.0
+https://github.com/lzzzsa24/stm32-smart-car/releases/tag/v1.2.0
 Old releases and rollback tags retained. See docs/releases/RELEASE_V1.2.0.md.
 This final-publication entry supersedes older no-push/rc.6-current statements.
 
@@ -151,7 +158,7 @@ Mode4 needs no K210; do not deploy historical K210/main.py visual-line code
 for this four-mode release. This task did not rewrite K210 hardware.
 
 Previous release v1.2.0-rc.6 from main merge ce503ca (PR19); firmware c2ed15d.
-https://github.com/lzzzsa24/test-exp7-unified-motion-v1/releases/tag/v1.2.0-rc.6
+https://github.com/lzzzsa24/stm32-smart-car/releases/tag/v1.2.0-rc.6
 All7 assets verified against GitHub sizes/SHA256: BIN/HEX, checksums, paired
 script, model/manifest and release notes. Release manifest filename is adapted
 to packaged road_sign_det.kmodel, model contents unchanged. Pre-release because

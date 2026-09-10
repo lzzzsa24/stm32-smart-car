@@ -1,4 +1,7 @@
-# STM32 实验七统一四轮运动控制
+# STM32 Smart Car
+
+项目仓库：[lzzzsa24/stm32-smart-car](https://github.com/lzzzsa24/stm32-smart-car)。
+原仓库名为 `test-exp7-unified-motion-v1`；本地工程目录和构建产物名保持不变，避免影响现有工具及工作树。
 
 这是 YB-DSF01-V1.1 四轮小车（STM32F103ZETx）的统一固件仓库。仓库同时
 保留 STM32、K210、循迹、避障、编码器、陀螺仪、OLED、红外遥控和音频模块。
