@@ -32,12 +32,20 @@ uint8_t LineBypassTravel_Start(int32_t mm,int32_t cps)
 void LineBypassTravel_Task(void) {}
 uint8_t LineBypassTravel_StartFixed(int32_t mm,int32_t cps)
 { assert(mm>0); return LineBypassTravel_Start(mm,cps); }
+uint8_t LineBypassTravel_StartRolling(int32_t mm,int32_t cps)
+{ return LineBypassTravel_StartFixed(mm,cps); }
+void LineBypassTravel_ReleaseDone(void)
+{ if(travel_state==LINE_BYPASS_TRAVEL_DONE) travel_state=LINE_BYPASS_TRAVEL_IDLE; }
 LineBypassTravelState LineBypassTravel_GetState(void) { return travel_state; }
 uint32_t LineBypassTravel_GetProgressMm(void) { return travel_progress; }
 uint8_t LineBypassTravel_GetFaultMask(void) { return 0; }
 void LineBypassTurn_Stop(void) { turn_state=LINE_BYPASS_TURN_IDLE; }
 uint8_t LineBypassTurn_Start(int32_t a,int32_t cps)
 { turn_request=a; ++turn_calls; turn_achieved=0; turn_state=LINE_BYPASS_TURN_RUNNING; DriveBase_SetSideCps(a>0?-cps:cps,a>0?cps:-cps); return 1; }
+uint8_t LineBypassTurn_StartRolling(int32_t a,int32_t cps)
+{ return LineBypassTurn_Start(a,cps); }
+void LineBypassTurn_ReleaseDone(void)
+{ if(turn_state==LINE_BYPASS_TURN_DONE) turn_state=LINE_BYPASS_TURN_IDLE; }
 void LineBypassTurn_Task(void) {}
 uint8_t LineBypassTurn_RequestStop(void) { return 1; }
 LineBypassTurnState LineBypassTurn_GetState(void) { return turn_state; }
@@ -86,12 +94,12 @@ static void fixed_step(LineObstacleBypassInput *input)
   if(bypass_state==LINE_BYPASS_TURNING)
   {
     turn_achieved=turn_request; test_imu.yaw_mdeg+=turn_achieved;
-    turn_state=LINE_BYPASS_TURN_DONE; test_drive.mode=DRIVE_BASE_STOPPED;
+    turn_state=LINE_BYPASS_TURN_DONE; test_drive.mode=DRIVE_BASE_SPEED;
   }
   else if(bypass_state==LINE_BYPASS_DRIVING && fixed_phase!=LINE_FIXED_RETURN)
   {
     travel_progress=(uint32_t)travel_request;
-    travel_state=LINE_BYPASS_TRAVEL_DONE; test_drive.mode=DRIVE_BASE_STOPPED;
+    travel_state=LINE_BYPASS_TRAVEL_DONE; test_drive.mode=DRIVE_BASE_SPEED;
   }
   test_ms+=120; LineObstacleBypass_Task(input);
 }
@@ -102,9 +110,8 @@ static void test_fixed_route(void)
   for(direction=-1;direction<=1;direction+=2)
   {
     LineObstacleBypassInput input=fixed_setup(direction);
-    /* No turn before the nonblocking entry wait has ended. */
-    test_ms+=119; LineObstacleBypass_Task(&input); assert(turn_calls==0);
-    ++test_ms; LineObstacleBypass_Task(&input);
+    /* First task at the entry timestamp must already command the turn. */
+    LineObstacleBypass_Task(&input); assert(turn_calls==1);
     assert(turn_request==-90000*direction && turn_calls==1);
     fixed_step(&input); assert(travel_request==250 && travel_calls==1);
     /* Simulate real yaw drift during the first straight. */

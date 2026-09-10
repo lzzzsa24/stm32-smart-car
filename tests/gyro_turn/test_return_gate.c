@@ -24,12 +24,16 @@ void advanced_stop(void) { DriveBase_Stop(DRIVE_STOP_COAST); }
 void LineBypassTravel_Stop(void) {}
 uint8_t LineBypassTravel_Start(int32_t mm,int32_t cps) { (void)mm; DriveBase_SetSideCps(cps,cps); return 1; }
 uint8_t LineBypassTravel_StartFixed(int32_t mm,int32_t cps) { return LineBypassTravel_Start(mm,cps); }
+uint8_t LineBypassTravel_StartRolling(int32_t mm,int32_t cps) { return LineBypassTravel_StartFixed(mm,cps); }
+void LineBypassTravel_ReleaseDone(void) {}
 void LineBypassTravel_Task(void) {}
 LineBypassTravelState LineBypassTravel_GetState(void) { return LINE_BYPASS_TRAVEL_RUNNING; }
 uint32_t LineBypassTravel_GetProgressMm(void) { return 0; }
 uint8_t LineBypassTravel_GetFaultMask(void) { return 0; }
 void LineBypassTurn_Stop(void) {}
 uint8_t LineBypassTurn_Start(int32_t a,int32_t cps) { (void)a;(void)cps; return 1; }
+uint8_t LineBypassTurn_StartRolling(int32_t a,int32_t cps) { return LineBypassTurn_Start(a,cps); }
+void LineBypassTurn_ReleaseDone(void) {}
 void LineBypassTurn_Task(void) {}
 uint8_t LineBypassTurn_RequestStop(void) { return 1; }
 LineBypassTurnState LineBypassTurn_GetState(void) { return LINE_BYPASS_TURN_RUNNING; }

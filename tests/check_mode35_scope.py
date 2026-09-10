@@ -4,7 +4,7 @@ import subprocess
 
 root = Path(__file__).resolve().parents[1]
 baseline = '3257b05af3b8016e00f1cad772157992fc885bc6'
-source = 'b32e03aa5957dcafa2e24390a618d6c2b2224c09'
+source = '5605916dc610432370c8831b5333beaaffdb55ed'
 def git_text(ref, path):
     return subprocess.check_output(['git', 'show', ref + ':' + path], cwd=root).decode('utf-8').replace('\r\n', '\n').rstrip()
 def current(path):
@@ -19,12 +19,19 @@ def block(text, marker):
     return text[start:end]
 
 for name in ('line_tracking', 'line_recovery', 'sign_route', 'simple_line_mode',
-             'sign_slowdown', 'line_obstacle_bypass', 'ultrasonic_avoid',
+             'sign_slowdown', 'ultrasonic_avoid',
              'motorPWM', 'wheel_encoder'):
     for folder, ext in (('Inc', 'h'), ('Src', 'c')):
         path = f'Core/{folder}/{name}.{ext}'
         assert current(path) == git_text(baseline, path), path
 assert current('K210/sign_mode34.py') == git_text(baseline, 'K210/sign_mode34.py')
+expected_bypass = git_text(source, 'Core/Src/line_obstacle_bypass.c')
+expected_bypass = expected_bypass.replace('  config->infrared_enabled = 1U;',
+    '  config->infrared_enabled = 1U;\n  config->adaptive_return_max_cps = 1800U;')
+expected_bypass = expected_bypass.replace('fixed_phase == LINE_FIXED_RETURN ? 4000L : 2100L',
+    'fixed_phase == LINE_FIXED_RETURN ? 4000L : bypass_config.adaptive_return_max_cps')
+assert current('Core/Src/line_obstacle_bypass.c') == expected_bypass
+assert current('Core/Inc/line_obstacle_bypass.h') == git_text(baseline, 'Core/Inc/line_obstacle_bypass.h')
 for name in ('line_tracking', 'line_recovery', 'sign_route', 'sign_route_config',
              'simple_line_mode', 'sign_line_follow', 'sign_observation', 'sign_horn', 'sign_trace'):
     for folder, ext in (('Inc', 'h'), ('Src', 'c')):
@@ -34,8 +41,6 @@ for name in ('line_tracking', 'line_recovery', 'sign_route', 'sign_route_config'
         actual = actual.replace('Promoted_', '').replace('promoted_', '')
         actual = actual.replace('PROMOTED_LINE_TRACKING_HEADER_H', '__LINE_TRACKING_H')
         expected = git_text(source, f'Core/{folder}/{name}.{ext}')
-        if name == 'line_tracking' and ext == 'c':
-            expected = expected.replace('* 144L + 50L', '* 120L + 50L')
         assert actual == expected, name
 
 main = current('Core/Src/main.c')

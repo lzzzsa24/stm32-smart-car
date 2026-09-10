@@ -4,7 +4,7 @@
 #include "main.h"
 
 static GyroTurnState state;
-static uint8_t fault_code, settling, early_stop;
+static uint8_t fault_code, settling, early_stop, rolling;
 static int32_t target, sign, max_cps, achieved, progress_mark;
 static int64_t start_yaw;
 static uint32_t start_ms, timeout_ms, progress_ms, stop_ms, quiet_ms;
@@ -33,7 +33,7 @@ static void command(int32_t remaining)
   DriveBase_PrepareLineTurnAssist(-sign * cps, sign * cps);
   DriveBase_SetSideCps(-sign * cps, sign * cps);
 }
-uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
+static uint8_t start_turn(int32_t angle_mdeg, int32_t maximum_cps, uint8_t continuous)
 {
   DriveBaseTelemetry drive;
   MpuYawReading imu;
@@ -42,7 +42,8 @@ uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
       maximum_cps < 1412 || maximum_cps > 3600 ||
       state == GYRO_TURN_RUNNING || fault_code) return 0;
   DriveBase_GetTelemetry(&drive);
-  if (drive.mode != DRIVE_BASE_STOPPED || drive.fault_mask) return 0;
+  if ((drive.mode != DRIVE_BASE_STOPPED &&
+       !(continuous && drive.mode == DRIVE_BASE_SPEED)) || drive.fault_mask) return 0;
   MpuYaw_Refresh(now); now = HAL_GetTick();
   if (!MpuYaw_IsReady(now)) { fail(sensor_reason()); return 0; }
   MpuYaw_GetReading(&imu);
@@ -55,10 +56,20 @@ uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
   start_ms = progress_ms = now;
   timeout_ms = 2000U + (uint32_t)target / 30U;
   settling = early_stop = quiet = 0;
+  rolling = continuous;
   DriveBase_SetLineFaultObservation(0, 0, 0);
   state = GYRO_TURN_RUNNING;
   command(target);
   return 1;
+}
+uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps)
+{ return start_turn(angle_mdeg, maximum_cps, 0U); }
+uint8_t GyroTurn_StartRolling(int32_t angle_mdeg, int32_t maximum_cps)
+{ return start_turn(angle_mdeg, maximum_cps, 1U); }
+void GyroTurn_ReleaseDone(void)
+{
+  if (state == GYRO_TURN_DONE && rolling)
+  { state = GYRO_TURN_IDLE; rolling = 0U; }
 }
 static void begin_settle(void)
 {
@@ -125,14 +136,22 @@ void GyroTurn_Task(void)
   lead = imu.rate_mdeg_s * sign / 40;
   if (lead < 500) lead = 500;
   if (lead > 4000) lead = 4000;
-  if (remaining <= lead) { begin_settle(); return; }
+  if (remaining <= lead)
+  {
+    /* Rolling DONE is a handoff, not a claim of settled yaw accuracy.
+       The bypass owner must replace this target in the same iteration. */
+    if (rolling) state = GYRO_TURN_DONE;
+    else begin_settle();
+    return;
+  }
   command(remaining);
 }
 void GyroTurn_Stop(void)
 {
-  if (state == GYRO_TURN_RUNNING) DriveBase_Stop(DRIVE_STOP_COAST);
+  if (state == GYRO_TURN_RUNNING || (rolling && state == GYRO_TURN_DONE))
+    DriveBase_Stop(DRIVE_STOP_COAST);
   state = GYRO_TURN_IDLE;
-  settling = 0;
+  settling = rolling = 0;
 }
 uint8_t GyroTurn_ClearFault(void)
 {

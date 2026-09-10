@@ -260,13 +260,14 @@ static void test_return_cruise(int direction)
   LineObstacleBypass_Stop();
   puts("PASS: full mirrored bypass reaches measured inward >45, drives continuously 5s and captures one-sample outer rejoin");
 }
-static void test_fixed_rectangle(int direction,uint8_t infrared)
+static void test_fixed_rectangle(int direction,uint8_t infrared,uint8_t gyro)
 {
   LineObstacleBypassConfig config;
   LineObstacleBypassInput input={0};
   LineObstacleBypassTelemetry b;
   unsigned i,phase=LINE_FIXED_ENTRY,changes=0;
   reset(); LineObstacleBypass_GetDefaultConfig(&config); config.adaptive_return_max_cps=2100U;
+  if(!gyro) MpuYaw_Init(tick);
   config.fixed_route_direction=(int8_t)direction;
   config.infrared_enabled=infrared;
   config.forward_cps=4000; config.return_cps=4000; config.turn_cps=2500;
@@ -277,6 +278,9 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
   input.left_ir_hysteresis=input.right_ir_hysteresis=20;
   /* An old sensor-side preference cannot reverse the configured rectangle. */
   assert(LineObstacleBypass_Start((int8_t)-direction));
+  /* Fixed entry has no mandatory 120-ms wait. */
+  LineObstacleBypass_Task(&input);
+  assert(drive().mode==DRIVE_BASE_SPEED);
   for(i=0;i<2500;++i)
   {
     plant(1); LineObstacleBypass_Task(&input); LineObstacleBypass_GetTelemetry(&b);
@@ -284,6 +288,7 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
       printf("fixed failed phase=%u yaw=%ld gyro=%u\n",phase,(long)b.return_yaw_mdeg,GyroTurn_GetFault());
     assert(b.state!=LINE_BYPASS_FAULT && b.state!=LINE_BYPASS_DONE);
     assert(b.bypass_direction==direction && !b.fixed_route_fallback);
+    assert(drive().mode==DRIVE_BASE_SPEED && !saw_brake);
     if(b.fixed_route_phase==LINE_FIXED_OFFSET || b.fixed_route_phase==LINE_FIXED_PARALLEL)
     {
       DriveBaseTelemetry d=drive(); unsigned w;
@@ -293,9 +298,9 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
     if(b.fixed_route_phase!=phase)
     {
       assert(b.fixed_route_phase==phase+1); phase=b.fixed_route_phase; ++changes;
-      if(phase==LINE_FIXED_OFFSET) assert(b.return_yaw_mdeg>=-94000 && b.return_yaw_mdeg<=-86000);
+      if(gyro && phase==LINE_FIXED_OFFSET) assert(b.return_yaw_mdeg>=-94000 && b.return_yaw_mdeg<=-86000);
       if(phase==LINE_FIXED_PARALLEL_TURN) assert(b.acquire_travel_mm>=250 && b.acquire_travel_mm<290);
-      if(phase==LINE_FIXED_PARALLEL) assert(b.return_yaw_mdeg>=-4000 && b.return_yaw_mdeg<=4000);
+      if(gyro && phase==LINE_FIXED_PARALLEL) assert(b.return_yaw_mdeg>=-4000 && b.return_yaw_mdeg<=4000);
       if(phase==LINE_FIXED_RETURN_TURN) assert(b.flank_travel_mm>=300 && b.flank_travel_mm<340);
       if(phase==LINE_FIXED_RETURN) break;
     }
@@ -310,7 +315,8 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
     }
   }
   assert(i<2500 && changes==6 && b.return_cruise && b.original_line_cleared);
-  assert(b.return_yaw_valid && b.return_yaw_mdeg>=41000 && b.return_yaw_mdeg<=49000);
+  if(gyro) assert(b.return_yaw_valid && b.return_yaw_mdeg>=41000 && b.return_yaw_mdeg<=49000);
+  else assert(!b.return_yaw_valid);
   input.line_mask=0; input.left_ir_adc=input.right_ir_adc=3000;
   if(!infrared) { input.infrared_valid=0; input.left_ir_adc=input.right_ir_adc=0; }
   for(i=0;i<500;++i)
@@ -328,7 +334,69 @@ static void test_fixed_rectangle(int direction,uint8_t infrared)
   LineObstacleBypass_Stop();
   for(i=0;i<100;++i) { plant(1); LineObstacleBypass_Task(&input); }
   assert(LineObstacleBypass_GetState()==LINE_BYPASS_IDLE && drive().mode==DRIVE_BASE_STOPPED);
-  puts("PASS: real fixed rectangle: three absolute-heading turns, 250/300-mm continuous legs, 5s diagonal return and queued outer capture");
+  puts("PASS: fixed rectangle has no entry delay or inter-leg brake/STOP; absolute turns, 250/300-mm legs, continuous return and capture retained");
+}
+
+static void test_rolling_cancel(void)
+{
+  unsigned i,gyro;
+  int direction;
+  for(gyro=0;gyro<2;++gyro)
+    for(direction=-1;direction<=1;direction+=2)
+    {
+      reset(); if(!gyro) MpuYaw_Init(tick);
+      DriveBase_SetSideCps(1800,1800);
+      assert(LineBypassTurn_StartRolling(direction*45000,2500));
+      assert(LineBypassTurn_UsingGyro()==gyro);
+      for(i=0;i<500 && LineBypassTurn_GetState()==LINE_BYPASS_TURN_RUNNING;++i)
+      { plant(1); LineBypassTurn_Task(); assert(drive().mode==DRIVE_BASE_SPEED && !saw_brake); }
+      assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_DONE);
+      /* Unconsumed rolling DONE still belongs to the old owner: cancel stops it. */
+      LineBypassTurn_Stop(); assert(drive().mode==DRIVE_BASE_STOPPED);
+      for(i=0;i<20;++i) { plant(1); LineBypassTurn_Task(); }
+      assert(drive().mode==DRIVE_BASE_STOPPED);
+
+      assert(LineBypassTurn_StartRolling(direction*45000,2500));
+      plant(1); DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTurn_Task();
+      assert(LineBypassTurn_GetState()==LINE_BYPASS_TURN_FAULT);
+      LineBypassTurn_Stop(); assert(drive().mode!=DRIVE_BASE_SPEED);
+    }
+  reset(); DriveBase_SetSideCps(1800,1800);
+  assert(LineBypassTravel_StartRolling(250,4000));
+  for(i=0;i<500 && LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_RUNNING;++i)
+  { plant(1); LineBypassTravel_Task(); assert(drive().mode==DRIVE_BASE_SPEED && !saw_brake); }
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_DONE);
+  LineBypassTravel_Stop(); assert(drive().mode==DRIVE_BASE_STOPPED);
+  assert(LineBypassTravel_StartRolling(250,4000));
+  plant(1); DriveBase_Stop(DRIVE_STOP_COAST); LineBypassTravel_Task();
+  assert(LineBypassTravel_GetState()==LINE_BYPASS_TRAVEL_FAULT);
+  LineBypassTravel_Stop(); assert(drive().mode!=DRIVE_BASE_SPEED);
+  puts("PASS: gyro/encoder rolling completion cancellation and external STOP never restart motion");
+}
+
+static void test_fixed_emergency_entry(void)
+{
+  LineObstacleBypassConfig config;
+  LineObstacleBypassInput input={0};
+  unsigned i;
+  reset(); LineObstacleBypass_GetDefaultConfig(&config);
+  config.fixed_route_direction=1; config.infrared_enabled=0;
+  config.stop_time_ms=config.emergency_stop_time_ms=5000;
+  config.emergency_speed_cps=1000;
+  LineObstacleBypass_Init(&config);
+  DriveBase_SetSideCps(4000,4000);
+  for(i=0;i<30;++i) plant(1);
+  assert(LineObstacleBypass_StartWithSpeed(1,4000));
+  assert(drive().mode==DRIVE_BASE_BRAKING);
+  LineObstacleBypass_Task(&input);
+  assert(LineObstacleBypass_GetState()==LINE_BYPASS_STOPPING);
+  for(i=0;i<100 && LineObstacleBypass_GetState()==LINE_BYPASS_STOPPING;++i)
+  { plant(1); LineObstacleBypass_Task(&input); }
+  assert(i<100 && saw_brake && LineObstacleBypass_GetState()==LINE_BYPASS_TURNING);
+  LineObstacleBypass_Stop();
+  for(i=0;i<30;++i) { plant(1); LineObstacleBypass_Task(&input); }
+  assert(drive().mode==DRIVE_BASE_STOPPED);
+  puts("PASS: fixed entry retains measured-speed emergency brake, then turns without configured dwell; STOP cancels");
 }
 
 int main(void)
@@ -339,8 +407,11 @@ int main(void)
   test_faults();
   test_automatic_recovery();
   test_return_cruise(1); test_return_cruise(-1);
-  test_fixed_rectangle(1,1); test_fixed_rectangle(-1,1);
-  test_fixed_rectangle(1,0); test_fixed_rectangle(-1,0);
+  test_fixed_rectangle(1,1,1); test_fixed_rectangle(-1,1,1);
+  test_fixed_rectangle(1,0,1); test_fixed_rectangle(-1,0,1);
+  test_fixed_rectangle(1,0,0); test_fixed_rectangle(-1,0,0);
+  test_rolling_cancel();
+  test_fixed_emergency_entry();
   puts("PASS: real DriveBase/FIFO/gyro/bypass chain, mirror turns, yaw gain, brake/travel ownership, IR interruption, stall and STOP");
   return 0;
 }

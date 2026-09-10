@@ -443,7 +443,7 @@ static uint8_t start_linear_motion(BypassMotionIntent intent,
   LineBypassTravel_Stop();
   guided_turn_mode = BYPASS_GUIDED_TURN_NONE;
   if (fixed_phase == LINE_FIXED_OFFSET || fixed_phase == LINE_FIXED_PARALLEL)
-    started = LineBypassTravel_StartFixed(distance_mm, (int32_t)cps);
+    started = LineBypassTravel_StartRolling(distance_mm, (int32_t)cps);
   else
   {
     /* A fixed-route cruise request also reaches adaptive fallback. Keep its
@@ -1054,8 +1054,9 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   emergency_brake_active =
       (bypass_config.emergency_speed_cps > 0U &&
        entry_speed_cps >= bypass_config.emergency_speed_cps) ? 1U : 0U;
-  DriveBase_Stop(emergency_brake_active != 0U ?
-                 DRIVE_STOP_BRAKE : DRIVE_STOP_COAST);
+  if (emergency_brake_active || fixed_phase == LINE_FIXED_NONE)
+    DriveBase_Stop(emergency_brake_active != 0U ?
+                   DRIVE_STOP_BRAKE : DRIVE_STOP_COAST);
   original_line_cleared = 0U;
   line_clear_count = 0U;
   line_confirm_count = 0U;
@@ -1080,8 +1081,9 @@ uint8_t LineObstacleBypass_StartWithSpeed(int8_t direction,
   reset_relation_filter();
   bypass_state = LINE_BYPASS_STOPPING;
   phase_deadline_ms = HAL_GetTick() +
-      (emergency_brake_active != 0U ?
-       bypass_config.emergency_stop_time_ms : bypass_config.stop_time_ms);
+      (fixed_phase != LINE_FIXED_NONE ? 0U :
+       (emergency_brake_active != 0U ?
+        bypass_config.emergency_stop_time_ms : bypass_config.stop_time_ms));
   return 1U;
 }
 
@@ -1106,6 +1108,7 @@ static void drive_return_continuously(void)
 
 static void fixed_finish_turn(void)
 {
+  LineBypassTurn_ReleaseDone();
   LineBypassTurn_Stop();
   if (fixed_phase == LINE_FIXED_OUTWARD_TURN)
   {
@@ -1132,6 +1135,7 @@ static void fixed_finish_turn(void)
 static void fixed_begin_turn(LineFixedBypassPhase phase, int32_t heading_mdeg)
 {
   int32_t correction;
+  LineBypassTravel_ReleaseDone();
   LineBypassTravel_Stop();
   LineBypassTurn_Stop();
   fixed_phase = phase;
@@ -1142,7 +1146,7 @@ static void fixed_begin_turn(LineFixedBypassPhase phase, int32_t heading_mdeg)
   correction = heading_mdeg * bypass_direction - net_turn_mdeg;
   if (abs_i32(correction) <= 1000L) { fixed_finish_turn(); return; }
   if (abs_i32(correction) > 180000L ||
-      !LineBypassTurn_Start(correction, bypass_config.turn_cps))
+      !LineBypassTurn_StartRolling(correction, bypass_config.turn_cps))
   { enter_fault(BYPASS_FAULT_CONTROLLER); return; }
   bypass_state = LINE_BYPASS_TURNING;
 }

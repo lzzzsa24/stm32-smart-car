@@ -40,6 +40,6 @@ assert "#define MPU6050_BYPASS_ENABLED 1" in mpu_header
 assert "#define SIGN_ROUTE_REQUIRE_IMU 1" not in route_config
 assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
 assert "if (using_gyro) { GyroTurn_Task(); return; }" in bypass
-assert "return encoder_Start(angle_mdeg, cps);" in bypass
+assert "return encoder_Start(angle_mdeg, cps, continuous);" in bypass
 
 print("PASS: mode1 gyro/recovery, legacy other-mode dispatch, no sign/visual candidate leakage")
