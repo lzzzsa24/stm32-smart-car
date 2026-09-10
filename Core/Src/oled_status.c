@@ -447,7 +447,7 @@ static void build_screen(uint8_t app_mode,
   {
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
-    case 2U: draw_battery_header("M3 ADV"); break;
+    case 2U: draw_battery_header("M3 LINE"); break;
     case 3U: draw_battery_header("M4 SIMPLE"); break;
     case 4U: draw_battery_header("M5 BYPASS"); break;
     case 5U: draw_battery_header("STOP"); break;
@@ -643,7 +643,11 @@ static void build_sign_line_screen(uint8_t mode_number,
   draw_text(2U, 0U, line);
 
   index = append_string(line, 0U, "ROUTE:");
-  switch (route_state)
+  if (mode_number == 3U && line_action == 6U)
+    index = append_string(line, index, "OBSERVE");
+  else if (mode_number == 3U && line_action == 7U)
+    index = append_string(line, index, "SEEK LINE");
+  else switch (route_state)
   {
     case 1U: index = append_string(line, index, "ARM"); break;
     case 2U: index = append_string(line, index, "TURN"); break;

@@ -34,7 +34,7 @@ assert "route_status.searching ? (uint8_t)SIGN_ROUTE_SEARCHING" in main
 wait_task = main[main.index("static uint8_t service_bounded_line_wait(AppMode mode)\n{"):main.index("int main(void)")]
 enable = wait_task[wait_task.index("uint8_t enabled"):wait_task.index("uint8_t paused;")]
 assert "SIGN_LINE" not in enable
-assert 'SIGN3 SL2 RING NAV START' in main and 'SIGN4 SL2 RING NAV START' in main
+assert 'Promoted_SignLineFollow_Start(&promoted_sign_controller);' in main and 'SIGN4 SL2 RING NAV START' in main
 assert "void USART2_IRQHandler(void)" in irq
 assert "vision_uart_irq_handler();" in irq
 assert "THRESHOLD      = 0.2" in k210

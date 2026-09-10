@@ -9,38 +9,38 @@ or physical test.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-09
-comprehensive_candidate_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
-comprehensive_candidate_status: mode45_integrated_all_host_suites_build_passed_github_pushed_not_flashed
+state_updated_at: 2026-09-10
+comprehensive_candidate_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
+comprehensive_candidate_status: 9eba339_integrated_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 111280
-comprehensive_candidate_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
-comprehensive_candidate_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
+comprehensive_candidate_bin_size_bytes: 119440
+comprehensive_candidate_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
+comprehensive_candidate_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
 integration_branch: main
-repository_head_at_update: 71b2e7f
-latest_code_commit: cd44bb0
-flashed_source_commit: 58c3744de08796edba355ef3becf8453819aa546
-flash_record_commit: 575b120
-deployed_tag: deployed/2026-09-09-58c3744
+repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
+latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
+flashed_source_commit: e9049bbe5b1d7b51990584dd6e1743c4858587b8
+flash_record_commit: 3271e81
+deployed_tag: deployed/2026-09-10-e9049bb
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 109708
-flashed_bin_sha256: 6CFBC8F771EE9A4C94A9FDF1E2B2D72AF2417EEA96035AAAEC3975CB1380BA01
-flashed_hex_sha256: 04BAF0015862D66F841CA6FBF823E3E0A234BA2E1F69F86298C25262D6C7679C
-ground_test_status: not_tested_after_58c3744_deployment
+formal_bin_size_bytes: 120184
+flashed_bin_sha256: B9CB6328CB60F73C7BF8844382B959589AD5CA47D00EF34EE694171F831C04B4
+flashed_hex_sha256: 75B0F7C32957EF07DFB9EAA5217F510D6521977B5FB1F897C5BDB7AB6438B783
+ground_test_status: not_tested_after_e9049bb_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
-candidate_bin_size_bytes: 102264
-candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
-candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: tool_verified_58c3744_readback_GO
+candidate_source_commit: b48e9e04a89c995f23f162af332e7022044dad61
+candidate_bin_size_bytes: 137532
+candidate_bin_sha256: 1F60ABB0C8595EDF10767F2169163B9D1E217467E16134C31CC9E02A9F96DB50
+candidate_hex_sha256: 877DA7A24AE1B71EA869EB63445E4A6702AA2B4483F05FDAAB1BA49503AFCAEC
+user_reported_flash: tool_verified_e9049bb_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
-remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
-remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_58c3744_readback_GO_no_post_GO_query
+remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
+remote_sync_branch: integration/main-mode35-sync-20260910
+stm32_runtime_status: COM11_e9049bb_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 58c3744_mode4_gyro_tangent_flashed
+temporary_flash_selector_commit: e9049bb_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,359 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: b32e03a and GitHub synchronization
+
+9eba339 merged onto e9049bb without conflicts. Mode3 recognition now stops
+directly for2s for every line mask; no pre-observation centering/search.
+Mode2-shared tracking, mode5 extra20% straight targets and mode4 retained.
+Full sign suite, mode1/2 and mode5 integration checks and ARM build passed.
+BIN119440 bytes; hashes above. No flash or physical test: board remainse9049bb,
+K210 unchanged. Main code remainsb48e9e0 (does not include later test changes).
+Rollback: rollback/2026-09-10-before-9eba339 ->e9049bb.
+Sync scope: main via PR18, comprehensive-v15 branch, latest deployed tags and
+the rollback anchors needed for these changes; unrelated worker branches and
+untracked purchase guide excluded. PR https://github.com/lzzzsa24/test-exp7-unified-motion-v1/pull/18
+records the live merge result. No new release; rc.5 stays on its original source.
+
+### Latest deployment: e9049bb
+
+COM11 full120184-byte write/readback and GO passed, exit0, before the user
+interrupted the turn. No repeat flash performed. Reserved audio/calibration
+pages excluded, K210 unchanged; no post-GO query, physical test or push.
+Evidence: docs/history/deployments/DEPLOYMENT_E9049BB_20260910.md.
+Supersedes older board/candidate deployment claims below; main unchanged.
+
+### Latest comprehensive candidate: e9049bb (not flashed)
+
+05b3599 replayed as c25c8b8 without importing its old main-based history;
+f307368 merged as e9049bb without conflicts. Mode5 normal straight targets
+now scale144% instead of120% (another20%); existing caps/turn profiles remain.
+Mode3 normal/ARC/passive exit uses comprehensive mode2 compute and middle
+guard, including1800-CPS search. Observation centering and active navigation
+ownership remain separate; stopped-heading exit rules retained. Mode4 retained.
+Full line suite at both speeds, full sign suite, mode5 integration and formal
+ARM build passed. BIN120184 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-05b3599-f307368 ->5940727.
+No flash, serial access, physical test or push. Board remains5940727.
+Main firmware remains selective b48e9e0; these two increments are NOT promoted
+to main. K210 unchanged. Supersedes older comprehensive candidate statements.
+
+### Current local main: b48e9e0 selective mode3 / mode5 promotion
+
+Source5940727 mode3 and mode5 promoted; mode1/2/4 retain original main
+controllers and configurations. Promoted controllers use isolated symbols
+and opt-in shared drive extensions, not wholesale composite replacement.
+Mode3 now observation centering/2s hold/stopped-heading-priority exit/horn;
+mode5 fast following/rolling capture/pulsed counter-turns and fixed bypass.
+Mode2 middle guard and mode4 gyro-tangent profile are NOT selected in main.
+Source-equivalence/scope checker, legacy line/sign, promoted line/sign/real
+DriveBase, gyro and mode5 bypass suites passed; formal ARM build passed.
+BIN137532 bytes; exact candidate hashes above. See
+docs/history/candidates/MAIN_MODE35_20260910.md and README mode table.
+Rollback: rollback/2026-09-10-before-main-mode35 ->3257b05.
+No flash/push/release or physical test. Board remains full comprehensive
+5940727; K210 unchanged. Main candidate is NOT the board image. Published
+rc.5 remains71b2e7f; older local-main code statements below are superseded.
+
+### Latest deployment: 5940727 after USB reconnect
+
+Fresh COM11 enumeration, exact120112-byte candidate hash checked, selective
+59-page erase, full write/readback and GO passed with exit0. Reserved audio
+and calibration pages excluded. Earlier interrupted-write warning below is
+resolved by this complete retry; board now has verified5940727 application.
+Includes mode2 middle guard, mode3 stopped-heading policy, mode4 continuous
+ARC control and retained mode5 fast following. K210/main firmware unchanged.
+No post-GO query, physical test or push. Evidence:
+docs/history/deployments/DEPLOYMENT_5940727_20260910.md.
+
+### Current board warning: 5940727 deployment interrupted after erase
+
+Latest authorized flash targeted exact5940727 BIN120112 bytes, SHA256
+031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB.
+Fresh enumeration identified CH340K COM11. PowerShell7 programmer at57600
+with PreserveLastPage reported BOOTLOADER ACK and ERASE OK for59 pages,
+then exited1 with device-not-functioning error during Close. No WRITE OK,
+VERIFY OK or GO was received. Application contents/execution are unconfirmed;
+the old891a7e1 cannot be assumed runnable after this erase. Reserved audio
+and calibration pages were excluded. Re-enumeration still showedCOM11,
+but one recovery retry failed at Open with the same device error, before
+another erase/write. USB replug is required before retrying exact5940727.
+flashed_source_commit/deployed_tag retain the LAST SUCCESSFUL verification,
+not the current executable state. K210 untouched; no motion or push.
+
+### Latest comprehensive candidate: 5940727 (not flashed)
+
+Merged831fb06 onto52a67b6 without conflicts. Mode4 acquired ARC retains
+the follower across white/symmetric contacts, using its remembered forward
+curvature rather than switching route/guard owners and resetting tracking.
+Trace now records line action, motor owner and route-active state changes.
+Mode2 middle guard, mode3 stopped-heading policy and mode5 fast profile retained.
+Full line suite (both speeds), full sign suite, mode5 integration and formal
+ARM build/link passed; BIN120112 bytes, hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-831fb06 ->52a67b6.
+No flash, serial access, physical test or push. Board remains891a7e1;
+K210/main firmware unchanged. Supersedes older candidate entries below.
+
+### Latest comprehensive candidate: 52a67b6 (not flashed)
+
+Merged 89e78e2 as a2bb8ae; replayed main-based 0c32484 as52a67b6,
+adapting its mode2 middle guard to the composite bounded-wait owner and
+preserving mode1 boost, mode3/4 route helpers and mode5 fast following.
+Mode3 uses stopped observation heading first with wider exit tolerances.
+Mode2 opts into1800-CPS middle guard,1412-CPS inner correction and immediate
+search when both middle probes disappear; reset prevents profile leakage.
+Full line-recovery suite (both speeds), full sign-line suite, mode5 app
+profile and formal ARM compile/link passed. BIN119264 bytes; hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback tag: rollback/2026-09-10-before-89e78e2-0c32484 ->891a7e1.
+No serial access, flash, physical test or push. Board remains891a7e1;
+main firmware and K210 unchanged. This candidate supersedes older candidate
+entries below, not the recorded deployment.
+
+### Latest deployment: 891a7e1
+
+50ce17f integrated with mode4 wide-line and mode5 straight-speed update.
+Full sign suite, integration checks and ARM build passed. COM11 full118840
+bytes readback and GO passed; reserved pages excluded. No post-GO query,
+OLED/physical test or push; K210/main firmware unchanged. Evidence:
+docs/history/deployments/DEPLOYMENT_891A7E1_20260910.md.
+Supersedes older board/candidate statements below.
+
+### Latest comprehensive candidate: 5ee5dbe (not flashed)
+
+b43041e replayed onto4ac67d8. Mode5 equal positive normal-forward CPS
+targets scale120%, retaining downstream caps and corner/crossing/rejoin
+targets. Real speed gain remains unverified. Mode3/4 fixes retained. Full
+line (both speeds) and sign suites, mode5 integration and ARM build passed.
+BIN116916 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-b43041e. No serial/flash/physical test
+or push; board remainsaf602cf, K210/main firmware unchanged.
+
+### Latest comprehensive candidate: 4ac67d8 (not flashed)
+
+4940f2f merged ontoaf602cf without conflicts. Shared current-line-priority
+ARC profile steers asymmetric wide contacts by weighted side; symmetric
+wide input remains forward. Affects mode4 and mode3 phases using that shared
+profile; ordinary tracking and mode5 profiles retained. Full sign and line
+suites (both speeds), mode5/gyro integration checks and ARM build passed.
+BIN116836 bytes, hashes above; artifacts in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4940f2f. No serial, flash, physical test
+or push; board remainsaf602cf, K210/main firmware unchanged.
+
+### Latest deployment: af602cf
+
+3bd989a integrated with mode4 live-line priority and mode5 changes retained.
+Full sign/line suites, integration checks and build passed. COM11 full116700
+bytes readback and GO passed, reserved pages excluded. No post-GO query,
+OLED/physical test or push; K210/main code unchanged. Evidence:
+docs/history/deployments/DEPLOYMENT_AF602CF_20260910.md.
+Supersedes older candidate and board-source statements below.
+
+### Latest comprehensive candidate: 29d490b (not flashed)
+
+f278143 merged onto947794d. Mode4 fallback black contact immediately yields
+to live ARC following; remove saved-direction override and restrict ARC
+search guard to white. Conflicts resolved preserving latest mode3 pause
+handling, stopped-heading reference and exit reacquisition. Mode5 retained.
+Full sign suite, mode1/2, gyro and mode5 integration checks and formal build
+passed. BIN115808 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-f278143. No serial, flash, physical test
+or push; board remains947794d, K210/main firmware unchanged.
+
+### Latest deployment: 947794d
+
+79d4e9d integrated; mode3 yields exit turn on reacquired black after white.
+Full sign tests, integration checks and build passed. COM11 full115996-byte
+readback and GO passed; reserved pages excluded, K210/main code unchanged.
+No post-GO query, OLED/physical test or push. Previous OLED normal report
+applies to98a4a8f, not automatically to this new image. Evidence:
+docs/history/deployments/DEPLOYMENT_947794D_20260910.md.
+Supersedes older board/candidate statements below.
+
+### OLED retest outcome: normal on latest98a4a8f
+
+User reports OLED normal after reflashing the same latest98a4a8f. Earlier
+black screen did not reproduce in this comparison; no deterministic firmware
+regression or hardware cause is established. Keep latest firmware unchanged.
+No motion-test evidence. This supersedes OLED-pending statements below.
+
+### Current board: 98a4a8f OLED retest
+
+User requested latest again after OLED returned on d01ab4c. Reflashed exact
+98a4a8f; COM11 full115920-byte readback and GO passed, reserved pages excluded.
+OLED result pending user observation; no hardware root-cause claim. K210
+unchanged; no post-GO query, motion or push. Evidence:
+docs/history/deployments/OLED_RETEST_98A4A8F_20260910.md.
+Supersedes the board rollback below, preserving its user-observed OLED result.
+
+### Current board: OLED comparison rollback to d01ab4c
+
+After OLED black-screen report on98a4a8f, exact rebuilt d01ab4c passed COM11
+full115456-byte readback and GO. User then reported OLED returned. This
+supports investigating98a4a8f software differences, but reset/initialization
+is a possible confounder; exact root cause remains unproven. Leave d01ab4c
+on hardware; comprehensive branch/candidate remains98a4a8f. K210 unchanged.
+No motion test. Evidence: docs/history/deployments/OLED_ROLLBACK_D01AB4C_20260910.md.
+Supersedes previous board98a4a8f statements below.
+
+### Latest deployment: 98a4a8f
+
+COM11 full115920-byte readback and GO passed; reserved pages excluded.
+Mode3 live exit, mode4 first fallback contact and mode5 changes included.
+K210/main code unchanged; no post-GO query, motion/ground test or push.
+See docs/history/deployments/DEPLOYMENT_98A4A8F_20260910.md.
+Supersedes older unflashed/board-source statements below.
+
+### Latest comprehensive candidate: 98a4a8f (not flashed)
+
+2fb4f35 and876e9b6 merged onto d01ab4c, including dependency c35df1a.
+Mode4 accepts first fallback contact with saved-side guidance; mode3 aligned
+exit yields immediately to live tracking/search. Observation resume consumes
+live inner evidence and excludes paused time from route deadlines. Conflict
+resolution retains mode3 stopped-heading reference plus mode4 fallback hint.
+Mode5 constrained pulse steering retained. Full sign suite, mode1/2, gyro
+and mode5 integration checks and formal build passed. BIN115920 bytes;
+hashes above. Artifacts in worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-2fb4f35-876e9b6. No serial, flash,
+physical test or push; board remains d01ab4c, K210/main firmware unchanged.
+
+### Latest deployment: d01ab4c
+
+COM11 full115456-byte readback and GO passed, reserved pages excluded.
+Includes mode3 earlier exit, mode4 heading-based arc exit and mode5 constrained
+pulse steering. No post-GO query or physical test; K210/main code unchanged.
+See docs/history/deployments/DEPLOYMENT_D01AB4C_20260910.md.
+Supersedes older board/unflashed statements. Records local only, no push.
+
+### Latest comprehensive candidate: d01ab4c (not flashed)
+
+4ec5bd5 merged ontoa05d73c, including40f8888 history but its fixed fallback
+turn is superseded. Mode4 fallback self-tracks the arc and triggers exit at
+signed60 degrees from approach heading. Mode3's latest55/65-degree selection
+and natural completion retained when resolving the shared exit-block conflict.
+Mode5 constrained pulse steering retained. Full sign suite, mode1/2, gyro and
+mode5 integration checks and ARM build passed. BIN115456 bytes; hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4ec5bd5. No serial/flash/physical test/push;
+board remains4eda8fe, K210/main firmware unchanged.
+
+### Latest comprehensive candidate: a05d73c (not flashed)
+
+609f29b merged ontoaf34e32. Mode3 exit alignment starts at signed55-degree
+outgoing-edge or65-degree narrow-line evidence, preserving independent
+natural-completion evidence. Mode4 recovery and mode5 constrained pulse
+steering retained. Full sign suite and mode1/2, gyro, mode5 integration checks
+plus formal ARM build passed. BIN115356 bytes; comprehensive hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-609f29b. No serial, flash, physical test
+or push; board remains4eda8fe, K210/main firmware unchanged.
+
+### Latest comprehensive candidate: af34e32 (not flashed)
+
+a051788 replayed onto4eda8fe. Mode5 bounds forward steering and requires
+two distinct nearby middle snapshots for rolling capture, preserving its
+recovery direction and moving correction until centered. Mode3/4 fixes retained.
+Full line suite (both speeds), full sign suite, mode5 integration and formal
+build passed. BIN115352 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-a051788. No serial, flash, physical test
+or push. Board remains4eda8fe; K210/main firmware unchanged.
+
+### Latest deployment: 4eda8fe
+
+COM11 full115184-byte readback and GO passed; reserved pages excluded.
+Includes mode3 natural exit, mode4 fallback-to-ARC and mode5 pulse steering.
+No post-GO query or physical test. K210/main firmware unchanged. See
+docs/history/deployments/DEPLOYMENT_4EDA8FE_20260910.md.
+Supersedes older unflashed/board statements. Deployment records local only.
+
+### Latest comprehensive candidate: 4eda8fe (not flashed)
+
+b75ba61 merged ontof5a91a6 without conflicts. Mode3 natural departure below
+the old angle gate uses lower/upper-half evidence, heading return and stable
+forward line travel; adds exit-heading peak diagnostics. Mode4 recovery and
+mode5 pulse steering retained. Full sign suite (including mirrored departure,
+false-completion rejection and mode4), mode1/2, gyro and mode5 integration
+checks and formal build passed. BIN115184 bytes; hashes above. Artifacts in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-b75ba61. No serial, flash, physical test
+or push; board remainse047c13, K210/main firmware unchanged.
+
+### Latest comprehensive candidate: f5a91a6 (not flashed)
+
+4335b19 replayed onto4d5f8c7. Mode5 normal steering uses3300-PWM macro
+pulses, max24ms drive per40ms cycle, ratio/encoder cutoff and1ms OFF-only
+deadline hook. Straight/search/bypass/ordinary modes retain their ownership.
+Composite mode5 runner adapted to its existing gyro/bypass suite; sign host
+links include the new pulse module. Full line (both speeds), mode5/gyro and
+sign suites and ARM build passed. BIN114448 bytes; hashes above. Artifacts
+in worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4335b19. Mode3/4 fixes retained; no serial,
+flash, ground test or push. Board remainse047c13; K210/main firmware unchanged.
+
+### Latest comprehensive candidate: 4d5f8c7 (not flashed)
+
+c37ed64 and prerequisite dff6f74 merged ontoe047c13 without conflicts.
+Mode4 missed-arc recovery: after8-cm diagonal probe, return to road heading,
+advance to reacquire the arc, then keep ARC/gyro-exit navigation instead of
+premature LOCK. Mode3 stopped-heading exit and mode5 no-hold follow retained.
+Full sign suite, mode1/2, gyro and mode5 integration checks and ARM build
+passed. BIN112632 bytes; hashes above. Artifacts in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-c37ed64. No flash, serial, physical test
+or push; board remainse047c13, K210/main code unchanged.
+
+### Latest comprehensive deployment: e047c13
+
+01e8008 integrated with mode4 spin and mode5 no-hold following. Mode3 uses
+the two-second stopped heading as exit reference; shared observation gate26%.
+Full sign tests, integration checks and build passed; COM11 full112144-byte
+readback and GO passed. Reserved pages preserved, K210/main code unchanged.
+No post-GO query, motion test or push. See
+docs/history/deployments/DEPLOYMENT_E047C13_20260910.md.
+Supersedes older board/candidate statements below.
+
+### Latest comprehensive candidate: d7218e1 (not flashed)
+
+768bc53 replayed onto47f4796, retainingc7bbaaa mode4 spin andfd8472b mode3
+exit release. Mode5 fast follow removes timed edge/crossing/gap/rejoin holds
+and captures current narrow middle evidence immediately; direction memory
+and motor ramp/STOP/obstacle priority remain. Ordinary modes retain their
+previous rules. Greater response to brief sensor noise remains a ground risk.
+Full sign and line (both speeds) suites, mode5 integration and formal build
+passed. BIN111792 bytes; comprehensive hashes above. Artifacts are in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion. Rollback:
+rollback/2026-09-10-before-768bc53. No serial, flash, physical test or push;
+board remainsed7eb3b, K210/main firmware unchanged. Supersedes prior candidate.
+
+### Latest comprehensive candidate: 47f4796 (not flashed)
+
+c7bbaaa merged ontoed7eb3b without conflicts. Mode4 initial diagonal entry
+turn now counter-rotates both sides instead of a forward pivot. Mode3 exit
+release, mode5 fast-follow and existing other modes retained. Full sign suite,
+full line suite (both speeds), mode5 integration check and formal build passed.
+Artifacts under worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion;
+BIN111568 bytes, hashes in comprehensive fields. Rollback tag:
+rollback/2026-09-10-before-c7bbaaa. No serial/flash/physical test/push; STM32
+remainsed7eb3b, K210 and main firmware unchanged. Remote comprehensive still
+ed7eb3b until separately requested synchronization.
+
+### Latest comprehensive deployment: ed7eb3b (2026-09-10)
+
+COM11 wrote and read back all111280 bytes; VERIFY OK and GO OK, exit0.
+Only55 application pages erased; audio/calibration reserved pages excluded.
+Mode3 exit release, mode4 drawn route and mode5 fixed bypass/fast four-line
+follow are active in this image. Main firmware remains rc.5; K210 unchanged.
+No post-GO query, mode start or physical test. Evidence:
+docs/history/deployments/DEPLOYMENT_ED7EB3B_20260910.md.
+Supersedes older unflashed/board58c3744 statements below. This deployment
+record is local only; no GitHub push in the flash task.
 
 ### GitHub comprehensive synchronization (2026-09-09)
 

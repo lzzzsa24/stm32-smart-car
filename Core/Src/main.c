@@ -7,9 +7,9 @@
  *     触发 V2 黑线绕障控制器；直线段由编码器限制距离，转弯段由
  *     MPU6050 实测相对偏航角，随后在障碍另一侧重新捕获黑线。
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
- *   - 按下 KEY3：SL2 四线循迹 + K210 圆环入弧/出口导航。
+ *   - 按下 KEY3：5940727 慢速循迹、识别停车朝向与圆环出口导航。
  *   - 遥控数字 4：独立 SL2 简化四线循迹 + 同一套标志选路。
- *   - 遥控数字 5：综合测试版固定路线绕障，无需 K210。
+ *   - 遥控数字 5：5940727 快速循迹和固定路线绕障，无需 K210。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
  *
  * 第一次上电请让车轮离地。电脑端“编译通过”不等于车辆已经完成地面
@@ -43,6 +43,11 @@
 #include "gyro_turn.h"
 #include "line_bypass_turn.h"
 #include "sign_route.h"
+#include "promoted_sign_line_follow.h"
+#include "promoted_sign_trace.h"
+#include "promoted_sign_observation.h"
+#include "promoted_sign_horn.h"
+#include "promoted_line_recovery.h"
 #include "sign_slowdown.h"
 #include "line_sensor_sample.h"
 #include "simple_line_mode.h"
@@ -154,6 +159,8 @@ static LineWaitGuard line_wait_guard;
 static uint8_t imu_dump_requested, imu_calibrate_requested;
 static int8_t line_wait_side;
 static SimpleLineController simple_line_controller;
+static Promoted_SignLineFollowController promoted_sign_controller;
+static uint32_t promoted_imu_generation;
 static uint8_t sign_line_mask;
 static uint8_t sign_line_action;
 static uint8_t sign_slow_reasons;
@@ -474,6 +481,8 @@ static uint8_t app_take_serial_virtual_key(void)
     case 'F':
       LineFaultLog_RequestDump();
       return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'j': Promoted_SignTrace_Request(0U); return IR_REMOTE_VIRTUAL_KEY_NONE;
+    case 'J': Promoted_SignTrace_Request(1U); return IR_REMOTE_VIRTUAL_KEY_NONE;
     case '0':
       DfPlayerMini_Stop();
       BuzzerPhrase400_Stop();
@@ -792,8 +801,15 @@ static void oled_application_task(AppMode mode)
                           battery.percent,
                           battery.valid,
                           battery.low);
-    if (mode == APP_MODE_SIGN_LINE_ADVANCED ||
-        mode == APP_MODE_SIGN_LINE_SIMPLE)
+    if (mode == APP_MODE_SIGN_LINE_ADVANCED)
+    {
+      Promoted_SignRouteStatus status;
+      Promoted_SignRoute_GetStatus(now, &status);
+      OledStatus_SetSignLineData(3U, sign_line_mask, sign_line_action,
+          status.last_class, status.last_score, status.vision_online,
+          (uint8_t)status.state, status.direction);
+    }
+    else if (mode == APP_MODE_SIGN_LINE_SIMPLE)
     {
       SignRouteStatus route_status;
 
@@ -912,6 +928,151 @@ static uint8_t line_reading_mask(const LineTrackingReading *line)
                    (line->x4_black ? 1U : 0U));
 }
 
+static void promoted_sign_telemetry_task(AppMode mode, const Promoted_SignRouteStatus *route_status,
+                                     uint8_t route_active)
+{
+  VisionUartStats stats;
+  DriveBaseTelemetry drive;
+  uint32_t now = HAL_GetTick();
+
+  DriveBase_GetTelemetry(&drive);
+  Promoted_SignTrace_Record(now, sign_line_mask, route_status,
+      drive.requested_cps[0], drive.requested_cps[2],
+      promoted_sign_controller.last_line_action,
+      promoted_sign_controller.last_owner, route_active);
+
+  if (!tick_reached(now, last_sign_uart_ms + 500U))
+  {
+    return;
+  }
+  last_sign_uart_ms = now;
+  vision_uart_get_stats(&stats);
+  DiagnosticUart_WriteString(mode == APP_MODE_SIGN_LINE_ADVANCED ? "SIGN3" : "SIGN4");
+  DiagnosticUart_WriteString(" LINE=");
+  DiagnosticUart_WriteUnsigned(sign_line_mask);
+  DiagnosticUart_WriteString(" A=");
+  DiagnosticUart_WriteUnsigned(sign_line_action);
+  DiagnosticUart_WriteString(" VIS=");
+  DiagnosticUart_WriteSigned(route_status->last_class);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteUnsigned(route_status->last_score);
+  DiagnosticUart_WriteString(" ON=");
+  DiagnosticUart_WriteUnsigned(route_status->vision_online);
+  DiagnosticUart_WriteString(" R=");
+  DiagnosticUart_WriteUnsigned((uint32_t)route_status->state);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteSigned(route_status->direction);
+  DiagnosticUart_WriteString(" SEQ=");
+  DiagnosticUart_WriteUnsigned(route_status->last_sequence);
+  DiagnosticUart_WriteString(" NAVF=");
+  DiagnosticUart_WriteUnsigned(route_status->fault);
+  DiagnosticUart_WriteString(" MM=");
+  DiagnosticUart_WriteSigned(route_status->travel_mm);
+  DiagnosticUart_WriteString(" YAW=");
+  DiagnosticUart_WriteSigned(route_status->yaw_mdeg);
+  DiagnosticUart_WriteString(" IMU=");
+  DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
+  DiagnosticUart_WriteString(" P=");
+  DiagnosticUart_WriteUnsigned((uint32_t)route_status->profile);
+  DiagnosticUart_WriteString(route_status->approach_from_pause ? " REF=PAUSE" : " REF=PROBE");
+  DiagnosticUart_WriteString(" H=");
+  DiagnosticUart_WriteSigned(route_status->heading_error_mdeg);
+  DiagnosticUart_WriteString(" SLOW=0 CAP=0"); /* retained diagnostic fields; no sign speed cap */
+  DiagnosticUart_WriteString(" SEARCH=");
+  DiagnosticUart_WriteUnsigned(route_status->searching);
+  DiagnosticUart_WriteString(" CTRL=");
+  DiagnosticUart_WriteUnsigned(promoted_sign_controller.last_owner);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteUnsigned(promoted_sign_controller.last_line_action);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteUnsigned(route_active);
+  DiagnosticUart_WriteString(" BAD=");
+  DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
+                               stats.ring_overflows + stats.queue_overflows);
+  DiagnosticUart_WriteString("\r\n");
+}
+
+static void promoted_sign_detection_task(AppMode mode)
+{
+  VisionDetection detection;
+  if (mode != APP_MODE_SIGN_LINE_ADVANCED)
+  {
+    Promoted_SignObservation_Reset();
+    DriveBase_SetSpeedLimitCps(0L);
+    return;
+  }
+  while (vision_uart_take_detection(&detection) != 0U)
+  {
+    Promoted_SignRouteStatus observation_route;
+    Promoted_SignRoute_GetStatus(HAL_GetTick(), &observation_route);
+    Promoted_SignObservation_AllowPause(observation_route.direction == 0 &&
+        (observation_route.state == Promoted_SIGN_ROUTE_IDLE || observation_route.state == Promoted_SIGN_ROUTE_ARMED ||
+         observation_route.state == Promoted_SIGN_ROUTE_PROBE || observation_route.state == Promoted_SIGN_ROUTE_WAIT_SIGN));
+    Promoted_SignObservation_ObserveDetection(&detection, HAL_GetTick());
+    Promoted_SignRoute_ObserveDetection(&detection);
+    if (Promoted_SignHorn_Observe(&detection, HAL_GetTick()))
+      (void)BuzzerPhrase400_Start(5U);
+  }
+}
+
+static void promoted_sign_rgb_off(void)
+{
+  /* Left green is PE7, not PG7; use each LED's actual port. */
+  HAL_GPIO_WritePin(LRGB_R_GPIO_Port, LRGB_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LRGB_G_GPIO_Port, LRGB_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LRGB_B_GPIO_Port, LRGB_B_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_R_GPIO_Port, RRGB_R_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_G_GPIO_Port, RRGB_G_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(RRGB_B_GPIO_Port, RRGB_B_Pin, GPIO_PIN_RESET);
+}
+
+static void promoted_sign_task(AppMode mode)
+{
+  Promoted_SignRouteCommand route_command;
+  MpuYawReading yaw;
+  Promoted_SignRouteStatus route_status;
+  WheelEncoderCounts counts;
+  Promoted_LineTrackingReading line;
+  uint32_t now;
+  uint8_t observation_paused;
+
+  Promoted_SignRoute_SetProfile(Promoted_SIGN_ROUTE_PROFILE_STANDARD);
+  /* Diagnostics/display may have run after the background service. Consume
+     available FIFO history immediately before this angle-dependent decision. */
+  MpuYaw_Refresh(HAL_GetTick());
+  line = Promoted_line_tracking_read();
+  now = HAL_GetTick();
+  sign_line_mask = (uint8_t)((line.x2_black?8U:0U)|(line.x1_black?4U:0U)|(line.x3_black?2U:0U)|(line.x4_black?1U:0U));
+  /* Keep sampling the real line even while a route preference is active. */
+  WheelEncoder_GetCounts(&counts);
+  Promoted_SignRoute_UpdateEncoders(counts.motor1, counts.motor2, counts.motor3, counts.motor4);
+  MpuYaw_GetReading(&yaw);
+  Promoted_SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
+  Promoted_SimpleLine_UpdateYaw(&promoted_sign_controller.guard, yaw.yaw_mdeg, MpuYaw_IsReady(now), yaw.generation);
+  if (mode==APP_MODE_SIGN_LINE_ADVANCED)
+  {
+    Promoted_SignObservation_UpdateLine(sign_line_mask,now);
+    if (Promoted_SignObservation_SeekingLine()) Promoted_SignRoute_MarkObservationSearch();
+  }
+  observation_paused = Promoted_SignObservation_Paused(now);
+  Promoted_SignRoute_UpdateObservationPause(mode==APP_MODE_SIGN_LINE_ADVANCED ?
+      Promoted_SignObservation_HoldingRoute(now) : observation_paused, now);
+  Promoted_SignRoute_Step(sign_line_mask, now, &route_command);
+  Promoted_SignRoute_GetStatus(now, &route_status);
+  sign_line_action = Promoted_SignLineFollow_Step(&promoted_sign_controller, &line, EXP7_LINE_SPEED,
+      &route_status, &route_command, observation_paused);
+  if (sign_line_action == 5U) UltrasonicMotion_Reset();
+
+  Promoted_SignRoute_GetStatus(now, &route_status);
+  app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
+  promoted_sign_rgb_off();
+  HAL_GPIO_WritePin(led1_GPIO_Port, led1_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin,
+                    route_status.vision_online != 0U ?
+                    GPIO_PIN_SET : GPIO_PIN_RESET);
+  promoted_sign_telemetry_task(mode, &route_status, route_command.active);
+}
+
 static void apply_sign_line_pwm(int16_t left_pwm,
                                 int16_t right_pwm,
                                 uint8_t line_mask,
@@ -988,6 +1149,7 @@ static void sign_line_telemetry_task(AppMode mode,
    only in apply_sign_line_pwm, so the next tick cannot re-cap search. */
 static void sign_line_slowdown_task(AppMode mode)
 {
+  if (mode == APP_MODE_SIGN_LINE_ADVANCED) return;
   VisionDetection detection;
   uint32_t sampled_ms;
   uint8_t all_black = LineSensorSample_TakeAllBlack(&sampled_ms);
@@ -1352,7 +1514,17 @@ static void experiment7_integrated_once(void)
     return;
   }
 
-  line_tracking_set_straight_boost(fixed_bypass_mode);
+  if (fixed_bypass_mode)
+  {
+    Promoted_line_tracking_set_fast_follow(1U);
+    Promoted_line_tracking_set_straight_boost(1U);
+    Promoted_LineTrackingAction action = Promoted_line_tracking_follow_once(
+        line_speed, ultrasonic_forward_speed_limit);
+    if (action != Promoted_LINE_ACTION_FORWARD && action != Promoted_LINE_ACTION_CROSSING)
+      UltrasonicMotion_Reset();
+    return;
+  }
+  line_tracking_set_straight_boost(0U);
   /* 优先级 3：无视觉动作时进行四路黑线闭环循迹。 */
   {
     LineTrackingAction action = line_tracking_follow_once(line_speed,
@@ -1438,6 +1610,7 @@ static uint8_t service_legacy_line_wait(AppMode mode)
 
 static uint8_t service_bounded_line_wait(AppMode mode)
 {
+  if (mode == APP_MODE_SIGN_LINE_ADVANCED) return 0U;
   if (mode != APP_MODE_INTEGRATED && mode != APP_MODE_FIXED_BYPASS) return service_legacy_line_wait(mode);
   DriveBaseTelemetry telemetry;
   LineWaitAction action;
@@ -1467,7 +1640,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     LineTrackingReading line = line_tracking_read();
     IrAvoidReading infrared = {0};
     int8_t line_side = line_tracking_direction_evidence(&line);
-    line_wait_side = LineRecovery_GetDirection();
+    line_wait_side = fixed_bypass_mode ? Promoted_LineRecovery_GetDirection() : LineRecovery_GetDirection();
     if (mode == APP_MODE_INTEGRATED)
     {
       infrared = ir_avoid_read();
@@ -1494,7 +1667,8 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     LineBypassTurn_Recover();
     DriveBase_SetSpeedLimitCps(0L);
     cancel_vision_action();
-    line_tracking_start_following();
+    if (fixed_bypass_mode) Promoted_line_tracking_start_following();
+    else line_tracking_start_following();
     app_buzzer_safety_write(GPIO_PIN_RESET, 0U);
   }
   if (action == LINE_WAIT_BEGIN_RECOVERY || action == LINE_WAIT_RECOVERING)
@@ -1506,7 +1680,8 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   {
     DriveBase_Stop(DRIVE_STOP_COAST);
     BuzzerPhrase400_Stop();
-    line_tracking_start_following();
+    if (fixed_bypass_mode) Promoted_line_tracking_start_following();
+    else line_tracking_start_following();
     if (mode == APP_MODE_INTEGRATED || mode == APP_MODE_FIXED_BYPASS)
     {
       bypass_rearm_pending = 1U; bypass_ir_clear_samples = 0U;
@@ -1563,6 +1738,11 @@ int main(void)
   line_tracking_init();
   SimpleLine_Init(&simple_line_controller);
   SignRoute_Init();
+  Promoted_SignRoute_Init();
+  Promoted_SignLineFollow_Init(&promoted_sign_controller);
+  Promoted_SignTrace_Init();
+  Promoted_SignHorn_Reset();
+  Promoted_SignObservation_Reset();
   SignSlowdown_Reset();
   vision_uart_init();
   Ultrasonic_Init();
@@ -1723,6 +1903,11 @@ int main(void)
       bypass_ir_trigger_since_ms = HAL_GetTick();
       last_fast_speed_cps = 0U;
       last_fast_speed_ms = HAL_GetTick();
+      Promoted_SignLineFollow_Stop(&promoted_sign_controller);
+      Promoted_SignRoute_Reset();
+      Promoted_SignObservation_Reset();
+      Promoted_SignHorn_Reset();
+      Promoted_line_tracking_reset();
       SimpleLine_Stop(&simple_line_controller);
       SignRoute_Reset();
       vision_uart_reset_detections();
@@ -1742,6 +1927,7 @@ int main(void)
 
       app_mode = requested_mode;
       configure_bypass_profile(app_mode == APP_MODE_FIXED_BYPASS);
+      if (app_mode == APP_MODE_FIXED_BYPASS) Promoted_line_tracking_start_following();
       if (app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_FIXED_BYPASS)
       {
         /* Use the same current tracking profile as KEY2; obstacle ownership
@@ -1763,16 +1949,14 @@ int main(void)
       }
       else if (app_mode == APP_MODE_SIGN_LINE_ADVANCED)
       {
-        line_tracking_set_no_line_forward(0U);
-        line_tracking_set_smooth_mode(0U);
-        line_tracking_set_turn_gain_percent(100U);
+        Promoted_SignTrace_Init();
+        Promoted_SignLineFollow_Start(&promoted_sign_controller);
+        Promoted_SignRoute_Reset();
+        Promoted_SignRoute_SetProfile(Promoted_SIGN_ROUTE_PROFILE_STANDARD);
         UltrasonicMotion_Reset();
         ultrasonic_forward_speed_limit = 0;
-        SimpleLine_Start(&simple_line_controller);
-        SignRoute_Reset();
         vision_uart_reset_detections();
         last_sign_uart_ms = HAL_GetTick() - 500U;
-        DiagnosticUart_WriteString("SIGN3 SL2 RING NAV START\r\n");
       }
       else if (app_mode == APP_MODE_SIGN_LINE_SIMPLE)
       {
@@ -1811,7 +1995,20 @@ int main(void)
       }
     }
 
+    if (app_mode == APP_MODE_SIGN_LINE_ADVANCED)
+    {
+      MpuYawReading imu;
+      MpuYaw_GetReading(&imu);
+      if (imu.generation != promoted_imu_generation)
+      {
+        promoted_imu_generation = imu.generation;
+        Promoted_SignRoute_Reset();
+      }
+      promoted_sign_rgb_off();
+      promoted_sign_detection_task(app_mode);
+    }
     sign_line_slowdown_task(app_mode);
+    Promoted_SignTrace_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
     DriveBase_Task(HAL_GetTick());
     drive_base_telemetry_task();
     LineFaultLog_Task((uint8_t)(app_mode == APP_MODE_STOPPED));
@@ -1824,7 +2021,6 @@ int main(void)
     if (DriveBase_GetFaultMask() != 0U &&
         (app_mode == APP_MODE_INTEGRATED ||
          app_mode == APP_MODE_LINE_ONLY ||
-         app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
          app_mode == APP_MODE_SIGN_LINE_SIMPLE ||
          app_mode == APP_MODE_FIXED_BYPASS) &&
         LineObstacleBypass_GetState() == LINE_BYPASS_IDLE)
@@ -1885,7 +2081,8 @@ int main(void)
     if (app_mode == APP_MODE_SIGN_LINE_ADVANCED ||
         app_mode == APP_MODE_SIGN_LINE_SIMPLE)
     {
-      sign_line_task(app_mode);
+      if (app_mode == APP_MODE_SIGN_LINE_ADVANCED) promoted_sign_task(app_mode);
+      else sign_line_task(app_mode);
       HAL_Delay(1U);
       continue;
     }
@@ -2006,13 +2203,16 @@ int main(void)
       {
         uint8_t contact = LineObstacleBypass_GetCapturedLineMask();
         LineObstacleBypass_Stop();
-        line_tracking_rejoin_from_bypass(contact);
+        if (fixed_bypass_mode) Promoted_line_tracking_rejoin_from_bypass(contact);
+        else line_tracking_rejoin_from_bypass(contact);
         bypass_rearm_pending = 1U;
         bypass_ir_clear_samples = 0U;
         bypass_rearm_not_before_ms = HAL_GetTick() +
                                      BYPASS_REARM_DELAY_MS;
         UltrasonicAvoid_ResumeFollowing();
-        (void)line_tracking_follow_once(EXP7_LINE_SPEED, ultrasonic_forward_speed_limit);
+        if (fixed_bypass_mode)
+          (void)Promoted_line_tracking_follow_once(EXP7_LINE_SPEED, ultrasonic_forward_speed_limit);
+        else (void)line_tracking_follow_once(EXP7_LINE_SPEED, ultrasonic_forward_speed_limit);
         WheelSpeedObserver_Start();
         last_fast_speed_cps = 0U;
         last_fast_speed_ms = HAL_GetTick();
@@ -2035,6 +2235,7 @@ int main(void)
       if (!fixed_bypass_mode && confirmed_ir_bypass_direction(&ir_status,
                                         &confirmed_direction) != 0U)
       {
+        if (fixed_bypass_mode) Promoted_line_tracking_reset();
         line_tracking_reset();
         WheelSpeedObserver_Stop();
         LineBypassRange_Reset();
@@ -2066,6 +2267,7 @@ int main(void)
         ultrasonic_state == ULTRASONIC_AVOID_GUARD ||
         ultrasonic_state == ULTRASONIC_AVOID_TURNING)
     {
+      if (fixed_bypass_mode) Promoted_line_tracking_reset();
       line_tracking_reset();
       WheelSpeedObserver_Stop();
       LineBypassRange_Reset();

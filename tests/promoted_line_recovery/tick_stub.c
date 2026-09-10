@@ -7,6 +7,3 @@ void Test_RestoreIrq(uint32_t value)
   (void)value;
   if(test_irq_restore_hook) test_irq_restore_hook();
 }
-#ifndef TEST_REAL_DRIVE_BASE
-void DriveBase_LinePulseTick(uint32_t now) { (void)now; }
-#endif
