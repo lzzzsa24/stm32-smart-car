@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 47f47968761f25f427b05d0ed9d60f3b28456f1d
-comprehensive_candidate_status: c7bbaaa_merged_sign_line_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: d7218e14362e7952a4571f1c239dabf646d8fd33
+comprehensive_candidate_status: 768bc53_integrated_sign_line_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 111568
-comprehensive_candidate_bin_sha256: 526CD8EDF208F61E8331F9568EE11E62F9187C2E0D4F1DBB888247E9CDE23379
-comprehensive_candidate_hex_sha256: EF1DA9DFCADC53F885BC6885B964906BCAB872A9D06AAE8B115EC4EBA6F5DE27
+comprehensive_candidate_bin_size_bytes: 111792
+comprehensive_candidate_bin_sha256: 8993B2F832AA19928605875136372004A264A886B595CEC61B34F448567FA056
+comprehensive_candidate_hex_sha256: 08C6FA3DC54FDBD6E2F22B93EFBD83B5F8FFEEB8101F3DEFF44D94338AA04A3B
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,19 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: d7218e1 (not flashed)
+
+768bc53 replayed onto47f4796, retainingc7bbaaa mode4 spin andfd8472b mode3
+exit release. Mode5 fast follow removes timed edge/crossing/gap/rejoin holds
+and captures current narrow middle evidence immediately; direction memory
+and motor ramp/STOP/obstacle priority remain. Ordinary modes retain their
+previous rules. Greater response to brief sensor noise remains a ground risk.
+Full sign and line (both speeds) suites, mode5 integration and formal build
+passed. BIN111792 bytes; comprehensive hashes above. Artifacts are in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion. Rollback:
+rollback/2026-09-10-before-768bc53. No serial, flash, physical test or push;
+board remainsed7eb3b, K210/main firmware unchanged. Supersedes prior candidate.
 
 ### Latest comprehensive candidate: 47f4796 (not flashed)
 
