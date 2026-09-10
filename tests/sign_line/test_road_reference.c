@@ -50,65 +50,47 @@ static void start(int side,int32_t stopped)
   for(i=0;i<4;++i) step(6,stopped-side*20000,12);
   assert(s.state==SIGN_ROUTE_ARC);
 }
-static void stopped_exit(int side,int32_t stopped,uint8_t edge,int32_t apex)
+static void stopped_exit(int side,int32_t stopped,uint8_t mask,int32_t apex)
 {
-  unsigned i; int32_t threshold=edge?30000:40000;
-  uint8_t mask=edge?(side<0?8:1):6;
+  unsigned i; uint8_t outer=side<0?8:1;
   start(side,stopped);
-  step(6,stopped-side*apex,1500);
-  for(i=0;i<4;++i) step(mask,stopped-side*threshold,12);
+  step(6,stopped-side*apex,0);
+  step(mask,stopped,0);
   assert(s.state==SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(6,stopped,12);
-  assert(s.state==SIGN_ROUTE_ARC && !c.active); /* midpoint zero is not exit */
-  for(i=0;i<4;++i) step(mask,stopped+side*(threshold-1000),12);
+  step(mask,stopped+side*39999,0);
   assert(s.state==SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(mask,stopped+side*threshold,12);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
-  assert(s.heading_error_mdeg==side*threshold && s.approach_from_pause);
-  step(6,stopped+side*26000,12);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
-  step(6,stopped+side*25000,12);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active); /* widened alignment */
-  for(i=0;i<4;++i) step(6,stopped+side*25000,12);
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+  now+=80;
+  step(mask,stopped+side*40000,0);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT && s.travel_mm==0);
+  assert(s.heading_error_mdeg==side*40000 && s.approach_from_pause);
+  step(mask,stopped+side*25000,0);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  step(0,stopped+side*25000,0);
+  step((uint8_t)(mask|outer),stopped+side*25000,0);
+  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction && !c.active);
   for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
 }
 static void natural_exit(int side,int32_t stopped)
 {
   unsigned i;
-  start(side,stopped); step(6,stopped-side*80000,1500);
-  step(6,stopped+side*52000,12);
-  step(6,stopped+side*35000,12);
-  assert(s.state==SIGN_ROUTE_ARC && !c.active); /* one return cannot skip the turn */
-  for(i=0;i<30;++i) { step(6,stopped+side*35000,12); assert(!c.active); }
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.exit_reason==2);
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
-  for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
-  start(side,stopped); step(6,stopped-side*80000,1500);
-  step(6,stopped+side*52000,12); step(6,stopped+side*35000,12);
+  start(side,stopped);
+  step(6,stopped+side*52000,0);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
   for(i=0;i<30;++i) step(6,stopped+side*35000,12);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
-  for(i=0;i<80;++i) { step(i%2?0:(side<0?7:14),stopped+side*35000,2); assert(!c.active); }
-  assert(s.state==SIGN_ROUTE_CANCELLED && !s.direction); /* no late turn */
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active); /* no natural-return shortcut */
+  step(6,stopped,0);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.direction==side && !c.active);
+  finish_outer(side); assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
 }
 int main(void)
 {
-  int side,offset,edge,apex; unsigned i;
+  int side,offset,apex; unsigned mask;
   for(side=-1;side<=1;side+=2) for(offset=-30000;offset<=30000;offset+=10000)
   {
-    for(edge=0;edge<=1;++edge) for(apex=20000;apex<=100000;apex+=80000)
-      stopped_exit(side,offset,(uint8_t)edge,apex);
+    for(mask=0;mask<16;++mask) for(apex=20000;apex<=100000;apex+=80000)
+      stopped_exit(side,offset,(uint8_t)mask,apex);
     natural_exit(side,offset);
   }
-  start(1,0); step(6,-110000,1500); step(6,110000,12);
-  assert(s.arc_sweep_mdeg>200000 && s.state==SIGN_ROUTE_ARC && !s.fault);
-  /* No repeated valid line samples: a sweep above 200 is diagnostic only. */
-  start(1,0); step(6,-80000,1500);
-  for(i=0;i<8;++i) step(i%2?15:9,55000,12);
-  assert(s.state==SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(6,55000,12);
-  step(0,45000,0); step(8,40000,12);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active); /* reacquisition before alignment */
-  puts("PASS: stopped pose is primary, moving/entry yaw cannot replace it; mirrored 30/40 exit, 25 alignment, 35 natural return and no sweep gates");
+  puts("PASS: stopped reference and biased poses; all16 masks start at40 with zero travel and sample gap; completion still requires outer clear/black");
   return 0;
 }
