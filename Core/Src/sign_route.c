@@ -56,7 +56,7 @@ typedef struct
   uint32_t phase_ms, last_step_ms;
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
-  uint8_t observation_pause_active, observation_pause_seen, fallback_arc_hint;
+  uint8_t observation_pause_active, observation_pause_seen;
   uint32_t observation_pause_since_ms;
   uint8_t approach_from_pause;
   uint32_t pause_reference_ms;
@@ -355,7 +355,6 @@ static void enter_phase(SignRouteState state, uint32_t now)
       route.approach_yaw = route.imu_yaw; /* no usable observation stop: explicit fallback */
       route.approach_from_pause=0U;
     }
-    route.fallback_arc_hint = 0U;
   }
   route.state = state;
   route.phase_ms = now;
@@ -624,7 +623,6 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
     if (stable((uint8_t)(route.departed && narrow_line(line_mask) &&
                          route.travel_mm >= SIGN_GYRO_TANGENT_ENTRY_MIN_MM), now))
     {
-      route.fallback_arc_hint = 0U;
       enter_phase(SIGN_ROUTE_ARC, now);
       route.entry_line_ready = 1U;
       command->active = 0U;
@@ -678,7 +676,6 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
 
   if (route.state == SIGN_ROUTE_ENTRY_FALLBACK)
   {
-    uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
     if (now - route.phase_ms > SIGN_GYRO_TANGENT_FALLBACK_TIMEOUT_MS ||
         route.travel_mm > SIGN_GYRO_TANGENT_FALLBACK_MAX_MM)
     {
@@ -690,31 +687,24 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
     if (route.departed && line_mask != 0U)
     {
       /* First black after the confirmed white gap is the lower arc. Accept a
-         broad/brief contact immediately; an ambiguous centre hit receives the
-         saved direction until the selected outer sensor becomes visible. */
-      route.fallback_arc_hint = 1U;
+         broad/brief contact immediately and release all visible-line steering
+         to the live follower in this same cycle. */
       enter_phase(SIGN_ROUTE_ARC, now);
       route.entry_line_ready = 1U;
       command->just_finished = 1U;
-      if (line_mask != 15U && (line_mask & selected_edge))
-      {
-        route.fallback_arc_hint = 0U;
-        command->active = 0U;
-      }
-      else tangent_command(command, route.direction);
+      command->active = 0U;
     }
     return 1U;
   }
 
   if (route.state == SIGN_ROUTE_ARC)
   {
-    uint8_t selected_edge = route.direction < 0 ? 8U : 1U;
     int32_t arc_yaw = route.direction * route.yaw_mdeg;
     int64_t exit_heading = route.direction *
         (route.imu_yaw - route.approach_yaw);
     if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
         route.travel_mm > SIGN_ARC_MAX_MM ||
-        arc_yaw < (route.fallback_arc_hint ? -SIGN_ENTRY_MAX_MDEG : -30000L) ||
+        arc_yaw < -30000L ||
         arc_yaw > SIGN_GYRO_ARC_MAX_MDEG)
     {
       cancel_route(3U, now, command);
@@ -728,16 +718,6 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       command->just_started = 1U;
       pivot_command(command, route.direction);
       return 1U;
-    }
-    if (route.fallback_arc_hint)
-    {
-      if (line_mask != 15U && (line_mask & selected_edge))
-        route.fallback_arc_hint = 0U;
-      else
-      {
-        tangent_command(command, route.direction);
-        return 1U;
-      }
     }
     /* Visible circle line stays under the same live sensor follower as mode 2.
        Across a short all-white gap, keep a forward arc instead of spinning. */
