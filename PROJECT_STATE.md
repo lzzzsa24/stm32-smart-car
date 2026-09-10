@@ -9,14 +9,15 @@ Do not infer the active mode map from older experiment documents.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-10
+state_updated_at: 2026-09-11
 integration_branch: main
-repository_head_at_update: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-latest_code_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-candidate_source_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-candidate_bin_size_bytes: 132176
-candidate_bin_sha256: 987045C4F21D88FAF4FF873F14187F26BADACCAE3162DB7776C5A7E5113B6853
-candidate_hex_sha256: 0407CF64B3128150CFB3ED0670AB1151779202E1183673BDF893FAB02FD03C9D
+repository_head_at_update: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+latest_code_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+candidate_source_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+candidate_bin_size_bytes: 132156
+candidate_bin_sha256: 8C14B8FB10ED8341DD4A0A3FBBE6AC44EF826AA2482624730BCECA7847D872EA
+candidate_hex_sha256: 5E3E41992193398B1444A1939297C41B844BE4974C3EE2178726E09CD5D10C2C
+candidate_status: main_2b4fc1f_verified_flash_blocked_USB_absent
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 121068
@@ -51,6 +52,17 @@ commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
 ## Current four-mode mapping
+
+Latest local main2b4fc1f merges6594ff0 (notc9df841) without conflicts.
+Mode3 now drives forward immediately along the heading at the configured exit
+angle, no intermediate alignment turn. Fresh post-entry selected outer
+clear/black alone finishes; no route time/distance limit during this forward
+phase. Stale IMU removes trim, not forward motion. Manual STOP remains essential.
+Full promoted sign suite, mode1/2 integration, source scope and ARM build passed.
+User authorized main flash, but fresh enumeration found only Bluetooth ports;
+programmer not opened and no erase/write. Reconnect before retrying main2b4fc1f.
+Board remains five-mode62b0de2, K210 unchanged. No push or release update.
+Rollback: rollback/2026-09-11-before-6594ff0 ->35a78bb.
 
 Explicit test-only update: user requested62aeda3 into the retained five-mode
 comprehensive branch, merged as62b0de2. Mode3 exit completion requires fresh
@@ -103,7 +115,9 @@ Mode1 retains original IR and sonar configuration via isolated profile restore.
 
 ## Verification and deployment boundary
 
-Main firmware: ARM build text/data/bss132088/84/27048; BIN132176 bytes.
+Latest main firmware: ARM build text/data/bss132068/84/27056; BIN132156 bytes.
+The full consolidation regression listed below refers to c2ed15d; latest
+mode3 increment additionally passed promoted sign, scope and mode1/2 checks.
 Passed legacy line suite (both speeds), promoted line suite (both speeds),
 real promoted DriveBase, sign route/observation/IMU tests, fixed-bypass/profile
 and actual selector tests, DFPlayer/store tests, source scope and K210 runtime.
