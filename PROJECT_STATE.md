@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 6da3ac8c76d7a58c2f1cbe5d145f179099bd60d2
-comprehensive_candidate_status: 6da3ac8_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
+comprehensive_candidate_status: a217df8_ready_flash_failed_port_closed_before_erase
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120528
-comprehensive_candidate_bin_sha256: E7562A2F41A93BC46C4AD267F41EE7088F5C72E87D016E414C57AC9CEAF2F6A6
-comprehensive_candidate_hex_sha256: F81C885367472B40B3DD7B19D285BE79C02F5C64E523F7BF5C0D4EDC847526AE
+comprehensive_candidate_bin_size_bytes: 121028
+comprehensive_candidate_bin_sha256: 308736418B9C96F2BC12B4AB7A06BADD4B1A63584781B6900B01CE120C958079
+comprehensive_candidate_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A76FA
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -38,7 +38,7 @@ k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
 remote_sync_branch: integration/main-mode35-sync-20260910
-stm32_runtime_status: COM11_6da3ac8_full_readback_GO_no_post_GO_query
+stm32_runtime_status: a217df8_sync_port_closed_before_erase_old_bytes_retained_execution_unconfirmed
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
 temporary_flash_selector_commit: 6da3ac8_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
@@ -52,6 +52,19 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: a217df8; reconnect required
+
+7c308e0 merged without conflicts. Mode3 dedicated remote +/- adjust exit
+threshold5 degrees, bounds30..90, boot40; mode resets preserve RAM setting.
+OLED shows setting and signed relative heading. Mode4/audio controls retained.
+Full sign suite including keymap/selector and ARM build passed. BIN121028;
+candidate hashes above; comprehensive-v15 worktree artifacts. Rollback:
+rollback/2026-09-10-before-7c308e0 ->6da3ac8.
+Fresh CH340K COM11 enumerated, but boot synchronization failed at DiscardInBuffer
+with port closed, exit1; no ACK/erase/write/GO. Old6da3ac8 Flash bytes retained,
+application execution after reset probing unconfirmed. Replug before retry.
+K210 unchanged; no physical test/push. Supersedes older candidate entries.
 
 ### Latest comprehensive deployment: 6da3ac8 after reconnect
 
