@@ -139,11 +139,9 @@ static void entry_miss_returns_to_heading(int side)
 
   step(6,0,1,300); /* black on the very next sample must not be skipped */
   assert(status.state==SIGN_ROUTE_ARC && status.direction==side &&
-         status.entry_line_ready && command.active && command.gentle_arc);
-  assert(command.left_pwm>0 && command.right_pwm>0);
+         status.entry_line_ready && !command.active);
 
-  /* The ambiguous centre hit uses the saved side only until the selected
-     outer sensor supplies live direction; then route motor ownership ends. */
+  /* Every visible mask remains outside route motor ownership in ARC. */
   step(side<0?8U:1U,-side*10000LL,1,0);
   assert(status.state==SIGN_ROUTE_ARC && !command.active);
 
@@ -179,7 +177,7 @@ int main(void)
   mode4_drawn_trajectory(-1); mode4_drawn_trajectory(1);
   puts("PASS: mirrored fixed-angle turn, straight entry, live arc, turn and straight exit");
   entry_miss_returns_to_heading(-1); entry_miss_returns_to_heading(1);
-  puts("PASS: first fallback black keeps saved direction, acquires arc and exits at 60 degrees");
+  puts("PASS: first fallback black enters live ARC immediately and exits at 60 degrees");
   profile_isolation_and_invalid_gyro();
   return 0;
 }

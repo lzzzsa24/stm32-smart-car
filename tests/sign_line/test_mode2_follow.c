@@ -313,6 +313,12 @@ static void mode4_drawn_drive(int side)
   sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   for(i=0;i<4;++i) sample(side<0?8:1,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   assert(route.state==SIGN_ROUTE_ARC);
+  sample(side<0?8:1,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  assert(!route_command.active);
+  assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
+                  drive.requested_cps[2]==0 && drive.requested_cps[0]==2200);
+  sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
+  assert(!route_command.active && drive.requested_cps[0]==drive.requested_cps[2]);
   sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
   assert(route_command.gentle_arc);
   assert(drive.requested_cps[0]==(side<0?outer:inner));

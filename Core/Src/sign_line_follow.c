@@ -56,7 +56,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
      line table is not used for ordinary or acquired-arc steering. */
   SimpleLine_StepRoute(&c->guard, mask, route, route_command);
   guarded_search = c->guard.mode == SIMPLE_LINE_SEARCH &&
-      (c->guard.entry_guard_active || arc);
+      (c->guard.entry_guard_active || (arc && mask == 0U));
   override = paused || route_command->active || guarded_search;
   if (override != c->override_active)
   {
