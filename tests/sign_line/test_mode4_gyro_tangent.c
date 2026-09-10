@@ -73,20 +73,24 @@ static void mode4_drawn_trajectory(int side)
   unsigned i;
   int32_t angle;
   int64_t entry_yaw=-side*SIGN_GYRO_TANGENT_ENTRY_MDEG;
-  int64_t arc_end_yaw=entry_yaw+side*SIGN_GYRO_TANGENT_ARC_MDEG;
+  int64_t arc_end_yaw=side*SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG;
+  int32_t arc_sweep=SIGN_GYRO_TANGENT_ENTRY_MDEG+
+      SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG;
   reach_arc(side);
   assert(status.profile==SIGN_ROUTE_PROFILE_GYRO_TANGENT);
 
   /* Visible circle line stays under live sensor control. A brief loss keeps
      both wheels forward in the arc direction and never requests a spin. */
-  for(angle=10000;angle<SIGN_GYRO_TANGENT_ARC_MDEG;angle+=10000)
+  for(angle=10000;angle<arc_sweep;angle+=10000)
   {
-    step(6,entry_yaw+side*angle,1,angle==20000?1100:0);
-    assert(status.state==SIGN_ROUTE_ARC && !command.active);
+    uint8_t mask=angle==70000?0U:6U;
+    step(mask,entry_yaw+side*angle,1,angle==20000?1100:0);
+    assert(status.state==SIGN_ROUTE_ARC);
+    if(mask==0U)
+      assert(command.active && command.gentle_arc &&
+             command.left_pwm>0 && command.right_pwm>0);
+    else assert(!command.active);
   }
-  step(0,entry_yaw+side*70000,1,0);
-  assert(status.state==SIGN_ROUTE_ARC && command.active && command.gentle_arc);
-  assert(command.left_pwm>0 && command.right_pwm>0);
 
   for(i=0;i<4;++i) step(6,arc_end_yaw,1,0);
   if(status.state!=SIGN_ROUTE_EXIT_SELECT)
@@ -113,9 +117,7 @@ static void entry_miss_returns_to_heading(int side)
   unsigned i;
   int32_t angle;
   int64_t entry_yaw=-side*SIGN_GYRO_TANGENT_ENTRY_MDEG;
-  int64_t fallback_entry_yaw=-side*SIGN_GYRO_TANGENT_FALLBACK_ARC_ENTRY_MDEG;
-  int64_t fallback_arc_end_yaw=fallback_entry_yaw+
-      side*SIGN_GYRO_TANGENT_FALLBACK_ARC_MDEG;
+  int64_t fallback_arc_end_yaw=side*SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG;
   begin_entry_turn(side);
   step(6,entry_yaw,1,0);
   assert(status.state==SIGN_ROUTE_SELECTING);
@@ -137,19 +139,13 @@ static void entry_miss_returns_to_heading(int side)
 
   step(0,0,1,300);
   for(i=0;i<4;++i) step(6,0,1,0);
-  assert(status.state==SIGN_ROUTE_FALLBACK_ARC_TURN && status.direction==side && command.active);
-  assert(side<0 ? (command.left_pwm<0 && command.right_pwm>0) :
-                  (command.left_pwm>0 && command.right_pwm<0));
+  assert(status.state==SIGN_ROUTE_ARC && status.direction==side &&
+         status.entry_line_ready && !command.active);
 
-  /* A directionless centre hit still uses the saved sign direction to rotate
-     onto the tangent before live arc tracking starts. */
-  step(6,fallback_entry_yaw,1,0);
-  assert(status.state==SIGN_ROUTE_ARC && status.entry_line_ready && !command.active);
-
-  /* The recovered line is still the requested circle. Gyro arc progress must
-     continue into the normal exit-turn phase instead of ending the route. */
-  for(angle=10000;angle<SIGN_GYRO_TANGENT_FALLBACK_ARC_MDEG;angle+=10000)
-    step(6,fallback_entry_yaw+side*angle,1,angle==20000?1100:0);
+  /* Sensors acquire the lower biased arc themselves. Exit is based only on
+     the signed 60-degree heading from the original observation-stop yaw. */
+  for(angle=10000;angle<SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG;angle+=10000)
+    step(6,side*angle,1,angle==20000?1100:0);
   for(i=0;i<4;++i) step(6,fallback_arc_end_yaw,1,0);
   assert(status.state==SIGN_ROUTE_EXIT_SELECT && status.direction==side && command.active);
 }
@@ -178,7 +174,7 @@ int main(void)
   mode4_drawn_trajectory(-1); mode4_drawn_trajectory(1);
   puts("PASS: mirrored fixed-angle turn, straight entry, live arc, turn and straight exit");
   entry_miss_returns_to_heading(-1); entry_miss_returns_to_heading(1);
-  puts("PASS: fallback centre hit keeps direction, turns onto arc and retains gyro exit");
+  puts("PASS: fallback line self-acquires arc and exits at 60 degrees from stop heading");
   profile_isolation_and_invalid_gyro();
   return 0;
 }

@@ -662,7 +662,6 @@ static void build_sign_line_screen(uint8_t mode_number,
     case 11U: index = append_string(line, index, "CANCEL"); break;
     case 12U: index = append_string(line, index, "ENTRY RETURN"); break;
     case 13U: index = append_string(line, index, "FALLBACK LINE"); break;
-    case 14U: index = append_string(line, index, "ARC TURN"); break;
     default: index = append_string(line, index, "IDLE"); break;
   }
   if (route_direction != 0)
