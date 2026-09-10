@@ -18,4 +18,6 @@ GO OK: 0x08000000
 ```
 
 Audio/calibration pages excluded. No post-GO query, motion, K210 access or
-push. OLED recovery has NOT been observed; user comparison pending.
+push. User subsequently reported OLED restored after rollback. This is a
+user-observed display recovery, not a proven software root cause; reboot
+and initialization changes remain possible confounders. No motion test.
