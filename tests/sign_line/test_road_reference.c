@@ -3,14 +3,26 @@
 #include "sign_route.h"
 static uint32_t now,seq;
 static int32_t counts;
+static int32_t last_input_yaw;
 static SignRouteStatus s;
 static SignRouteCommand c;
 static void step(uint8_t mask,int32_t yaw,int move)
 {
+  last_input_yaw=yaw;
   now+=10U; counts+=move;
   SignRoute_UpdateEncoders(counts,counts,counts,counts);
   SignRoute_UpdateYaw(3700000LL+yaw,1);
   SignRoute_Step(mask,now,&c); SignRoute_GetStatus(now,&s);
+}
+static void finish_outer(int side)
+{
+  int32_t yaw=last_input_yaw;
+  if(s.state==SIGN_ROUTE_EXIT_SELECT || s.state==SIGN_ROUTE_EXIT_CLEAR)
+  {
+    step(6,yaw,12);
+    step(side<0?14:7,yaw,12);
+    step(6,yaw,12);
+  }
 }
 static void frame(int side)
 {
@@ -58,7 +70,7 @@ static void stopped_exit(int side,int32_t stopped,uint8_t edge,int32_t apex)
   step(6,stopped+side*25000,12);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active); /* widened alignment */
   for(i=0;i<4;++i) step(6,stopped+side*25000,12);
-  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
   for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
 }
 static void natural_exit(int side,int32_t stopped)
@@ -69,11 +81,11 @@ static void natural_exit(int side,int32_t stopped)
   step(6,stopped+side*35000,12);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.exit_reason==2 && !c.active);
   for(i=0;i<30;++i) { step(6,stopped+side*35000,12); assert(!c.active); }
-  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
   for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
   start(side,stopped); step(6,stopped-side*80000,1500);
   step(6,stopped+side*52000,12); step(6,stopped+side*35000,12);
-  for(i=0;i<80;++i) { step(i%2?0:15,stopped+side*35000,2); assert(!c.active); }
+  for(i=0;i<80;++i) { step(i%2?0:(side<0?7:14),stopped+side*35000,2); assert(!c.active); }
   assert(s.state==SIGN_ROUTE_CANCELLED && !s.direction); /* no late turn */
 }
 int main(void)

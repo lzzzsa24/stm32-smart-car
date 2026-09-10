@@ -2,12 +2,24 @@
 #include <stdio.h>
 #include "sign_route.h"
 static unsigned now, seq;
+static int32_t last_input_yaw;
 static SignRouteStatus s;
 static SignRouteCommand c;
 static void step(unsigned mask, long angle, unsigned valid)
 {
+  last_input_yaw=(int32_t)angle;
   now+=10; SignRoute_UpdateYaw(angle,(uint8_t)valid);
   SignRoute_Step((uint8_t)mask,now,&c); SignRoute_GetStatus(now,&s);
+}
+static void finish_outer(int side)
+{
+  int32_t yaw=last_input_yaw;
+  if(s.state==SIGN_ROUTE_EXIT_SELECT || s.state==SIGN_ROUTE_EXIT_CLEAR)
+  {
+    step(6,yaw,1);
+    step(side<0?14:7,yaw,1);
+    step(6,yaw,1);
+  }
 }
 static void start(int side)
 {
@@ -72,7 +84,7 @@ static void test(int side)
   assert(!c.active && c.left_pwm==0 && c.right_pwm==0);
   SignRoute_UpdateEncoders(2500,2500,2500,2500);
   for(i=0;i<4;++i) step(6,0,1);
-  assert(s.state==SIGN_ROUTE_LOCKED);
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED);
   start(side);
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
   for(i=0;i<4;++i) step(6,entry+side*170000,1);
@@ -111,13 +123,13 @@ static void natural_exit(int side)
   assert(s.state==SIGN_ROUTE_ARC && s.arc_peak_mdeg==160000);
   for(i=0;i<25;++i)
   { int32_t n=2000+(int32_t)(i+1)*16; SignRoute_UpdateEncoders(n,n,n,n); step(6,0,1); }
-  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0 && s.heading_error_mdeg==0);
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0 && s.heading_error_mdeg==0);
   step(side<0?1:8,0,1); assert(!c.active); /* no forced straight over an outer contact */
   SignRoute_UpdateEncoders(2500,2500,2500,2500);
   for(i=0;i<4;++i) step(6,0,1);
-  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0);
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0);
   for(i=0;i<5;++i) step(0,entry+side*175000,1);
-  assert(s.state==SIGN_ROUTE_LOCKED && !c.active); /* no late exit-turn after natural rejoin */
+  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active); /* no late exit-turn after natural rejoin */
 
   start(side);
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
