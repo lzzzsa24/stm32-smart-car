@@ -1,5 +1,8 @@
 # 模式 3 直接停车观察
 
+后续用户要求已恢复全白时的观察前寻线，改为任意一个中间探头见黑即可
+开始两秒观察。当前规则见 `MODE3_SINGLE_MIDDLE_OBSERVATION.md`；以下为原变更记录。
+
 基线：`e9049bbe5b1d7b51990584dd6e1743c4858587b8`（共享状态记录的当前综合烧录版本）。
 回退标签：`rollback/mode3-before-direct-observation-e9049bb`。
 

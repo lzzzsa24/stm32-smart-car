@@ -1009,7 +1009,11 @@ static void sign_line_task(AppMode mode)
   MpuYaw_GetReading(&yaw);
   SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
   SimpleLine_UpdateYaw(&sign_line_controller.guard, yaw.yaw_mdeg, MpuYaw_IsReady(now), yaw.generation);
-  /* Recognition stops immediately; line loss cannot request pre-pause turns. */
+  if (mode==APP_MODE_SIGN_LINE)
+  {
+    SignObservation_UpdateLine(sign_line_mask,now);
+    if (SignObservation_SeekingLine()) SignRoute_MarkObservationSearch();
+  }
   observation_paused = SignObservation_Paused(now);
   SignRoute_UpdateObservationPause(mode==APP_MODE_SIGN_LINE ?
       SignObservation_HoldingRoute(now) : observation_paused, now);

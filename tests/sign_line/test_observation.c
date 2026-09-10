@@ -121,8 +121,39 @@ static void threshold_layers(void)
   }
   puts("PASS: mode3 21 rejected/22 accepted, mode4 retains 26; 20/21 three-vote direction can bypass observation");
 }
+static void seek_and_restart(void)
+{
+  VisionDetection f={0};
+  uint32_t start=UINT32_MAX-500U, found=start+4000U;
+  unsigned middle;
+  for(middle=2;middle<=4;middle+=2)
+  {
+    SignObservation_Reset(); SignObservation_AllowPause(1);
+    f.class_id=0; f.score=22; f.center_x=160; f.center_y=120;
+    f.sequence=1; f.received_ms=start;
+    SignObservation_ObserveDetection(&f,start,SIGN_OBSERVATION_MODE3_SCORE_MINIMUM);
+    SignObservation_UpdateLine(0,start);
+    assert(SignObservation_SeekingLine() && !SignObservation_Paused(start));
+    f.sequence++; f.received_ms=found;
+    SignObservation_ObserveDetection(&f,found,SIGN_OBSERVATION_MODE3_SCORE_MINIMUM);
+    SignObservation_UpdateLine(9,found);
+    assert(SignObservation_SeekingLine() && !SignObservation_Paused(found));
+    SignObservation_AllowPause(0); /* confirmation does not bypass finding line */
+    SignObservation_UpdateLine((uint8_t)middle,found);
+    assert(!SignObservation_SeekingLine() && SignObservation_Paused(found+1999U));
+    SignObservation_UpdateLine(0,found+2000U); /* exact-deadline loss seeks again */
+    assert(SignObservation_SeekingLine() && !SignObservation_Paused(found+2000U));
+    SignObservation_UpdateLine((uint8_t)middle,found+2010U);
+    assert(SignObservation_Paused(found+4009U));
+    SignObservation_UpdateLine((uint8_t)middle,found+4010U);
+    assert(!SignObservation_HoldingRoute(found+4010U));
+    SignObservation_Reset(); assert(!SignObservation_SeekingLine());
+  }
+  puts("PASS: either middle captures immediately; outer-only and renewed frames cannot end seeking; deadline white restarts, reset and wrap");
+}
 int main(void)
 {
+  seek_and_restart();
   threshold_layers();
   observation_pause();
   rejected_frames();
