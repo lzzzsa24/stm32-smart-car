@@ -19,22 +19,22 @@ candidate_bin_sha256: 987045C4F21D88FAF4FF873F14187F26BADACCAE3162DB7776C5A7E511
 candidate_hex_sha256: 0407CF64B3128150CFB3ED0670AB1151779202E1183673BDF893FAB02FD03C9D
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 121028
-flashed_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
-flash_record_commit: e5f62b9924a8cd997151d6c7866df0585b5f9bb1
-deployed_tag: deployed/2026-09-10-a217df8
-flashed_bin_sha256: 308736418B9C96F2BC12B4AB7A06BADD4B1A63584781B6900B01CE120C958079
-flashed_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A76FA
+formal_bin_size_bytes: 121068
+flashed_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
+flash_record_commit: 6ce2702ee6b46c98f4aeaf011bc3d192f74ffadc
+deployed_tag: deployed/2026-09-10-62b0de2
+flashed_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
+flashed_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
 ground_test_status: new_four_mode_main_not_flashed_or_physically_tested
-user_reported_flash: tool_verified_a217df8_readback_GO
-stm32_runtime_status: last_verified_a217df8_full_readback_GO_no_new_hardware_access
+user_reported_flash: tool_verified_62b0de2_readback_GO
+stm32_runtime_status: COM11_62b0de2_full_readback_GO_no_post_GO_query
 comprehensive_candidate_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
-comprehensive_candidate_status: explicit_five_mode_test_update_build_tests_passed_not_flashed
+comprehensive_candidate_status: explicit_five_mode_test_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 121068
 comprehensive_candidate_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
 comprehensive_candidate_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
-temporary_flash_selector_commit: a217df8_previous_five_mode_board
+temporary_flash_selector_commit: 62b0de2_five_mode_board_not_four_mode_main
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
 k210_candidate_status: paired_script_in_K210_sign_mode34_py_for_new_mode3_only
@@ -56,8 +56,10 @@ Explicit test-only update: user requested62aeda3 into the retained five-mode
 comprehensive branch, merged as62b0de2. Mode3 exit completion requires fresh
 post-entry outer clear/black evidence. Full sign suite and ARM build passed,
 BIN121068 with hashes above, artifacts in comprehensive-v15-sign-horn worktree.
-Rollback: rollback/2026-09-10-before-62aeda3 ->a217df8. No flash/push/K210 access.
-This increment is NOT promoted to four-mode main or rc.6; board remainsa217df8.
+Rollback: rollback/2026-09-10-before-62aeda3 ->a217df8. Subsequently flashed:
+COM11 full121068-byte readback and GO passed, reserved pages excluded;
+no post-GO query/physical test/push/K210 access.
+This increment is NOT promoted to four-mode main or rc.6; board now62b0de2.
 Only this status record changed in canonical main, not its firmware.
 
 | Input | Controller source | Behavior |
@@ -107,8 +109,8 @@ real promoted DriveBase, sign route/observation/IMU tests, fixed-bypass/profile
 and actual selector tests, DFPlayer/store tests, source scope and K210 runtime.
 The selector tests cover1..4, ignored5, STOP precedence and dedicated +/-.
 No STM32/K210 serial access, flashing, lifted or ground tests in consolidation.
-Board remains a217df8 with the OLD five-mode mapping, not this new main.
-Latest board evidence: docs/history/deployments/DEPLOYMENT_A217DF8_20260910.md.
+Board now62b0de2 with the OLD five-mode mapping, not this new main.
+Latest board evidence: docs/history/deployments/DEPLOYMENT_62B0DE2_20260910.md.
 
 ## K210 / release
 
