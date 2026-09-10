@@ -63,7 +63,7 @@ static void test(int side)
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* no yaw: not completed */
   for(i=0;i<4;++i) step(0,0,1);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
-  assert(c.active && c.left_pwm==c.right_pwm && c.left_pwm>0);
+  assert(!c.active && c.left_pwm==0 && c.right_pwm==0);
   SignRoute_UpdateEncoders(2500,2500,2500,2500);
   for(i=0;i<4;++i) step(6,0,1);
   assert(s.state==SIGN_ROUTE_LOCKED);
@@ -83,7 +83,7 @@ static void test(int side)
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* 20-degree miss must not drive straight */
   assert(side<0 ? c.left_pwm>0 && c.right_pwm==0 : c.right_pwm>0 && c.left_pwm==0);
   step(0,-side*5000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && c.left_pwm==c.right_pwm);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
   start(side);
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
   for(i=0;i<4;++i) step(6,entry+side*170000,1);
@@ -132,7 +132,7 @@ static void natural_exit(int side)
   for(i=0;i<4;++i) step(6,side*90000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
   step(0,side*10000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && c.active && c.left_pwm==c.right_pwm);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
   puts("PASS: signed road heading controls exit independently of the estimated entry apex; live rejoin and divergence bounds");
 }
 static void pause_reference_lifetime(void)

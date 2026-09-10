@@ -59,6 +59,8 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
       (reading->x1_black ? 4U : 0U) | (reading->x3_black ? 2U : 0U) |
       (reading->x4_black ? 1U : 0U));
   uint8_t arc = route->state == SIGN_ROUTE_ARC;
+  uint8_t exit_follow = route->profile == SIGN_ROUTE_PROFILE_STANDARD &&
+      route->state == SIGN_ROUTE_EXIT_CLEAR;
   uint8_t guarded_search, override, action;
 
   if (!c->running || base_speed <= 0)
@@ -126,7 +128,9 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
   }
   else
   {
-    LineTrackingAction line_action = arc ?
+    /* Mode 3's aligned exit is already live tracking, with the same slow
+       targets. An old crossing tail must not hide a current outer contact. */
+    LineTrackingAction line_action = (arc || exit_follow) ?
         line_tracking_compute_arc(reading, base_speed, &output) :
         line_tracking_compute_slow(reading, base_speed, &output);
     action = display_action(line_action);

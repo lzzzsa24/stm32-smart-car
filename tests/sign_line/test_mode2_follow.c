@@ -263,8 +263,8 @@ static void ring(int side,uint32_t origin)
     for(w=0;w<4;++w)counts[w]+=22;
     tick+=40; sample(0,-side*12000);
     assert(route.state==SIGN_ROUTE_EXIT_CLEAR);
-    assert(drive.requested_cps[0]>0&&drive.requested_cps[0]==drive.requested_cps[2]);
-    assert(drive.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(2200));
+    assert(!route_command.active && !follower.override_active);
+    assert(drive.requested_cps[0]!=0&&drive.requested_cps[0]==-drive.requested_cps[2]);
   }
   for(i=0;i<2;++i){tick+=40;sample(6,-side*12000);}
   assert(route.state==SIGN_ROUTE_LOCKED);
@@ -676,8 +676,54 @@ static void manual_stop_during_observation(void)
   }
   puts("PASS: manual STOP during observation remains authoritative after the two-second deadline");
 }
+static void enter_exit_line(int side, uint32_t origin)
+{
+  unsigned i,w;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(6,side*65000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT);
+  sample(0,side*5000);
+  assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active);
+}
+static void exit_contact_must_end_blind_travel(int side, uint32_t origin)
+{
+  unsigned i,w,failures=0;
+  uint8_t outer=side<0?8:1;
+  enter_exit_line(side,origin);
+  sample(15,side*5000);
+  sample(outer,side*5000);
+  if (!(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
+                 drive.requested_cps[0]==2200 && drive.requested_cps[2]==0))
+  {
+    fprintf(stderr,"Exit crossing tail ignored live edge: side=%d targets=%ld/%ld\n",
+        side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
+  }
+  enter_exit_line(side,origin);
+  sample(9,side*5000);
+  sample(0,side*5000);
+  if(route_command.active)
+  { fprintf(stderr,"Exit straight restarted after real broad contact, side=%d\n",side); ++failures; }
+
+  enter_exit_line(side,origin);
+  /* Even without any contact, an aligned exit must use ordinary search,
+     rather than command the previous two-second / 250-mm blind straight. */
+  sample(0,side*5000);
+  if(route_command.active || follower.override_active)
+  { fprintf(stderr,"Aligned exit still owns blind straight, side=%d\n",side); ++failures; }
+  for(i=0;i<40;++i) sample(0,side*5000);
+  if (drive.requested_cps[0]==0 || drive.requested_cps[0]!=-drive.requested_cps[2])
+  { fprintf(stderr,"Aligned all-white exit did not return to shared search, side=%d\n",side); ++failures; }
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  assert(failures==0);
+  puts("PASS: mode3 alignment ends motor ownership; live exit edge overrides crossing tail; white uses shared search");
+}
 int main(void)
 {
+  exit_contact_must_end_blind_travel(-1,100);
+  exit_contact_must_end_blind_travel(1,UINT32_MAX-120U);
   manual_stop_during_observation();
   observation_resume_uses_live_line(1,100,0);
   observation_resume_uses_live_line(-1,UINT32_MAX-120U,0);
