@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: f1301b2310db67306a930ef1845e5c375ecc9449
-comprehensive_candidate_status: f1301b2_build_tests_passed_not_flashed
+comprehensive_candidate_status: f1301b2_ready_flash_blocked_USB_absent
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 120784
 comprehensive_candidate_bin_sha256: 2B4429BCC21AED81E8DC77372879E40ADE30E0194EF57D0713876AD9765474EC
@@ -52,6 +52,13 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### f1301b2 flash requested: USB reconnect needed
+
+Fresh enumeration found Bluetooth ports only, no STM32 CH340K device.
+Exact clean f1301b2 BIN120784 and both artifact hashes match the tested
+candidate. Programmer was not opened; no erase/write/GO attempted.
+Board remains last verified55486e6; K210 untouched. Replug USB before retry.
 
 ### Latest comprehensive candidate: f1301b2 (not flashed)
 
