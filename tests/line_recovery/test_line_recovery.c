@@ -50,7 +50,8 @@ void DriveBase_SetWheelCps(int32_t a,int32_t b,int32_t c,int32_t d)
   assert(a==b && c==d);
   if(!output.valid)
   {
-    assert(a==-c && (a==LINE_SEARCH_TARGET_CPS || a==-LINE_SEARCH_TARGET_CPS));
+    assert(a==-c && (a==LINE_SEARCH_TARGET_CPS || a==-LINE_SEARCH_TARGET_CPS ||
+                     a==1800 || a==-1800));
     if(previous_spin && a!=previous_spin) ++reversals;
     previous_spin=a; ++spins;
   }
@@ -1090,12 +1091,77 @@ static void test_mode1_straight_boost(void)
   puts("PASS: mode-1 boost hold/ramp/ceiling, 15 departure masks, latest-edge loss, caps/STOP, rejoin, mode reset and timer wrap");
 }
 
+static void test_mode2_middle_guard(void)
+{
+  unsigned mirror;
+
+  reset(0,1);
+  line_tracking_set_middle_guard(1U);
+  sample(5,1,3000);
+  assert(output.valid && output.action==LINE_ACTION_FORWARD);
+  assert(output.left_cps==1800 && output.right_cps==1800);
+
+  sample(1,1,3000);
+  assert(output.valid && output.action==LINE_ACTION_LEFT_ADJUST);
+  assert(output.left_cps==1412 && output.right_cps==1800);
+  sample(4,1,3000);
+  assert(output.valid && output.action==LINE_ACTION_RIGHT_ADJUST);
+  assert(output.left_cps==1800 && output.right_cps==1412);
+  sample(3,1,3000);
+  assert(output.valid && output.left_cps==0 && output.right_cps==1800);
+  sample(12,1,3000);
+  assert(output.valid && output.left_cps==1800 && output.right_cps==0);
+
+  /* Losing both middle probes removes forward motion in the first live
+     control sample.  The observed outer side selects the mirrored spin. */
+  for(mirror=0;mirror<2;++mirror)
+  {
+    unsigned outer=mirror?8U:2U;
+    reset(0,1); line_tracking_set_middle_guard(1U);
+    sample(5,10,3000); sample(outer,1,3000);
+    assert(!output.valid && LineRecovery_IsSearching());
+    assert(telemetry.requested_cps[0]==(mirror?1800:-1800));
+    assert(telemetry.requested_cps[2]==-telemetry.requested_cps[0]);
+  }
+
+  /* The generic 60-ms narrow-gap coast is disabled only for this profile. */
+  reset(0,1); line_tracking_set_middle_guard(1U);
+  sample(5,10,3000); sample(0,1,3000);
+  assert(!output.valid && LineRecovery_IsSearching());
+  assert(telemetry.requested_cps[0]==-1800);
+  assert(telemetry.requested_cps[0]==-telemetry.requested_cps[2]);
+
+  /* Outer-only transverse ambiguity must search, while a real wide contact
+     that still contains a middle observation keeps crossing priority. */
+  reset(0,1); line_tracking_set_middle_guard(1U);
+  sample(10,1,3000);
+  assert(!output.valid && LineRecovery_IsSearching());
+  reset(0,1); line_tracking_set_middle_guard(1U);
+  sample(15,1,3000);
+  assert(output.valid && output.action==LINE_ACTION_CROSSING);
+  assert(output.left_cps==1800 && output.right_cps==1800);
+
+  /* Confirmed reacquisition remains in the same low-speed envelope. */
+  reset(0,1); line_tracking_set_middle_guard(1U);
+  sample(0,1,3000); sample(1,1,3000); sample(1,4,3000);
+  assert(output.valid && output.left_cps==1412 && output.right_cps==1800);
+
+  /* Reset is the mode-handoff boundary: mode 1 and other users retain the
+     prior forward outer-edge response. */
+  line_tracking_reset();
+  sample(2,1,3000);
+  assert(output.valid && output.left_cps>=0 && output.right_cps>0);
+  assert(!LineRecovery_IsSearching());
+  puts("PASS: mode 2 middle guard stays at 1412..1800 CPS, pre-corrects, removes blind coast, searches immediately, and resets cleanly");
+}
+
 int main(void)
 {
   test_fast_follow();
   test_fast_no_timed_holds();
   unsigned smooth,forward,i;
   test_mode1_straight_boost();
+  test_mode2_middle_guard();
   test_persistent_outer_escalates();
   test_outer_escalation_boundaries();
   test_visible_forward_and_lost_spin();

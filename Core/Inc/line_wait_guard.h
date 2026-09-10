@@ -13,4 +13,6 @@ LineWaitAction LineWaitGuard_Update(LineWaitGuard *guard, uint8_t enabled,
                                    uint8_t paused, uint32_t now);
 /* Only the application may grant this owner after cancelling the old owner. */
 void LineWaitGuard_Drive(int8_t side);
+/* Mode-specific bounded recovery with an explicit positive CPS target. */
+void LineWaitGuard_DriveAtCps(int8_t side, int32_t target_cps);
 #endif

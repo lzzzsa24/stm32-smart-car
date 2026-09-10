@@ -20,10 +20,17 @@ LineWaitAction LineWaitGuard_Update(LineWaitGuard *g, uint8_t enabled,
   g->waiting = 0U; g->recovering = 1U; g->since_ms = now;
   return LINE_WAIT_BEGIN_RECOVERY;
 }
-void LineWaitGuard_Drive(int8_t side)
+void LineWaitGuard_DriveAtCps(int8_t side, int32_t target_cps)
 {
-  int32_t left = side > 0 ? LINE_SEARCH_TARGET_CPS : -LINE_SEARCH_TARGET_CPS;
+  int32_t left;
+  if (target_cps <= 0L) target_cps = LINE_SEARCH_TARGET_CPS;
+  left = side > 0 ? target_cps : -target_cps;
   DriveBase_SetLineFaultObservation(1U, 0U, 255U);
   DriveBase_PrepareLineTurnAssist(left, -left);
   DriveBase_SetWheelCps(left, left, -left, -left);
+}
+
+void LineWaitGuard_Drive(int8_t side)
+{
+  LineWaitGuard_DriveAtCps(side, LINE_SEARCH_TARGET_CPS);
 }

@@ -1376,7 +1376,10 @@ static uint8_t service_bounded_line_wait(AppMode mode)
   }
   if (action == LINE_WAIT_BEGIN_RECOVERY || action == LINE_WAIT_RECOVERING)
   {
-    LineWaitGuard_Drive(line_wait_side);
+    if (mode == APP_MODE_LINE_ONLY)
+      LineWaitGuard_DriveAtCps(line_wait_side, LINE_TRACKING_MIDDLE_GUARD_CPS);
+    else
+      LineWaitGuard_Drive(line_wait_side);
     return 1U;
   }
   if (action == LINE_WAIT_END_RECOVERY)
@@ -1384,6 +1387,7 @@ static uint8_t service_bounded_line_wait(AppMode mode)
     DriveBase_Stop(DRIVE_STOP_COAST);
     BuzzerPhrase400_Stop();
     line_tracking_start_following();
+    if (mode == APP_MODE_LINE_ONLY) line_tracking_set_middle_guard(1U);
     if ((mode == APP_MODE_INTEGRATED || mode == APP_MODE_FIXED_BYPASS))
     {
       bypass_rearm_pending = 1U; bypass_ir_clear_samples = 0U;
@@ -1651,6 +1655,7 @@ int main(void)
       else if (app_mode == APP_MODE_LINE_ONLY)
       {
         line_tracking_start_following();
+        line_tracking_set_middle_guard(1U);
         UltrasonicMotion_Reset();
         passive_measure_trigger_ms = HAL_GetTick() -
                                      EXP7_PASSIVE_MEASURE_INTERVAL_MS;

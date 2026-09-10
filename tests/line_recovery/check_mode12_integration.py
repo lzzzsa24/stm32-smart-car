@@ -14,10 +14,13 @@ def block(text, marker):
     return text[start:end]
 
 transition = block(main, "if (requested_mode != app_mode)")
-for mode in ("APP_MODE_INTEGRATED", "APP_MODE_LINE_ONLY"):
-    entry = block(transition, "if ((app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_FIXED_BYPASS))" if mode == "APP_MODE_INTEGRATED" else f"if (app_mode == {mode})")
-    assert entry.count("line_tracking_start_following();") == 1
-    assert "line_tracking_set_" not in entry, "mode-specific tracking settings drifted"
+integrated_entry = block(transition, "if ((app_mode == APP_MODE_INTEGRATED || app_mode == APP_MODE_FIXED_BYPASS)")
+assert integrated_entry.count("line_tracking_start_following();") == 1
+assert "line_tracking_set_middle_guard" not in integrated_entry
+line_only_entry = block(transition, "if (app_mode == APP_MODE_LINE_ONLY")
+assert line_only_entry.count("line_tracking_start_following();") == 1
+assert line_only_entry.count("line_tracking_set_middle_guard(1U);") == 1
+assert line_only_entry.index("line_tracking_start_following();") < line_only_entry.index("line_tracking_set_middle_guard(1U);")
 
 integrated = block(main, "static void experiment7_integrated_once(void)\n{")
 assert "line_tracking_follow_once(line_speed," in integrated
@@ -32,6 +35,14 @@ assert "line_tracking_follow_once(EXP7_LINE_SPEED," in pure
 assert "MOTOR_PWM_PERIOD" in pure
 assert "line_tracking_compute(" not in pure
 assert "LineObstacleBypass_Task" not in pure
+legacy_wait = block(main, "static uint8_t service_bounded_line_wait(AppMode mode)")
+wait_drive = block(legacy_wait, "if (action == LINE_WAIT_BEGIN_RECOVERY || action == LINE_WAIT_RECOVERING)")
+assert "LineWaitGuard_DriveAtCps(line_wait_side," in wait_drive
+assert "LINE_TRACKING_MIDDLE_GUARD_CPS" in wait_drive
+assert "else\n      LineWaitGuard_Drive(line_wait_side);" in wait_drive
+wait_end = block(legacy_wait, "if (action == LINE_WAIT_END_RECOVERY)")
+assert "line_tracking_start_following();" in wait_end
+assert "if (mode == APP_MODE_LINE_ONLY) line_tracking_set_middle_guard(1U);" in wait_end
 
 bypass = block(runtime, "if (LineObstacleBypass_GetState() != LINE_BYPASS_IDLE)")
 assert "LineObstacleBypass_Task(&bypass_input);" in bypass
@@ -80,3 +91,4 @@ assert main.count("LineBypassRange_Reset();") == 3
 print("PASS: earlier approach thresholds and reset/forward-only bypass range ownership")
 assert re.search(r"#define EXP7_BYPASS_FORWARD_CPS\s+4000U\b", main)
 assert re.search(r"#define EXP7_BYPASS_RETURN_CPS\s+4000U\b", main)
+print("PASS: KEY1 keeps shared baseline; KEY2 enables middle guard; wait recovery restores it; bypass/ultrasonic ownership retained")

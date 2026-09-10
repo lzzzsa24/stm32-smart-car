@@ -30,6 +30,7 @@ static uint8_t direction_center_active;
 static uint32_t direction_center_since_ms;
 static int8_t recovery_turn_direction;
 static uint8_t smooth_mode_enabled;
+static uint8_t middle_guard_enabled;
 static uint8_t smooth_filter_valid;
 static int16_t smooth_error_q8;
 static int16_t smooth_previous_error_q8;
@@ -99,6 +100,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
 #define TRACKING_SMOOTH_CENTER_HOLD_MS          350U
 #define TRACKING_SMOOTH_RAMP_INTERVAL_MS         20U
 #define TRACKING_SMOOTH_RAMP_STEP_PWM             20
+#define TRACKING_MIDDLE_GUARD_INNER_CPS          1412L
 
 /* Faster mode-5 following keeps edge priority and crossing/gap evidence.
    These are target profiles, not raw motor PWM overrides. */
@@ -240,6 +242,71 @@ void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
       direction < 0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST);
 }
 
+static void command_set_cps(LineTrackingCommand *command,
+                            int32_t left_cps,
+                            int32_t right_cps,
+                            LineTrackingAction action)
+{
+  if (command == 0) return;
+  command->left_cps = left_cps;
+  command->right_cps = right_cps;
+  DriveBase_PrepareLineTurnAssist(left_cps, right_cps);
+  command->action = action;
+  command->valid = 1U;
+}
+
+static uint8_t command_middle_guard_visible(const LineTrackingReading *reading,
+                                            LineTrackingCommand *command)
+{
+  if (middle_guard_enabled == 0U ||
+      (!reading->x1_black && !reading->x3_black))
+    return 0U;
+
+  smooth_filter_valid = smooth_centered_active = 0U;
+  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  if (reading->x1_black && !reading->x3_black)
+  {
+    if (reading->x2_black)
+      command_set_cps(command, 0L, LINE_TRACKING_MIDDLE_GUARD_CPS,
+                      LINE_ACTION_LEFT_ADJUST);
+    else
+      command_set_cps(command, TRACKING_MIDDLE_GUARD_INNER_CPS,
+                      LINE_TRACKING_MIDDLE_GUARD_CPS,
+                      LINE_ACTION_LEFT_ADJUST);
+    return 1U;
+  }
+  if (reading->x3_black && !reading->x1_black)
+  {
+    if (reading->x4_black)
+      command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS, 0L,
+                      LINE_ACTION_RIGHT_ADJUST);
+    else
+      command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS,
+                      TRACKING_MIDDLE_GUARD_INNER_CPS,
+                      LINE_ACTION_RIGHT_ADJUST);
+    return 1U;
+  }
+  command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS,
+                  LINE_TRACKING_MIDDLE_GUARD_CPS,
+                  LINE_ACTION_FORWARD);
+  return 1U;
+}
+
+static void command_middle_guard_spin(LineTrackingCommand *command)
+{
+  int8_t side = LineRecovery_GetDirection();
+  int32_t left = side < 0 ? -LINE_TRACKING_MIDDLE_GUARD_CPS :
+                            LINE_TRACKING_MIDDLE_GUARD_CPS;
+
+  /* Recovery owns these signed targets directly.  Keep command invalid so
+     the outer application layer cannot overwrite the rolling search. */
+  command->left_cps = command->right_cps = 0L;
+  command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
+  command->valid = 0U;
+  DriveBase_PrepareLineTurnAssist(left, -left);
+  DriveBase_SetWheelCps(left, left, -left, -left);
+}
+
 static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCommand *command)
 {
   int16_t left = follow_center_pwm(), right = follow_center_pwm();
@@ -247,6 +314,7 @@ static void command_visible_adjust(const LineTrackingReading *r, LineTrackingCom
   int32_t adjacent_inner = fast_follow_enabled ? 1700L : TRACKING_ADJACENT_INNER_CPS;
   int32_t adjacent_outer = fast_follow_enabled ? 3400L : TRACKING_ADJACENT_OUTER_CPS;
   LineTrackingAction action = LINE_ACTION_FORWARD;
+  if (command_middle_guard_visible(r, command)) return;
   if (r->x2_black && !r->x3_black && !r->x4_black)
   {
     command->left_cps = r->x1_black ? adjacent_inner : 0;
@@ -495,6 +563,7 @@ void line_tracking_reset(void)
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
   smooth_straight_boost = 0U;
   fast_follow_enabled = 0U;
+  middle_guard_enabled = 0U;
   recovery_state = LINE_RECOVERY_NORMAL;
   recovery_state_started_ms = HAL_GetTick();
 }
@@ -531,6 +600,14 @@ void line_tracking_set_smooth_mode(uint8_t enable)
   smooth_centered_active = 0U;
   smooth_centered_since_ms = HAL_GetTick();
   smooth_ramp_update_ms = HAL_GetTick();
+  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+}
+
+void line_tracking_set_middle_guard(uint8_t enable)
+{
+  middle_guard_enabled = enable != 0U ? 1U : 0U;
+  smooth_filter_valid = 0U;
+  smooth_centered_active = 0U;
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
 }
 
@@ -805,6 +882,75 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   consume_sampled_evidence(now);
   last_observation_ms = now;
   observe_raw_position(reading, now);
+  /* Mode 2 treats the two middle probes as the forward-motion permit.  Once
+     both are white, do not spend the generic 60-ms gap window travelling
+     farther away, and do not wait 120 ms on an outer probe before removing
+     forward motion.  Existing direction memory still selects the first spin;
+     ambiguous lone-inner exits retain the encoder-bounded sweep model. */
+  if (middle_guard_enabled != 0U && center_visible == 0U)
+  {
+    LineRecoveryResult result;
+    DriveBaseTelemetry telemetry;
+
+    smooth_filter_valid = smooth_centered_active = 0U;
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+    update_direction_hint(reading, active_count, now);
+    if (recovery_state == LINE_RECOVERY_STOPPED)
+    {
+      command_stop(command);
+      return LINE_ACTION_STOP;
+    }
+    if (recovery_state != LINE_RECOVERY_ACTIVE)
+    {
+      if (predicted_turn_direction != 0 && now - direction_last_seen_ms <=
+          (direction_crossing_hold ? TRACKING_CROSS_HINT_MAX_AGE_MS : TRACKING_HINT_MAX_AGE_MS))
+      {
+        recovery_turn_direction = predicted_turn_direction;
+        search_source = direction_crossing_hold ? LINE_SEARCH_CROSS_HINT : LINE_SEARCH_HINT;
+      }
+      else if (recovery_state == LINE_RECOVERY_NORMAL &&
+               ambiguous_inner_side != 0 &&
+               now - ambiguous_inner_last_seen_ms <= TRACKING_INNER_PROBE_MAX_AGE_MS)
+      {
+        recovery_turn_direction = ambiguous_inner_side;
+        search_source = LINE_SEARCH_INNER_PROBE;
+        inner_probe_start = 1U;
+      }
+      else if (recovery_state == LINE_RECOVERY_NORMAL)
+      {
+        recovery_turn_direction = 0;
+      }
+      else
+      {
+        search_source = LINE_SEARCH_REJOIN;
+      }
+      record_search(now, search_source);
+      if (inner_probe_start)
+        LineRecovery_BeginAmbiguous(recovery_turn_direction, now);
+      else
+        LineRecovery_Begin(recovery_turn_direction, now);
+      ambiguous_inner_side = 0;
+      ambiguous_inner_mask = 0U;
+      recovery_state = LINE_RECOVERY_ACTIVE;
+    }
+
+    result = LineRecovery_Step(reading, command, now);
+    if (result == LINE_RECOVERY_FAILED)
+    {
+      recovery_stop(LineRecovery_GetStopReason());
+      command_stop(command);
+      return LINE_ACTION_STOP;
+    }
+    if (LineRecovery_GetDirection() != last_logged_side)
+    {
+      recovery_turn_direction = LineRecovery_GetDirection();
+      record_search(now, LINE_SEARCH_CORRECTION);
+    }
+    DriveBase_GetTelemetry(&telemetry);
+    if (telemetry.mode != DRIVE_BASE_BRAKING)
+      command_middle_guard_spin(command);
+    return command->action;
+  }
   /* Wide or non-adjacent black detections override a previously latched turn.
      In particular X2+X1+X3 (only rightmost white) must never keep spinning. */
   if (transverse(reading))
@@ -829,7 +975,12 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       return command->action;
     }
     observe_crossing(now);
-    command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
+    if (middle_guard_enabled != 0U)
+      command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS,
+                      LINE_TRACKING_MIDDLE_GUARD_CPS, LINE_ACTION_CROSSING);
+    else
+      command_set_pwm(command, follow_center_pwm(),
+                      follow_center_pwm(), LINE_ACTION_CROSSING);
     return command->action;
   }
   if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
@@ -841,7 +992,12 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     if (!(current_line_priority && active_count) &&
         now - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
-      command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
+      if (middle_guard_enabled != 0U)
+        command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS,
+                        LINE_TRACKING_MIDDLE_GUARD_CPS, LINE_ACTION_CROSSING);
+      else
+        command_set_pwm(command, follow_center_pwm(),
+                        follow_center_pwm(), LINE_ACTION_CROSSING);
       return command->action;
     }
     crossing_active = 0U;
@@ -1000,6 +1156,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     }
     /* Single-side outer evidence already returned to continuous turning.
        Middle and ambiguous/crossing patterns receive low-speed guidance. */
+    if (command_middle_guard_visible(reading, command))
+      return command->action;
     weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
                              reading->x3_black + 3 * reading->x4_black);
     if (reading->x2_black && reading->x4_black)
@@ -1032,6 +1190,9 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
                               reading->x3_black + 3 * reading->x4_black);
     line_position = weighted_sum / active_count;
+
+    if (command_middle_guard_visible(reading, command))
+      return command->action;
 
     if (smooth_mode_enabled != 0U && settling == 0U &&
         line_position > -2 && line_position < 2)
