@@ -25,7 +25,7 @@ assert 'fixed_bypass_mode ? 10U : 5U' in function('static void configure_ultraso
 # Existing sign route/controller/driver and camera sources must not be promoted.
 for path in ('Core/Src/sign_route.c', 'Core/Src/simple_line_mode.c',
              'Core/Src/sign_slowdown.c',
-             'Core/Src/motorPWM.c', 'Core/Src/wheel_encoder.c', 'K210/sign_mode34.py'):
+             'Core/Src/motorPWM.c', 'Core/Src/wheel_encoder.c'):
     expected = subprocess.check_output(['git', 'show', 'e643c39:' + path], cwd=ROOT)
     actual = (ROOT / path).read_bytes()
     assert actual.replace(b'\r\n', b'\n') == expected.replace(b'\r\n', b'\n'), path

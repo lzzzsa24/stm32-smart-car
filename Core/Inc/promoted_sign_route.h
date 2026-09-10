@@ -65,6 +65,10 @@ typedef struct
 } Promoted_SignRouteStatus;
 
 void Promoted_SignRoute_Init(void);
+/* Runtime mode3 exit-start setting. Route/mode reset preserves it; boot uses
+   the configured default. +/- direction adjusts one bounded5-degree step. */
+uint8_t Promoted_SignRoute_GetExitAngleDegrees(void);
+void Promoted_SignRoute_AdjustExitAngle(int8_t direction);
 /* Mode 4 selects the gyro-tangent profile; mode 3 keeps STANDARD. */
 void Promoted_SignRoute_SetProfile(Promoted_SignRouteProfile profile);
 /* Mode 3 always captures the completed observation pose as its primary reference.

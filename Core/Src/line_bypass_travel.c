@@ -16,7 +16,7 @@ static LineBypassTravelState state;
 static WheelEncoderCounts start;
 static int32_t target_counts, signed_cps, direction;
 static uint32_t progress_mm, started_ms, timeout_ms, stopped_ms;
-static uint8_t settling, fault_mask;
+static uint8_t settling, fault_mask, rolling;
 
 static int64_t observe_travel(int32_t *minimum)
 {
@@ -53,7 +53,8 @@ static void fail(uint8_t drive_fault)
   state = LINE_BYPASS_TRAVEL_FAULT;
 }
 
-static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cps)
+static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cps,
+                           uint8_t continuous)
 {
   DriveBaseTelemetry drive;
   int64_t distance = distance_mm;
@@ -62,7 +63,8 @@ static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cp
       cps > (maximum_cps > 3600L ? maximum_cps : 3600L) ||
       state == LINE_BYPASS_TRAVEL_RUNNING) return 0U;
   DriveBase_GetTelemetry(&drive);
-  if(drive.fault_mask || drive.mode != DRIVE_BASE_STOPPED) return 0U;
+  if(drive.fault_mask || (drive.mode != DRIVE_BASE_STOPPED &&
+      !(continuous && drive.mode == DRIVE_BASE_SPEED))) return 0U;
   /* Short bypass legs should creep continuously, not accelerate toward a
      fast cruise then enter endpoint pulses. Keep the ordinary speed PI. */
   if(cps > maximum_cps) cps = maximum_cps;
@@ -76,6 +78,7 @@ static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cp
   started_ms = HAL_GetTick();
   progress_mm = 0U;
   fault_mask = settling = 0U;
+  rolling = continuous;
   WheelEncoder_Start();
   WheelEncoder_GetCounts(&start);
   /* Distance-based bypass needs working encoders, just like its turn owner. */
@@ -87,13 +90,23 @@ static uint8_t start_travel(int32_t distance_mm, int32_t cps, int32_t maximum_cp
 
 uint8_t LineBypassTravel_Start(int32_t distance_mm, int32_t cps)
 {
-  return start_travel(distance_mm, cps, TRAVEL_CONTINUOUS_MAX_CPS);
+  return start_travel(distance_mm, cps, TRAVEL_CONTINUOUS_MAX_CPS, 0U);
 }
 
 uint8_t LineBypassTravel_StartFixed(int32_t distance_mm, int32_t cps)
 {
   if(distance_mm <= 0) return 0U;
-  return start_travel(distance_mm, cps, TRAVEL_FIXED_MAX_CPS);
+  return start_travel(distance_mm, cps, TRAVEL_FIXED_MAX_CPS, 0U);
+}
+uint8_t LineBypassTravel_StartRolling(int32_t distance_mm, int32_t cps)
+{
+  if(distance_mm <= 0) return 0U;
+  return start_travel(distance_mm, cps, TRAVEL_FIXED_MAX_CPS, 1U);
+}
+void LineBypassTravel_ReleaseDone(void)
+{
+  if(state == LINE_BYPASS_TRAVEL_DONE && rolling)
+  { state = LINE_BYPASS_TRAVEL_IDLE; rolling = 0U; }
 }
 
 void LineBypassTravel_Task(void)
@@ -118,6 +131,7 @@ void LineBypassTravel_Task(void)
   if(drive.mode != DRIVE_BASE_SPEED) { fail(0U); return; }
   if(sum >= 4LL * target_counts && minimum >= target_counts * 3 / 4)
   {
+    if(rolling) { state = LINE_BYPASS_TRAVEL_DONE; return; }
     DriveBase_Stop(DRIVE_STOP_BRAKE);
     stopped_ms = now;
     settling = 1U;
@@ -129,9 +143,10 @@ void LineBypassTravel_Task(void)
 
 void LineBypassTravel_Stop(void)
 {
-  if(state == LINE_BYPASS_TRAVEL_RUNNING) DriveBase_Stop(DRIVE_STOP_COAST);
+  if(state == LINE_BYPASS_TRAVEL_RUNNING || (rolling && state == LINE_BYPASS_TRAVEL_DONE))
+    DriveBase_Stop(DRIVE_STOP_COAST);
   state = LINE_BYPASS_TRAVEL_IDLE;
-  settling = fault_mask = 0U;
+  settling = fault_mask = rolling = 0U;
 }
 LineBypassTravelState LineBypassTravel_GetState(void) { return state; }
 uint8_t LineBypassTravel_GetFaultMask(void) { return fault_mask; }

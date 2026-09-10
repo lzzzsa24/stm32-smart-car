@@ -21,6 +21,8 @@ extern "C" {
 #define IR_REMOTE_VIRTUAL_AUDIO_VOLUME_DOWN 9U
 #define IR_REMOTE_VIRTUAL_AUDIO_NEXT       10U
 #define IR_REMOTE_VIRTUAL_AUDIO_PREVIOUS   11U
+#define IR_REMOTE_VIRTUAL_ADD              12U
+#define IR_REMOTE_VIRTUAL_SUBTRACT         13U
 
 /* 初始化板载 HS0038B：PG11 下降沿 EXTI，DWT 周期计数器负责微秒计时。 */
 void IrRemote_Init(void);

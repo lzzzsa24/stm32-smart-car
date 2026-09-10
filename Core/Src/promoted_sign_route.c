@@ -1,5 +1,6 @@
 #include "promoted_sign_route.h"
 #include "promoted_sign_route_config.h"
+#include "promoted_sign_observation.h"
 #include "vehicle_geometry.h"
 
 #include <stddef.h>
@@ -18,6 +19,7 @@
 typedef struct
 {
   int8_t class_id[SIGN_WINDOW_SIZE];
+  uint8_t score[SIGN_WINDOW_SIZE];
   uint16_t center_x[SIGN_WINDOW_SIZE];
   uint16_t center_y[SIGN_WINDOW_SIZE];
   uint32_t time_ms[SIGN_WINDOW_SIZE];
@@ -44,6 +46,7 @@ typedef struct
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
   uint8_t exit_region_seen;
   uint8_t exit_line_lost;
+  uint8_t exit_outer_clear_seen;
   uint8_t arc_lower_seen, exit_straight_active;
   uint32_t exit_straight_since_ms;
   int64_t exit_straight_origin_counts;
@@ -67,7 +70,7 @@ typedef struct
   int32_t exit_best_error_mdeg;
   uint8_t road_reference_valid, motion_forward;
   uint8_t motion_valid;
-  uint8_t exit_reason, natural_verify;
+  uint8_t exit_reason;
   uint32_t motion_ms;
   int64_t step_left, step_right;
   int64_t sweep_min_yaw, sweep_max_yaw;
@@ -75,6 +78,18 @@ typedef struct
 } Promoted_SignRouteContext;
 
 static Promoted_SignRouteContext route;
+static uint8_t mode3_exit_angle_deg = (uint8_t)(SIGN_EXIT_HEADING_TRIGGER_MDEG / 1000L);
+
+uint8_t Promoted_SignRoute_GetExitAngleDegrees(void) { return mode3_exit_angle_deg; }
+void Promoted_SignRoute_AdjustExitAngle(int8_t direction)
+{
+  int16_t next = mode3_exit_angle_deg;
+  if (direction > 0) next += SIGN_MODE3_EXIT_STEP_DEG;
+  else if (direction < 0) next -= SIGN_MODE3_EXIT_STEP_DEG;
+  if (next < (int16_t)SIGN_MODE3_EXIT_MIN_DEG) next = SIGN_MODE3_EXIT_MIN_DEG;
+  if (next > (int16_t)SIGN_MODE3_EXIT_MAX_DEG) next = SIGN_MODE3_EXIT_MAX_DEG;
+  mode3_exit_angle_deg = (uint8_t)next;
+}
 
 static void enter_phase(Promoted_SignRouteState state, uint32_t now);
 
@@ -157,6 +172,7 @@ static void remove_stale(uint32_t now)
   for (i = remove; i < route.count; ++i)
   {
     route.class_id[i - remove] = route.class_id[i];
+    route.score[i - remove] = route.score[i];
     route.center_x[i - remove] = route.center_x[i];
     route.center_y[i - remove] = route.center_y[i];
     route.time_ms[i - remove] = route.time_ms[i];
@@ -165,6 +181,7 @@ static void remove_stale(uint32_t now)
 }
 
 static void append_observation(int8_t class_id,
+                               uint8_t score,
                                uint16_t center_x,
                                uint16_t center_y,
                                uint32_t now)
@@ -177,6 +194,7 @@ static void append_observation(int8_t class_id,
     for (i = 1U; i < SIGN_WINDOW_SIZE; ++i)
     {
       route.class_id[i - 1U] = route.class_id[i];
+      route.score[i - 1U] = route.score[i];
       route.center_x[i - 1U] = route.center_x[i];
       route.center_y[i - 1U] = route.center_y[i];
       route.time_ms[i - 1U] = route.time_ms[i];
@@ -184,6 +202,7 @@ static void append_observation(int8_t class_id,
     route.count = SIGN_WINDOW_SIZE - 1U;
   }
   route.class_id[route.count] = class_id;
+  route.score[route.count] = score;
   route.center_x[route.count] = center_x;
   route.center_y[route.count] = center_y;
   route.time_ms[route.count] = now;
@@ -194,6 +213,7 @@ static void try_confirm(uint32_t now)
 {
   int8_t candidate;
   uint8_t votes = 0U;
+  uint8_t observation_vote = 0U;
   uint8_t i;
 
   if ((route.state != Promoted_SIGN_ROUTE_IDLE && route.state != Promoted_SIGN_ROUTE_PROBE &&
@@ -213,9 +233,15 @@ static void try_confirm(uint32_t now)
     if (route.class_id[i] == candidate)
     {
       ++votes;
+      if (route.score[i] >= Promoted_SIGN_OBSERVATION_MODE3_SCORE_MINIMUM)
+        observation_vote = 1U;
     }
   }
-  if (votes >= 3U)
+  /* Main evaluates parking before this vote. A mode-3 direction must not
+     inhibit its first observation using only frames below the parking gate.
+     Weak frames still contribute; the same candidate needs one qualifying
+     frame in the current window. Mode 4 retains its existing voting policy. */
+  if (votes >= 3U && (route.profile != Promoted_SIGN_ROUTE_PROFILE_STANDARD || observation_vote))
   {
     route.direction = candidate == 0 ? -1 : 1;
     if (route.state == Promoted_SIGN_ROUTE_IDLE) route.state = Promoted_SIGN_ROUTE_ARMED;
@@ -341,7 +367,7 @@ void Promoted_SignRoute_ObserveDetection(const VisionDetection *detection)
   {
     clear_window();
   }
-  append_observation(candidate, detection->center_x,
+  append_observation(candidate, detection->score, detection->center_x,
                      detection->center_y, now);
 
   if (detection->class_id == -1)
@@ -384,6 +410,7 @@ void Promoted_SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid)
 
 static void enter_phase(Promoted_SignRouteState state, uint32_t now)
 {
+  Promoted_SignRouteState previous_state=route.state;
   if (state == Promoted_SIGN_ROUTE_PROBE)
   {
     route.probe_hold_started = 0U;
@@ -405,7 +432,7 @@ static void enter_phase(Promoted_SignRouteState state, uint32_t now)
   {
     /* Do not seed departure evidence from an earlier in-place search extreme. */
     route.sweep_min_yaw=route.sweep_max_yaw=route.direction*route.imu_yaw;
-    route.arc_sweep_mdeg=0L; route.natural_verify=route.exit_reason=0U;
+    route.arc_sweep_mdeg=0L; route.exit_reason=0U;
     route.arc_peak_mdeg = 0L;
     route.exit_region_seen = 0U;
     route.exit_heading_peak_mdeg = 0L;
@@ -428,11 +455,14 @@ static void enter_phase(Promoted_SignRouteState state, uint32_t now)
   if (state == Promoted_SIGN_ROUTE_EXIT_SELECT)
   {
     route.exit_line_lost=0U;
+    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
     route.exit_previous_error = route.direction * (route.profile == Promoted_SIGN_ROUTE_PROFILE_STANDARD ?
         heading_error() : route.imu_yaw-route.approach_yaw);
     route.exit_best_error_mdeg = heading_error();
     if (route.exit_best_error_mdeg < 0) route.exit_best_error_mdeg = -route.exit_best_error_mdeg;
   }
+  if (state==Promoted_SIGN_ROUTE_EXIT_CLEAR && previous_state!=Promoted_SIGN_ROUTE_EXIT_SELECT)
+    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -497,7 +527,7 @@ static void cancel_route(uint8_t reason, uint32_t now, Promoted_SignRouteCommand
   route.direction = 0;
   route.finished_ms = now;
   route.approach_from_pause=0U;
-  route.road_reference_valid=route.natural_verify=0U;
+  route.road_reference_valid=0U;
   route.none_since_ms = 0U;
   route.capture_active = route.junction_active = 0U;
   clear_window();
@@ -510,7 +540,7 @@ static void complete_route(uint32_t now, Promoted_SignRouteCommand *command)
   route.direction=0;
   route.finished_ms=now;
   route.approach_from_pause=0U;
-  route.road_reference_valid=route.natural_verify=0U;
+  route.road_reference_valid=0U;
   route.none_since_ms=0U;
   route.capture_active=route.junction_active=0U;
   route.exit_straight_active=0U;
@@ -533,42 +563,6 @@ static void observe_arc_sweep(uint8_t mask)
   route.arc_sweep_mdeg=(int32_t)(route.sweep_max_yaw-route.sweep_min_yaw);
 }
 
-static uint8_t stopped_heading_return(uint8_t mask, int32_t heading)
-{
-  return route.road_reference_valid && route.motion_forward && is_track_line(mask) &&
-      route.arc_lower_seen && route.travel_mm>=SIGN_ARC_MIN_MM &&
-      route.exit_heading_peak_mdeg>=SIGN_EXIT_RETURN_PEAK_MDEG &&
-      route.exit_heading_peak_mdeg-heading>=SIGN_EXIT_RETURN_DROP_MDEG &&
-      heading>=-SIGN_EXIT_RETURN_RANGE_MDEG && heading<=SIGN_EXIT_RETURN_RANGE_MDEG;
-}
-
-static uint8_t natural_departure_confirmed(uint8_t mask, int32_t road_heading, uint32_t now)
-{
-  int64_t forward_mm;
-  uint8_t returning=route.natural_verify ? (is_track_line(mask) && route.motion_forward) :
-      (route.road_reference_valid && route.arc_lower_seen && is_track_line(mask) &&
-      route.exit_heading_peak_mdeg >= SIGN_EXIT_RETURN_PEAK_MDEG &&
-      route.exit_heading_peak_mdeg-road_heading >= SIGN_EXIT_RETURN_DROP_MDEG &&
-      road_heading >= -SIGN_EXIT_RETURN_RANGE_MDEG && road_heading <= SIGN_EXIT_RETURN_RANGE_MDEG);
-  if (!returning) { route.exit_straight_active=0U; return 0U; }
-  if (road_heading < route.exit_straight_min_yaw) route.exit_straight_min_yaw=road_heading;
-  if (road_heading > route.exit_straight_max_yaw) route.exit_straight_max_yaw=road_heading;
-  if (!route.exit_straight_active ||
-      route.exit_straight_max_yaw-route.exit_straight_min_yaw > SIGN_EXIT_STEADY_RANGE_MDEG)
-  {
-    route.exit_straight_active=1U;
-    route.exit_straight_since_ms=now;
-    route.exit_straight_origin_counts=route.left_counts+route.right_counts;
-    route.exit_straight_min_yaw=route.exit_straight_max_yaw=road_heading;
-    return 0U;
-  }
-  forward_mm=(route.left_counts+route.right_counts-route.exit_straight_origin_counts) *
-      VEHICLE_WHEEL_DIAMETER_MM * 31416LL / (4160LL * 10000LL);
-  /* Current line owns every sample during confirmation. Time alone, stationary
-     search rotation, or merely passing the circle midpoint cannot finish ARC. */
-  return is_center_line(mask) && now-route.exit_straight_since_ms >= SIGN_EXIT_STEADY_MS &&
-      forward_mm >= SIGN_EXIT_STEADY_MM;
-}
 #endif
 
 static void capture_arc(uint32_t now, Promoted_SignRouteCommand *command)
@@ -854,9 +848,8 @@ static void select_command(Promoted_SignRouteCommand *command, uint8_t mask)
       route.departed = 1U;
       return;
     }
-    /* Continuous contact may still be the original ring. Reacquisition after
-       actual white is handled before this command, without waiting for yaw
-       alignment. Wide/both-side evidence cannot start a forced turn. */
+    /* Exit state starts from heading alone. Keep the existing wide-line
+       motor handoff; sensor contact still governs exit completion. */
     if (is_junction(mask)) return;
     steer = heading_error() > 0 ? 1 : -1;
     /* Existing KEY2 forward pivot; never request counter-rotation here. */
@@ -914,6 +907,19 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
   route.last_step_ms = now;
   update_geometry();
 #if Promoted_SIGN_ROUTE_REQUIRE_IMU
+  if (route.profile==Promoted_SIGN_ROUTE_PROFILE_STANDARD && route.direction &&
+      (route.state==Promoted_SIGN_ROUTE_EXIT_SELECT || route.state==Promoted_SIGN_ROUTE_EXIT_CLEAR))
+  {
+    uint8_t outer=route.direction<0?8U:1U;
+    if (!(line_mask & outer)) route.exit_outer_clear_seen=1U;
+    else if (route.exit_outer_clear_seen)
+    {
+      /* Only this outer sensor participates: middle, opposite outer and
+         heading cannot veto the requested clear-then-black success. */
+      complete_route(now,command);
+      return;
+    }
+  }
   if (!route.imu_valid && route.state != Promoted_SIGN_ROUTE_IDLE &&
       route.state != Promoted_SIGN_ROUTE_LOCKED && route.state != Promoted_SIGN_ROUTE_CANCELLED)
   {
@@ -1097,12 +1103,11 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
       if (line_mask == 0U) route.exit_line_lost=1U;
       else if (route.exit_line_lost)
       {
-        /* The first new black contact ends forced exit turning immediately,
-           even before the estimated heading aligns. A broad contact releases
-           motors too; only later stable middle contact may complete the route. */
+        /* New contact releases steering, but only the selected outer sensor's
+           clear-then-black event (handled above) declares success. */
         enter_phase(Promoted_SIGN_ROUTE_EXIT_CLEAR,now);
         command->just_finished=1U;
-        return; /* command was cleared at Step entry; no stale pivot survives */
+        return;
       }
     }
 #endif
@@ -1221,8 +1226,6 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
 #if Promoted_SIGN_ROUTE_REQUIRE_IMU
     if (route.profile == Promoted_SIGN_ROUTE_PROFILE_STANDARD)
     {
-      int32_t error=heading_error();
-      uint8_t exit_edge=route.direction < 0 ? 8U : 1U;
       if (is_track_line(line_mask) && route.arc_origin_locked && route.travel_mm >= SIGN_ARC_MIN_MM &&
           directed_arc_yaw > route.arc_peak_mdeg)
         route.arc_peak_mdeg=directed_arc_yaw; /* diagnostic only; not an exit threshold */
@@ -1230,41 +1233,13 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
       if (route.arc_lower_seen && is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
           road_heading > route.exit_heading_peak_mdeg)
         route.exit_heading_peak_mdeg=road_heading;
-      if (stopped_heading_return(line_mask,road_heading))
-      {
-        enter_phase(Promoted_SIGN_ROUTE_EXIT_CLEAR,now);
-        route.natural_verify=1U; route.exit_reason=2U;
-        route.exit_straight_active=0U; command->just_finished=1U;
-        return;
-      }
-      if (natural_departure_confirmed(line_mask,road_heading,now))
-      {
-        route.exit_reason=2U;
-        complete_route(now,command);
-        return;
-      }
       if (is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
           road_heading >= SIGN_EXIT_HEADING_MIN_MDEG)
         route.exit_region_seen=1U;
-      uint8_t natural_exit=route.road_reference_valid && route.exit_region_seen && center && route.motion_forward &&
-          error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
-      uint8_t edge_ready=(line_mask & exit_edge) &&
-          (road_heading >= SIGN_EXIT_EDGE_HEADING_MDEG ||
-           (route.arc_lower_seen && road_heading >= SIGN_EXIT_EARLY_MIN_MDEG &&
-            route.exit_heading_peak_mdeg-road_heading >= SIGN_EXIT_EARLY_DROP_MDEG));
-      uint8_t turn_ready=route.road_reference_valid && is_track_line(line_mask) &&
-          route.travel_mm >= SIGN_ARC_MIN_MM &&
-          (edge_ready || road_heading >= SIGN_EXIT_HEADING_TRIGGER_MDEG);
-      /* All-white search and full-black backgrounds cannot trigger exit.
-         The signed upper-half heading, not a guessed apex, authorizes it. */
-      if (stable(natural_exit ? 2U : (turn_ready ? 1U : 0U), now))
+      /* Only the signed stopped-reference heading triggers mode-3 exit.
+         Line mask, encoder travel and elapsed confirmation time are not gates. */
+      if (route.road_reference_valid && road_heading >= (int32_t)mode3_exit_angle_deg * 1000L)
       {
-        if (natural_exit)
-        {
-          route.exit_reason=2U;
-          complete_route(now,command);
-          return; /* Already on the aligned outgoing line: no extra route phase. */
-        }
         enter_phase(Promoted_SIGN_ROUTE_EXIT_SELECT, now);
         route.exit_reason=1U;
         route.departed=1U;
@@ -1299,22 +1274,6 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
 
   if (route.state == Promoted_SIGN_ROUTE_EXIT_CLEAR)
   {
-#if Promoted_SIGN_ROUTE_REQUIRE_IMU
-    if (route.profile==Promoted_SIGN_ROUTE_PROFILE_STANDARD && route.natural_verify)
-    {
-      /* Passive verification cannot take motors back, even after line loss or
-         a later bend. A missed window cancels this route, never a late turn. */
-      if (natural_departure_confirmed(line_mask,heading_error(),now))
-        complete_route(now,command);
-      else if (now-route.phase_ms>SIGN_DEPART_VERIFY_TIMEOUT_MS ||
-               route.travel_mm>SIGN_DEPART_VERIFY_MAX_MM)
-      {
-        route.exit_reason=3U;
-        cancel_route(9U,now,command);
-      }
-      return;
-    }
-#endif
     uint32_t exit_timeout = route.profile == Promoted_SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
         SIGN_GYRO_TANGENT_EXIT_TIMEOUT_MS : SIGN_EXIT_CLEAR_TIMEOUT_MS;
     int32_t exit_max_mm = route.profile == Promoted_SIGN_ROUTE_PROFILE_GYRO_TANGENT ?
@@ -1332,6 +1291,7 @@ void Promoted_SignRoute_Step(uint8_t line_mask, uint32_t now, Promoted_SignRoute
       exit_min_mm=0L;
       /* Completion confirmation is passive: never take the motors back,
          including on white, a broad mark, or a failed line capture. */
+      return; /* Only the selected outer event at Step entry completes mode3. */
     }
     else
     {

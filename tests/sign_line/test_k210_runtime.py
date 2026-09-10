@@ -16,15 +16,22 @@ def diff(a, b):
 tree = ast.parse(code)
 helpers = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))]
 scope = {'time': NS(ticks_diff=diff), 'THRESHOLD': .2, 'BOOT_DEBOUNCE_MS': 30}
+scope['THRESHOLD'] = next(ast.literal_eval(n.value) for n in tree.body
+    if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and
+    t.id == 'THRESHOLD' for t in n.targets))
 exec(compile(ast.Module(body=helpers, type_ignores=[]), str(SOURCE), 'exec'), scope)
 pick, frame = scope['select_route_detection'], scope['detection_frame']
 left = (10, 10, 40, 40, 0, .25)
 right = (20, 20, 40, 40, 1, .95)
 horn = (20, 20, 40, 40, 2, .99)
-assert pick([horn, left]) == left
-assert pick([left, right]) is None
-assert pick([horn]) is None
-assert pick([(0, 0, 1, 1, 1, .19), left]) == left
+assert pick([horn, left]) == horn
+assert pick([left, right]) == right
+assert pick([right, left]) == right
+assert pick([horn]) == horn
+assert pick([(0,0,40,40,4,1.0),left]) == left
+assert pick([right,(20,20,40,40,0,.95)])[4] == 0
+assert pick([(0, 0, 1, 1, 1, .14), left]) == left
+assert pick([(10, 10, 40, 40, 0, .15)]) is not None
 assert pick([(0, 0, 1, 1, 1, float('nan')), left]) == left
 assert pick([(400, 0, 20, 20, 1, .99), left]) == left
 assert frame(None) == '$D,-1,0,0,0#\n'
@@ -51,9 +58,9 @@ class EndSimulation(Exception):
 def run_loop(button_enabled, low_memory=False):
     now, images, tx, events, logs, collections = [PERIOD-300], [], [], [], [], []
     class Image:
-        def __init__(self): self.draws = 0
-        def draw_rectangle(self, *args, **kwargs): self.draws += 1
-        def draw_string(self, *args, **kwargs): self.draws += 1
+        def __init__(self): self.draws = 0; self.boxes=0; self.text=[]
+        def draw_rectangle(self, *args, **kwargs): self.draws += 1; self.boxes+=1
+        def draw_string(self, *args, **kwargs): self.draws += 1; self.text.append(args[2])
     class Clock:
         def tick(self): now[0] += 50
         def fps(self): return 20.0
@@ -64,7 +71,7 @@ def run_loop(button_enabled, low_memory=False):
         def load_kmodel(self, path):
             assert path == '/sd/KPU/road_sign_det/road_sign_det.kmodel'
         def init_yolo2(self, anchors, **kwargs):
-            assert kwargs['threshold'] == .2 and kwargs['classes'] == 5
+            assert kwargs['threshold'] == .15 and kwargs['classes'] == 5
         def run_with_output(self, image): events.append(('infer', len(images)))
         def regionlayer_yolo2(self): return [left, horn]
     class UART:
@@ -99,13 +106,15 @@ def run_loop(button_enabled, low_memory=False):
     assert len([e for e in events if e[0]=='infer']) == 24
     assert 10 <= len(tx) <= 12
     assert all(b[0]-a[0] >= 100 for a,b in zip(tx,tx[1:]))
-    assert all(v == '$D,0,25,30,30#\n' for _,v in tx)
+    assert all(v == '$D,2,99,40,40#\n' for _,v in tx)
     for kind, index in events:
         if kind == 'lcd' and ('tx', index) in events:
             assert events.index(('tx', index)) < events.index(('lcd', index))
     assert len(logs) == 3  # initialization only; no per-frame debug printing
     assert namespace['SHOW_BOXES'] == button_enabled  # held button toggles once
-    assert any(img.draws for img in images) == button_enabled
+    assert all(img.boxes<=1 for img in images)
+    assert any(img.boxes for img in images) == button_enabled
+    assert any('TX:HORN 99' in img.text for img in images)
     assert len(collections) >= 24 if low_memory else 4 <= len(collections) < 12
     return tx
 

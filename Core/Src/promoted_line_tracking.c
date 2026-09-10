@@ -106,6 +106,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
    These are target profiles, not raw motor PWM overrides. */
 #define FAST_STRAIGHT_BASE_PWM                 2550
 #define FAST_STRAIGHT_MAX_PWM                  2750
+#define FAST_STRAIGHT_MAX_CPS                  3600L
 #define FAST_EDGE_CPS                          3200L
 
 static int16_t follow_base_pwm(void)
@@ -166,6 +167,30 @@ static int16_t turn_speed_for_gain(int16_t normal_speed)
   return clamp_speed(speed);
 }
 
+static void update_straight_cruise(uint32_t now)
+{
+  int16_t maximum = fast_follow_enabled ? FAST_STRAIGHT_MAX_PWM :
+      (smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM);
+  if (!smooth_centered_active)
+  {
+    smooth_centered_active = 1U;
+    smooth_centered_since_ms = smooth_ramp_update_ms = now;
+    smooth_straight_pwm = follow_base_pwm();
+  }
+  else if (now - smooth_centered_since_ms >=
+           (fast_follow_enabled ? 0U : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
+           now - smooth_ramp_update_ms >= TRACKING_SMOOTH_RAMP_INTERVAL_MS)
+  {
+    smooth_ramp_update_ms = now;
+    if (smooth_straight_pwm < maximum)
+    {
+      smooth_straight_pwm = clamp_speed((int32_t)smooth_straight_pwm +
+          (fast_follow_enabled ? 40 : TRACKING_SMOOTH_RAMP_STEP_PWM));
+      if (smooth_straight_pwm > maximum) smooth_straight_pwm = maximum;
+    }
+  }
+}
+
 static void command_set_pwm(Promoted_LineTrackingCommand *command,
                             int16_t left_pwm,
                             int16_t right_pwm,
@@ -179,7 +204,9 @@ static void command_set_pwm(Promoted_LineTrackingCommand *command,
   if (fast_follow_enabled && action == Promoted_LINE_ACTION_FORWARD &&
       command->left_cps > 0L && command->left_cps == command->right_cps)
   {
-    command->left_cps = (command->left_cps * 120L + 50L) / 100L;
+    command->left_cps = (command->left_cps * 144L + 50L) / 100L;
+    if (command->left_cps > FAST_STRAIGHT_MAX_CPS)
+      command->left_cps = FAST_STRAIGHT_MAX_CPS;
     command->right_cps = command->left_cps;
   }
   /* Preparing does not own the motors. DriveBase accepts only exact targets;
@@ -605,7 +632,9 @@ void Promoted_line_tracking_set_smooth_mode(uint8_t enable)
 
 void Promoted_line_tracking_set_middle_guard(uint8_t enable)
 {
-  middle_guard_enabled = enable != 0U ? 1U : 0U;
+  uint8_t next = enable != 0U ? 1U : 0U;
+  if (middle_guard_enabled == next) return;
+  middle_guard_enabled = next;
   smooth_filter_valid = 0U;
   smooth_centered_active = 0U;
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
@@ -769,8 +798,12 @@ static void observe_crossing(uint32_t now)
   { predicted_turn_direction = 0; direction_crossing_hold = 0U; }
   recovery_turn_direction = direction_candidate = 0;
   direction_center_active = 0U;
-  smooth_filter_valid = smooth_centered_active = 0U;
-  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  smooth_filter_valid = 0U;
+  if (!fast_follow_enabled)
+  {
+    smooth_centered_active = 0U;
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  }
 }
 static void consume_sampled_evidence(uint32_t through_ms)
 {
@@ -975,12 +1008,23 @@ static Promoted_LineTrackingAction Promoted_line_tracking_compute_profile(const 
       return command->action;
     }
     observe_crossing(now);
+    if (fast_follow_enabled && active_count >= 3U)
+    {
+      /* Wide-line speed is an exact CPS target, independent of the normal
+         straight multiplier and nonlinear PWM calibration. */
+      update_straight_cruise(now);
+      command->left_cps = command->right_cps = 3600L;
+      prepare_follow_assist(command->left_cps, command->right_cps);
+      command->action = Promoted_LINE_ACTION_CROSSING;
+      command->valid = 1U;
+      return command->action;
+    }
+    if (fast_follow_enabled) smooth_centered_active = 0U;
     if (middle_guard_enabled != 0U)
       command_set_cps(command, Promoted_LINE_TRACKING_MIDDLE_GUARD_CPS,
                       Promoted_LINE_TRACKING_MIDDLE_GUARD_CPS, Promoted_LINE_ACTION_CROSSING);
     else
-      command_set_pwm(command, follow_center_pwm(),
-                      follow_center_pwm(), Promoted_LINE_ACTION_CROSSING);
+      command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), Promoted_LINE_ACTION_CROSSING);
     return command->action;
   }
   if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
@@ -1206,35 +1250,13 @@ static Promoted_LineTrackingAction Promoted_line_tracking_compute_profile(const 
       int16_t curve_center;
       int16_t left_target;
       int16_t right_target;
-      int16_t straight_max = fast_follow_enabled ? FAST_STRAIGHT_MAX_PWM :
-          (smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM);
       uint8_t stable_center = (line_position == 0 &&
                                reading->x2_black == 0U &&
                                reading->x4_black == 0U) ? 1U : 0U;
 
       if (stable_center != 0U)
       {
-        if (smooth_centered_active == 0U)
-        {
-          smooth_centered_active = 1U;
-          smooth_centered_since_ms = now;
-          smooth_ramp_update_ms = now;
-          smooth_straight_pwm = follow_base_pwm();
-        }
-        else if (now - smooth_centered_since_ms >=
-                 (fast_follow_enabled ? 0U : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
-                 now - smooth_ramp_update_ms >=
-                 TRACKING_SMOOTH_RAMP_INTERVAL_MS)
-        {
-          smooth_ramp_update_ms = now;
-          if (smooth_straight_pwm < straight_max)
-          {
-            smooth_straight_pwm = clamp_speed(
-                (int32_t)smooth_straight_pwm +
-                (fast_follow_enabled ? 40 : TRACKING_SMOOTH_RAMP_STEP_PWM));
-            if (smooth_straight_pwm > straight_max) smooth_straight_pwm = straight_max;
-          }
-        }
+        update_straight_cruise(now);
       }
       else
       {
