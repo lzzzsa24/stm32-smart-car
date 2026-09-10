@@ -579,6 +579,16 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       command->just_finished = 1U;
       return 1U;
     }
+    if (route.travel_mm >= SIGN_GYRO_TANGENT_ENTRY_SEARCH_MM)
+    {
+      /* The requested diagonal is only an 8-cm probe. With no arc contact,
+         rotate back to the pre-stop heading instead of driving farther toward
+         the sign or continuing the wrong branch. */
+      enter_phase(SIGN_ROUTE_ENTRY_RETURN, now);
+      command->just_started = 1U;
+      spin_command(command, (int8_t)-route.direction);
+      return 1U;
+    }
     if (now - route.phase_ms > SIGN_GYRO_TANGENT_ENTRY_TIMEOUT_MS ||
         route.travel_mm > SIGN_GYRO_TANGENT_ENTRY_MAX_MM ||
         heading_error < -30000L || heading_error > 30000L)
@@ -587,6 +597,51 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       return 1U;
     }
     straight_command(command);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_ENTRY_RETURN)
+  {
+    turn_yaw = route.direction * route.yaw_mdeg;
+    heading_error = route.imu_yaw - route.approach_yaw;
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_TURN_TIMEOUT_MS ||
+        turn_yaw < -15000L ||
+        turn_yaw > SIGN_GYRO_TANGENT_ENTRY_MDEG + 30000L)
+    {
+      cancel_route(8U, now, command);
+      return 1U;
+    }
+    if (turn_yaw >= SIGN_GYRO_TANGENT_ENTRY_MDEG &&
+        heading_error >= -10000LL && heading_error <= 10000LL)
+    {
+      enter_phase(SIGN_ROUTE_ENTRY_FALLBACK, now);
+      command->just_finished = 1U;
+      straight_command(command);
+      return 1U;
+    }
+    spin_command(command, (int8_t)-route.direction);
+    return 1U;
+  }
+
+  if (route.state == SIGN_ROUTE_ENTRY_FALLBACK)
+  {
+    if (now - route.phase_ms > SIGN_GYRO_TANGENT_FALLBACK_TIMEOUT_MS ||
+        route.travel_mm > SIGN_GYRO_TANGENT_FALLBACK_MAX_MM)
+    {
+      cancel_route(9U, now, command);
+      return 1U;
+    }
+    straight_command(command);
+    if (stable((uint8_t)(narrow_line(line_mask) &&
+                         route.travel_mm >= SIGN_GYRO_TANGENT_FALLBACK_MIN_MM), now))
+    {
+      /* Reacquisition here is the circle sought by the fallback leg. Keep the
+         route direction and enter ARC so gyro exit handling still runs. */
+      enter_phase(SIGN_ROUTE_ARC, now);
+      route.entry_line_ready = 1U;
+      command->active = 0U;
+      command->just_finished = 1U;
+    }
     return 1U;
   }
 
