@@ -56,103 +56,39 @@ static void start(int side)
 }
 static void test(int side)
 {
-  unsigned i,j; long entry=-side*80000;
-  static const uint8_t ambiguous[]={0,5,7,9,10,11,13,14,15};
-  start(side);
-  step(6,entry+side*20000,1);
-  step(6,entry-side*10000,1);
-  assert(s.state==SIGN_ROUTE_ARC && s.yaw_mdeg==0); /* stationary yaw must not lock apex */
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(side<0?12:3,entry+side*70000,1);
-  assert(s.state==SIGN_ROUTE_ARC); /* early edge cannot exit */
-  step(6,entry-side*20000,1);
-  assert(s.state==SIGN_ROUTE_ARC && side*s.yaw_mdeg==-20000); /* locked apex cannot drift */
-  step(6,entry+side*70000,1);
-  assert(side*s.yaw_mdeg==70000);
-  for(j=0;j<sizeof(ambiguous);++j)
-  {
-    for(i=0;i<4;++i) step(ambiguous[j],entry+side*170000,1);
-    assert(s.state==SIGN_ROUTE_ARC && !c.active); /* no exit from white, wide or both sides */
+  unsigned mask;
+  for(mask=0;mask<16;++mask) {
+    start(side);
+    step(mask,side*39999,1); assert(s.state==SIGN_ROUTE_ARC && !c.active);
+    step(mask,side*40000,1); assert(s.state==SIGN_ROUTE_EXIT_SELECT);
+    step(mask,side*25000,1); assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+    step(0,side*25000,1);
+    step(mask|(side<0?8U:1U),side*25000,1);
+    assert(s.state==SIGN_ROUTE_LOCKED && !s.direction && !c.active);
   }
-  for(i=0;i<4;++i) step(side<0?12:3,entry+side*170000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* no yaw: not completed */
-  for(i=0;i<4;++i) step(0,0,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
-  assert(!c.active && c.left_pwm==0 && c.right_pwm==0);
-  SignRoute_UpdateEncoders(2500,2500,2500,2500);
-  for(i=0;i<4;++i) step(6,0,1);
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED);
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  for(i=0;i<4;++i) step(0,entry+side*170000,1);
-  for(i=0;i<4;++i) step(0,0,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
-  now+=2100; step(0,0,1);
-  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active);
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  for(i=0;i<4;++i) step(0,entry+side*170000,1);
-  step(0,-side*35000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* outside both 25-degree alignment and 30-degree crossing bands */
-  assert(side<0 ? c.left_pwm>0 && c.right_pwm==0 : c.right_pwm>0 && c.left_pwm==0);
-  step(0,-side*5000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  for(i=0;i<4;++i) step(0,entry+side*170000,1);
-  now+=6100; step(0,entry+side*170000,1);
-  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* stalled alignment remains bounded */
-  start(side); step(6,entry,0);
+  start(side); step(6,-side*80000,0);
   assert(s.state==SIGN_ROUTE_CANCELLED && s.fault==6 && !c.active);
-  start(side); step(6,entry-side*100000,1);
-  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* wrong half */
+  start(side); step(6,side*121000,1);
+  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active);
+  start(side); step(6,side*40000,1); now+=6100; step(6,side*40000,1);
+  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active);
 }
 static void natural_exit(int side)
 {
   unsigned i;
-  long entry=-side*80000;
   start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  step(6,entry+side*160000,1); /* natural rejoin before turn debounce completes */
-  assert(s.state==SIGN_ROUTE_ARC && s.arc_peak_mdeg==160000);
-  for(i=0;i<25;++i)
-  { int32_t n=2000+(int32_t)(i+1)*16; SignRoute_UpdateEncoders(n,n,n,n); step(6,0,1); }
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0 && s.heading_error_mdeg==0);
-  step(side<0?1:8,0,1); assert(!c.active); /* no forced straight over an outer contact */
-  SignRoute_UpdateEncoders(2500,2500,2500,2500);
-  for(i=0;i<4;++i) step(6,0,1);
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0);
-  for(i=0;i<5;++i) step(0,entry+side*175000,1);
-  finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !c.active); /* no late exit-turn after natural rejoin */
-
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  step(0,entry+side*186000,1);
-  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* error worsens >15 deg: withdraw */
-
-  start(side);
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*170000,1);
-  step(6,entry+side*186000,1);
-  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* same bound when ring line stays black */
-
-  start(side);
-  step(6,-side*120000,1); /* a larger estimated entry apex must not advance the exit */
-  SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,side*35000,1);
-  assert(s.state==SIGN_ROUTE_ARC); /* phase yaw is 155, but signed road heading is below 40 */
-  for(i=0;i<4;++i) step(6,side*90000,1);
+  step(6,side*52000,1); assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
+  for(i=0;i<30;++i) step(6,side*35000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
-  step(0,side*10000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
-  puts("PASS: signed road heading controls exit independently of the estimated entry apex; live rejoin and divergence bounds");
+  step(0,0,1); assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  finish_outer(side); assert(s.state==SIGN_ROUTE_LOCKED && !c.active && !s.direction);
+  for(i=0;i<20;++i) { step(i%2?0:15,side*90000,1); assert(!c.active); }
+  start(side); step(6,side*90000,1); step(6,side*106000,1);
+  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active);
+  start(side); step(0,side*40000,1); step(0,-side*30000,1);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  finish_outer(side); assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+  puts("PASS: angle-only start; reference alignment releases steering but not direction; outer completion and IMU/timeout/divergence protections retained");
 }
 static void pause_reference_lifetime(void)
 {
