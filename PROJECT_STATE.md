@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
-comprehensive_candidate_status: 5940727_COM11_full_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: e9049bbe5b1d7b51990584dd6e1743c4858587b8
+comprehensive_candidate_status: 05b3599_f307368_integrated_build_tests_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120112
-comprehensive_candidate_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
-comprehensive_candidate_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58CADF90160BE91D59E0F9
+comprehensive_candidate_bin_size_bytes: 120184
+comprehensive_candidate_bin_sha256: B9CB6328CB60F73C7BF8844382B959589AD5CA47D00EF34EE694171F831C04B4
+comprehensive_candidate_hex_sha256: 75B0F7C32957EF07DFB9EAA5217F510D6521977B5FB1F897C5BDB7AB6438B783
 integration_branch: main
 repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
 latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
@@ -52,6 +52,22 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: e9049bb (not flashed)
+
+05b3599 replayed as c25c8b8 without importing its old main-based history;
+f307368 merged as e9049bb without conflicts. Mode5 normal straight targets
+now scale144% instead of120% (another20%); existing caps/turn profiles remain.
+Mode3 normal/ARC/passive exit uses comprehensive mode2 compute and middle
+guard, including1800-CPS search. Observation centering and active navigation
+ownership remain separate; stopped-heading exit rules retained. Mode4 retained.
+Full line suite at both speeds, full sign suite, mode5 integration and formal
+ARM build passed. BIN120184 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-05b3599-f307368 ->5940727.
+No flash, serial access, physical test or push. Board remains5940727.
+Main firmware remains selective b48e9e0; these two increments are NOT promoted
+to main. K210 unchanged. Supersedes older comprehensive candidate statements.
 
 ### Current local main: b48e9e0 selective mode3 / mode5 promotion
 
