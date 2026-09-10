@@ -199,7 +199,10 @@ static Promoted_LineRecoveryResult step_recovery(const Promoted_LineTrackingRead
   if (phase == REC_SEARCH && (immediate_capture==3U ||
       !(r->x1_black || r->x2_black || r->x3_black || r->x4_black)))
   {
-    int32_t left = side < 0 ? -LINE_SEARCH_TARGET_CPS : LINE_SEARCH_TARGET_CPS;
+    /* Only observation-centering opts into the existing KEY2 slow target.
+       Keep the assist claim matched to the final four-wheel closed-loop CPS. */
+    int32_t target = immediate_capture==3U ? Promoted_LINE_TRACKING_MIDDLE_GUARD_CPS : LINE_SEARCH_TARGET_CPS;
+    int32_t left = side < 0 ? -target : target;
     DriveBase_PrepareLineTurnAssist(left, -left);
     DriveBase_SetWheelCps(left, left, -left, -left);
   }

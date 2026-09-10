@@ -4,7 +4,7 @@ import subprocess
 
 root = Path(__file__).resolve().parents[1]
 baseline = '3257b05af3b8016e00f1cad772157992fc885bc6'
-source = '5605916dc610432370c8831b5333beaaffdb55ed'
+source = 'a217df81e807f54a7b95fc8c8541876cdc59bfc8'
 def git_text(ref, path):
     return subprocess.check_output(['git', 'show', ref + ':' + path], cwd=root).decode('utf-8').replace('\r\n', '\n').rstrip()
 def current(path):
@@ -24,7 +24,7 @@ for name in ('line_tracking', 'line_recovery', 'sign_route', 'simple_line_mode',
     for folder, ext in (('Inc', 'h'), ('Src', 'c')):
         path = f'Core/{folder}/{name}.{ext}'
         assert current(path) == git_text(baseline, path), path
-assert current('K210/sign_mode34.py') == git_text(baseline, 'K210/sign_mode34.py')
+assert current('K210/sign_mode34.py') == git_text(source, 'K210/sign_mode34.py')
 expected_bypass = git_text(source, 'Core/Src/line_obstacle_bypass.c')
 expected_bypass = expected_bypass.replace('  config->infrared_enabled = 1U;',
     '  config->infrared_enabled = 1U;\n  config->adaptive_return_max_cps = 1800U;')
@@ -45,25 +45,30 @@ for name in ('line_tracking', 'line_recovery', 'sign_route', 'sign_route_config'
 
 main = current('Core/Src/main.c')
 old = git_text(baseline, 'Core/Src/main.c')
-for marker in ('static void sign_line_task(AppMode mode)\n{',
-               'static void apply_sign_line_pwm(int16_t left_pwm,\n',
-               'static void configure_bypass_profile(uint8_t fixed)\n{',
+# Preserve mode1/2 shared drivers and critical application paths against pre-change main.
+old = git_text('36f4aed', 'Core/Src/main.c')
+for marker in ('static void configure_bypass_profile(uint8_t fixed)\n{',
                'static uint16_t app_emergency_distance_cm(uint32_t speed_cps)\n{',
-               'static uint8_t service_legacy_line_wait(AppMode mode)\n{'):
-    # Prototype may precede definition for PWM, choose its complete declaration.
-    if marker.startswith('static void apply_sign'):
-        marker += '                                int16_t right_pwm,\n                                uint8_t line_mask,\n                                uint8_t controller_state)\n{'
+               'static uint8_t service_legacy_line_wait(AppMode mode)\n{',
+               'static uint8_t service_bounded_line_wait(AppMode mode)\n{',
+               'static void experiment7_integrated_once(void)\n{'):
     assert block(main, marker) == block(old, marker), marker
 transition = block(main, 'if (requested_mode != app_mode)')
-for mode in ('APP_MODE_LINE_ONLY', 'APP_MODE_SIGN_LINE_SIMPLE'):
-    assert block(transition, 'else if (app_mode == ' + mode + ')') == block(block(old, 'if (requested_mode != app_mode)'), 'else if (app_mode == ' + mode + ')')
+assert block(transition, 'else if (app_mode == APP_MODE_LINE_ONLY)') == block(block(old, 'if (requested_mode != app_mode)'), 'else if (app_mode == APP_MODE_LINE_ONLY)')
+for name in ('drive_base', 'line_bypass_turn', 'line_bypass_travel',
+             'ir_avoid', 'ultrasonic', 'line_sensor_sample'):
+    for folder, ext in (('Inc','h'), ('Src','c')):
+        path = f'Core/{folder}/{name}.{ext}'
+        assert current(path) == git_text('36f4aed', path), path
+assert 'APP_MODE_SIGN_LINE_SIMPLE' not in main
+assert '5=FIXED' not in main
 assert 'Promoted_line_tracking_set_middle_guard(1U)' not in main
 assert 'Promoted_SignRoute_SetProfile(Promoted_SIGN_ROUTE_PROFILE_STANDARD);' in main
 assert 'Promoted_SIGN_ROUTE_PROFILE_GYRO_TANGENT' not in main
-assert 'if (app_mode == APP_MODE_SIGN_LINE_ADVANCED) promoted_sign_task(app_mode);' in main
-assert 'else sign_line_task(app_mode);' in main
+assert 'promoted_sign_task(app_mode);' in main
+assert 'else sign_line_task(app_mode);' not in main
 assert 'Promoted_line_tracking_set_fast_follow(1U);' in block(main, 'static void experiment7_integrated_once(void)\n{')
 assert 'if (fixed_bypass_mode) Promoted_line_tracking_rejoin_from_bypass(contact);' in main
 assert 'Promoted_SignLineFollow_Stop(&promoted_sign_controller);' in transition
 assert 'Promoted_line_tracking_reset();' in transition
-print('PASS: mode1/2/4 legacy controllers and hardware unchanged; mode3/5 source identity and dispatch isolation')
+print('PASS: mode1/2 legacy controllers/hardware unchanged; mode3/4 composite source identity and four-mode dispatch isolation')

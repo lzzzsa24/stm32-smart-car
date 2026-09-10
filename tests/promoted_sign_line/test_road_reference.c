@@ -3,14 +3,26 @@
 #include "promoted_sign_route.h"
 static uint32_t now,seq;
 static int32_t counts;
+static int32_t last_input_yaw;
 static Promoted_SignRouteStatus s;
 static Promoted_SignRouteCommand c;
 static void step(uint8_t mask,int32_t yaw,int move)
 {
+  last_input_yaw=yaw;
   now+=10U; counts+=move;
   Promoted_SignRoute_UpdateEncoders(counts,counts,counts,counts);
   Promoted_SignRoute_UpdateYaw(3700000LL+yaw,1);
   Promoted_SignRoute_Step(mask,now,&c); Promoted_SignRoute_GetStatus(now,&s);
+}
+static void finish_outer(int side)
+{
+  int32_t yaw=last_input_yaw;
+  if(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT || s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR)
+  {
+    step(6,yaw,12);
+    step(side<0?14:7,yaw,12);
+    step(6,yaw,12);
+  }
 }
 static void frame(int side)
 {
@@ -38,62 +50,81 @@ static void start(int side,int32_t stopped)
   for(i=0;i<4;++i) step(6,stopped-side*20000,12);
   assert(s.state==Promoted_SIGN_ROUTE_ARC);
 }
-static void stopped_exit(int side,int32_t stopped,uint8_t edge,int32_t apex)
+static void stopped_exit(int side,int32_t stopped,uint8_t mask,int32_t apex)
 {
-  unsigned i; int32_t threshold=edge?45000:55000;
-  uint8_t mask=edge?(side<0?8:1):6;
+  unsigned i; uint8_t outer=side<0?8:1;
   start(side,stopped);
-  step(6,stopped-side*apex,1500);
-  for(i=0;i<4;++i) step(mask,stopped-side*threshold,12);
+  step(6,stopped-side*apex,0);
+  step(mask,stopped,0);
   assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(6,stopped,12);
-  assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active); /* midpoint zero is not exit */
-  for(i=0;i<4;++i) step(mask,stopped+side*(threshold-1000),12);
+  step(mask,stopped+side*39999,0);
   assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(mask,stopped+side*threshold,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
-  assert(s.heading_error_mdeg==side*threshold && s.approach_from_pause);
-  step(6,stopped+side*26000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
-  step(6,stopped+side*25000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active); /* widened alignment */
-  for(i=0;i<4;++i) step(6,stopped+side*25000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
+  now+=80;
+  step(mask,stopped+side*40000,0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && s.travel_mm==0);
+  assert(s.heading_error_mdeg==side*40000 && s.approach_from_pause);
+  step(mask,stopped+side*25000,0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  step(0,stopped+side*25000,0);
+  step((uint8_t)(mask|outer),stopped+side*25000,0);
+  assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction && !c.active);
   for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
 }
 static void natural_exit(int side,int32_t stopped)
 {
   unsigned i;
-  start(side,stopped); step(6,stopped-side*80000,1500);
-  step(6,stopped+side*52000,12);
-  step(6,stopped+side*35000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.exit_reason==2 && !c.active);
-  for(i=0;i<30;++i) { step(6,stopped+side*35000,12); assert(!c.active); }
-  assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
-  for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
-  start(side,stopped); step(6,stopped-side*80000,1500);
-  step(6,stopped+side*52000,12); step(6,stopped+side*35000,12);
-  for(i=0;i<80;++i) { step(i%2?0:15,stopped+side*35000,2); assert(!c.active); }
-  assert(s.state==Promoted_SIGN_ROUTE_CANCELLED && !s.direction); /* no late turn */
+  start(side,stopped);
+  step(6,stopped+side*52000,0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
+  for(i=0;i<30;++i) step(6,stopped+side*35000,12);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active); /* no natural-return shortcut */
+  step(6,stopped,0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side && !c.active);
+  finish_outer(side); assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
+}
+static void set_exit_angle(unsigned degrees)
+{
+  while(Promoted_SignRoute_GetExitAngleDegrees()<degrees) Promoted_SignRoute_AdjustExitAngle(1);
+  while(Promoted_SignRoute_GetExitAngleDegrees()>degrees) Promoted_SignRoute_AdjustExitAngle(-1);
+}
+static void adjustable_exit(void)
+{
+  unsigned degrees,mask;
+  int side;
+  for(degrees=30;degrees<=90;degrees+=5) for(side=-1;side<=1;side+=2)
+    for(mask=0;mask<16;++mask)
+    {
+      int32_t threshold=(int32_t)degrees*1000;
+      set_exit_angle(degrees); start(side,10000);
+      assert(Promoted_SignRoute_GetExitAngleDegrees()==degrees);
+      step((uint8_t)mask,10000+side*(threshold-1),0);
+      assert(s.state==Promoted_SIGN_ROUTE_ARC);
+      step((uint8_t)mask,10000+side*threshold,0);
+      assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
+      step(0,10000,0);
+      assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side);
+      step((uint8_t)(mask|(side<0?8U:1U)),10000,0);
+      assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
+    }
+  set_exit_angle(50); start(1,0);
+  step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_ARC);
+  Promoted_SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_ARC);
+  Promoted_SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
+  Promoted_SignRoute_AdjustExitAngle(1); step(6,44000,0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT); /* settings cannot restart an exit */
+  set_exit_angle(40);
+  puts("PASS: all adjustable30..90 boundaries mirror on all16 masks; reset preserves value, live lowering starts ARC exit, completion remains outer-only");
 }
 int main(void)
 {
-  int side,offset,edge,apex; unsigned i;
+  int side,offset,apex; unsigned mask;
   for(side=-1;side<=1;side+=2) for(offset=-30000;offset<=30000;offset+=10000)
   {
-    for(edge=0;edge<=1;++edge) for(apex=20000;apex<=100000;apex+=80000)
-      stopped_exit(side,offset,(uint8_t)edge,apex);
+    for(mask=0;mask<16;++mask) for(apex=20000;apex<=100000;apex+=80000)
+      stopped_exit(side,offset,(uint8_t)mask,apex);
     natural_exit(side,offset);
   }
-  start(1,0); step(6,-110000,1500); step(6,110000,12);
-  assert(s.arc_sweep_mdeg>200000 && s.state==Promoted_SIGN_ROUTE_ARC && !s.fault);
-  /* No repeated valid line samples: a sweep above 200 is diagnostic only. */
-  start(1,0); step(6,-80000,1500);
-  for(i=0;i<8;++i) step(i%2?15:9,55000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active);
-  for(i=0;i<4;++i) step(6,55000,12);
-  step(0,45000,0); step(8,45000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active); /* reacquisition before alignment */
-  puts("PASS: stopped pose is primary, moving/entry yaw cannot replace it; mirrored 45/55 exit, 25 alignment, 35 natural return and no sweep gates");
+  puts("PASS: stopped reference and biased poses; all16 masks start at40 with zero travel and sample gap; completion still requires outer clear/black");
+  adjustable_exit();
   return 0;
 }

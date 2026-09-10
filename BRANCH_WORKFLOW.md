@@ -2,6 +2,12 @@
 
 ## One authoritative project
 
+After the four-mode consolidation (rc.6), modes1/2 use the old main controllers,
+mode3 uses comprehensive a217df8 mode3, and mode4 uses its mode5. Number5 is
+unassigned. The old comprehensive-v15 branch is a retained source snapshot,
+not the base for new work. Start future fixes from the new main and name the
+new mode number in handoffs; do not blindly merge a worker's old main.c selector.
+
 - Repository and canonical checkout:
   `F:/myproject/jidian/project/test-exp7-unified-motion-v1`
 - GitHub: `https://github.com/lzzzsa24/test-exp7-unified-motion-v1`

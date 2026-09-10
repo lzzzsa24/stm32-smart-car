@@ -21,6 +21,8 @@ stubs = r'''
 #include <assert.h>
 #include <stdio.h>
 #include "ir_remote.h"
+#include "ir_remote_keymap.h"
+#include "promoted_sign_route.h"
 #define GPIO_PIN_RESET 0
 #define key1_GPIO_Port 0
 #define key2_GPIO_Port 0
@@ -31,6 +33,7 @@ stubs = r'''
 #define EXP7_AUDIO_VOLUME_STEP 2
 static uint8_t remote_input, serial_input, button;
 static unsigned stops;
+static int volume_change;
 uint8_t IrRemote_TakeVirtualKey(void) { return remote_input; }
 static uint8_t app_take_serial_virtual_key(void) { return serial_input; }
 static int HAL_GPIO_ReadPin(int port, int pin) { (void)port; return button!=pin; }
@@ -39,26 +42,25 @@ static void BuzzerPhrase400_Stop(void) { ++stops; }
 static void app_audio_toggle(void) {}
 static void app_audio_next(void) {}
 static void app_audio_previous(void) {}
-static void app_audio_adjust_volume(int step) { (void)step; }
+static void app_audio_adjust_volume(int step) { volume_change+=step; }
 '''
 checks = r'''
 _Static_assert(APP_MODE_INTEGRATED==0 && APP_MODE_LINE_ONLY==1 &&
-               APP_MODE_SIGN_LINE_ADVANCED==2 && APP_MODE_SIGN_LINE_SIMPLE==3 &&
-               APP_MODE_FIXED_BYPASS==4 && APP_MODE_STOPPED==5,
-               "Assigning key 4 must not renumber other mode telemetry");
+               APP_MODE_SIGN_LINE_ADVANCED==2 && APP_MODE_FIXED_BYPASS==3 && APP_MODE_STOPPED==4,
+               "Four active modes plus STOP use zero-based internal IDs");
 int main(void)
 {
   AppMode current;
   unsigned source, key;
   const uint8_t keys[]={IR_REMOTE_VIRTUAL_KEY1,IR_REMOTE_VIRTUAL_KEY2,
-      IR_REMOTE_VIRTUAL_KEY3,IR_REMOTE_VIRTUAL_KEY4,IR_REMOTE_VIRTUAL_KEY5};
+      IR_REMOTE_VIRTUAL_KEY3,IR_REMOTE_VIRTUAL_KEY4};
   const AppMode modes[]={APP_MODE_INTEGRATED,APP_MODE_LINE_ONLY,
-      APP_MODE_SIGN_LINE_ADVANCED,APP_MODE_SIGN_LINE_SIMPLE,APP_MODE_FIXED_BYPASS};
+      APP_MODE_SIGN_LINE_ADVANCED,APP_MODE_FIXED_BYPASS};
   for(current=APP_MODE_INTEGRATED;current<=APP_MODE_STOPPED;++current)
   {
     for(source=0;source<2;++source)
     {
-      for(key=0;key<5;++key)
+      for(key=0;key<4;++key)
       {
         button=0; remote_input=source?0:keys[key]; serial_input=source?keys[key]:0;
         assert(read_requested_mode(current)==modes[key]);
@@ -73,8 +75,44 @@ int main(void)
     remote_input=serial_input=0; button=3;
     assert(read_requested_mode(current)==APP_MODE_SIGN_LINE_ADVANCED);
     button=0; assert(read_requested_mode(current)==current);
+    remote_input=IR_REMOTE_VIRTUAL_KEY5; serial_input=0;
+    assert(read_requested_mode(current)==current);
+    remote_input=0; serial_input=IR_REMOTE_VIRTUAL_KEY5;
+    assert(read_requested_mode(current)==current);
+    serial_input=0;
+    volume_change=0;
+    remote_input=IrRemoteKeyMap_Map(0x0CU);
+    assert(read_requested_mode(current)==current);
+    assert(Promoted_SignRoute_GetExitAngleDegrees()==(current==APP_MODE_SIGN_LINE_ADVANCED?45:40));
+    assert(volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x0EU);
+    assert(read_requested_mode(current)==current);
+    assert(Promoted_SignRoute_GetExitAngleDegrees()==40 && volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x0CU); serial_input=IR_REMOTE_VIRTUAL_STOP;
+    assert(read_requested_mode(current)==APP_MODE_STOPPED);
+    assert(Promoted_SignRoute_GetExitAngleDegrees()==40 && volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x01U); serial_input=0;
+    assert(read_requested_mode(current)==current && volume_change==2);
+    remote_input=IrRemoteKeyMap_Map(0x09U);
+    assert(read_requested_mode(current)==current && volume_change==0);
+    assert(Promoted_SignRoute_GetExitAngleDegrees()==40);
+    remote_input=serial_input=0;
   }
-  puts("PASS: actual selector binds preserved sign to KEY3/4 and fixed bypass to KEY5; STOP and other numbers retained");
+  for(key=0;key<50;++key) {
+    remote_input=IrRemoteKeyMap_Map(0x0CU);
+    assert(read_requested_mode(APP_MODE_SIGN_LINE_ADVANCED)==APP_MODE_SIGN_LINE_ADVANCED);
+  }
+  assert(Promoted_SignRoute_GetExitAngleDegrees()==90);
+  Promoted_SignRoute_Reset(); assert(Promoted_SignRoute_GetExitAngleDegrees()==90);
+  for(key=0;key<50;++key) {
+    remote_input=IrRemoteKeyMap_Map(0x0EU);
+    assert(read_requested_mode(APP_MODE_SIGN_LINE_ADVANCED)==APP_MODE_SIGN_LINE_ADVANCED);
+  }
+  assert(Promoted_SignRoute_GetExitAngleDegrees()==30);
+  Promoted_SignRoute_AdjustExitAngle(1); Promoted_SignRoute_AdjustExitAngle(1);
+  assert(Promoted_SignRoute_GetExitAngleDegrees()==40);
+  puts("PASS: actual NEC keymap+selector change mode3 angle by5, preserve mode/audio/STOP and clamp30..90; route reset retains tuning");
+  puts("PASS: actual selector maps 1/2 legacy, 3 sign, 4 fixed bypass; 5 ignored; STOP priority retained");
   return 0;
 }
 '''
@@ -84,6 +122,7 @@ source = build / "test_mode_selection_extract.c"
 exe = build / "test_mode_selection.exe"
 source.write_text(stubs + enum.group() + "\n" + selector + "\n" + checks, encoding="utf-8")
 subprocess.run(["cl", "/nologo", "/W4", "/WX", "/utf-8", "/std:c11",
-                "/ICore/Inc", str(source), "/Fo" + str(build / "test_mode_selection.obj"),
+                "/ICore/Inc", str(source), "Core/Src/promoted_sign_route.c", "Core/Src/ir_remote_keymap.c",
+                "/Fo" + str(build) + "/",
                 "/Fe" + str(exe)], cwd=ROOT, check=True)
 subprocess.run([str(exe)], cwd=ROOT, check=True)

@@ -1,4 +1,4 @@
-"""Verify mode1-only promotion retains legacy sign/visual modes."""
+"""Verify gyro service ownership in the four-mode integration."""
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,11 +26,11 @@ assert "LineBypassTurn_Recover();" in main
 assert main.index("if (service_bounded_line_wait(app_mode))") < main.index("if (DriveBase_GetFaultMask() != 0U &&")
 
 sign_task = main[
-    main.index("static void sign_line_task(AppMode mode)\n{"):
+    main.index("static void promoted_sign_task(AppMode mode)\n{"):
     main.index("static AppMode read_requested_mode(AppMode current_mode)\n{")
 ]
-assert "SignRoute_UpdateYaw(" not in sign_task
-assert "MpuYaw_Refresh(" not in sign_task
+assert "Promoted_SignRoute_UpdateYaw(" in sign_task
+assert "MpuYaw_Refresh(" in sign_task
 assert "SimpleLine_StepSlow(" not in main
 assert "vision_line_fallback" not in main
 gyro = (ROOT / "Core/Src/gyro_turn.c").read_text(encoding="utf-8")
@@ -42,4 +42,5 @@ assert "return GyroTurn_Start(angle_mdeg, cps);" in bypass
 assert "if (using_gyro) { GyroTurn_Task(); return; }" in bypass
 assert "return encoder_Start(angle_mdeg, cps, continuous);" in bypass
 
-print("PASS: mode1 gyro/recovery, legacy other-mode dispatch, no sign/visual candidate leakage")
+assert "APP_MODE_SIGN_LINE_SIMPLE" not in main
+print("PASS: mode1 gyro/recovery and isolated mode3 IMU service; obsolete sign mode removed")

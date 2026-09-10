@@ -95,7 +95,7 @@ static void test_fast_follow(void)
   {
     unsigned outer=side?8:2, pair=side?12:3;
     reset(0,1); Promoted_line_tracking_set_fast_follow(1);
-    hold(5,260); assert(output.left_cps==3960 && output.right_cps==3960);
+    hold(5,260); assert(output.left_cps==3600 && output.right_cps==3600);
     sample(pair,10,3000);
     assert((side?output.left_cps:output.right_cps)==3400);
     assert((side?output.right_cps:output.left_cps)==1700);
@@ -132,8 +132,8 @@ static void test_fast_no_timed_holds(void)
     unsigned outer=side?8:2, opposite=side?2:8;
     int32_t search_left=side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
     reset(0,1); Promoted_line_tracking_set_fast_follow(1);
-    sample(5,1,3000); assert(output.left_cps==3672);
-    sample(5,20,3000); assert(output.left_cps==3730); /* no stationary acceleration hold */
+    sample(5,1,3000); assert(output.left_cps==3600);
+    sample(5,20,3000); assert(output.left_cps==3600); /* no stationary acceleration hold */
     for(repeat=0;repeat<50;++repeat)
     {
       sample(outer,1,3000);
@@ -168,7 +168,7 @@ static void test_fast_no_timed_holds(void)
   sample(8,1,3000); sample(0,10,3000);
   assert(!output.valid && telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   sample(5,1,3000); assert(Promoted_LineRecovery_IsSearching());
-  sample(5,1,3000); assert(output.valid && output.left_cps==3672);
+  sample(5,1,3000); assert(output.valid && output.left_cps==3600);
   puts("PASS: fast no-hold 1ms sharp-corner/loss/capture/crossing sequences, inner-only direction continuity, wrap and external brake/STOP");
 }
 
@@ -185,7 +185,7 @@ static void test_fast_wide_cruise(void)
     gpio_mask=wide[n];
     for(i=0;i<150;++i) { ++tick; LineSensorSample_Tick(tick); sample(wide[n],1,3000); }
     assert(output.left_cps==3600 && output.right_cps==3600);
-    sample(5,1,3000); assert(output.left_cps==3960 && output.right_cps==3960);
+    sample(5,1,3000); assert(output.left_cps==3600 && output.right_cps==3600);
     sample(wide[n],1,3000); assert(output.left_cps==3600 && output.right_cps==3600);
     Promoted_line_tracking_apply_command(&output,2000);
     assert(telemetry.requested_cps[0]==2000 && telemetry.requested_cps[2]==2000);

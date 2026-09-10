@@ -1402,11 +1402,11 @@ static void test_fast_follow_continuity(void)
       if(phase==1 && frame>=8) assert(d.requested_cps[0]==-3200 && d.requested_cps[2]==3200);
       if(phase==2 && frame>=8) assert(d.requested_cps[0]==3200 && d.requested_cps[2]==-3200);
       if(out.action==Promoted_LINE_ACTION_FORWARD && out.left_cps==out.right_cps)
-        assert(out.left_cps<=4000 && d.requested_cps[0]<=4000);
-      /* Real PWM calibration already exceeds 4000 at the old ramp's entry:
+        assert(out.left_cps<=3600 && d.requested_cps[0]<=3600);
+      /* Real PWM calibration already exceeds 3600 at the old ramp's entry:
          enforce the cap at entry as well as at the final cruise level. */
       if(phase==0 && (frame==0 || frame==19))
-        assert(d.requested_cps[0]==4000 && d.requested_cps[2]==4000);
+        assert(d.requested_cps[0]==3600 && d.requested_cps[2]==3600);
       if(phase==4 && frame==19)
       {
         assert(out.action==Promoted_LINE_ACTION_CROSSING);

@@ -7,6 +7,8 @@
 #include "oled_status.h"
 
 #include "main.h"
+#include "mpu6050_yaw.h"
+#include "promoted_sign_route.h"
 
 #define OLED_WIDTH                 128U
 #define OLED_PAGES                   4U
@@ -448,9 +450,8 @@ static void build_screen(uint8_t app_mode,
     case 0U: draw_battery_header("INT"); break;
     case 1U: draw_battery_header("LINE"); break;
     case 2U: draw_battery_header("M3 LINE"); break;
-    case 3U: draw_battery_header("M4 SIMPLE"); break;
-    case 4U: draw_battery_header("M5 BYPASS"); break;
-    case 5U: draw_battery_header("STOP"); break;
+    case 3U: draw_battery_header("M4 BYPASS"); break;
+    case 4U: draw_battery_header("STOP"); break;
     default: draw_battery_header("UNK"); break;
   }
 
@@ -618,12 +619,48 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 ADV" : "M4 SIMPLE");
+  if (mode_number == 3U)
+  {
+    char prefix[8];
+    index = append_string(prefix, 0U, "M3 E");
+    index = append_unsigned(prefix, index, Promoted_SignRoute_GetExitAngleDegrees());
+    prefix[index] = '\0'; /* bounded30..90 -> six characters */
+    draw_battery_header(prefix);
+  }
+  else draw_battery_header("M4 GYRO");
 
-  index = append_string(line, 0U, "LINE:");
-  index = append_line_mask(line, index, line_mask);
-  index = append_string(line, index, " A:");
-  index = append_unsigned(line, index, line_action);
+  if (mode_number == 3U)
+  {
+    MpuYawReading imu;
+    /* Cached status only: drawing must not service or restart the IMU. */
+    MpuYaw_GetReading(&imu);
+    index = append_string(line, 0U, "IMU:");
+    switch (imu.state)
+    {
+      case MPU_YAW_STARTING:
+        index = append_string(line, index, "INIT"); break;
+      case MPU_YAW_WAIT_STATIONARY:
+        index = append_string(line, index, "WAIT STOP"); break;
+      case MPU_YAW_CALIBRATING:
+        index = append_string(line, index, "CAL ");
+        index = append_unsigned(line, index, imu.calibration_samples); break;
+      case MPU_YAW_READY:
+        index = append_string(line, index, MpuYaw_IsReady(HAL_GetTick()) ?
+            "CAL OK" : "CAL OK WAIT"); break;
+      case MPU_YAW_FAULT:
+        index = append_string(line, index, "ERR ");
+        index = append_unsigned(line, index, imu.fault); break;
+      default:
+        index = append_string(line, index, "UNKNOWN"); break;
+    }
+  }
+  else
+  {
+    index = append_string(line, 0U, "LINE:");
+    index = append_line_mask(line, index, line_mask);
+    index = append_string(line, index, " A:");
+    index = append_unsigned(line, index, line_action);
+  }
   finish_text(line, index);
   draw_text(1U, 0U, line);
 
@@ -635,24 +672,35 @@ static void build_sign_line_screen(uint8_t mode_number,
   else
   {
     index = append_char(line, index,
-        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : '-'));
+        vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : (vision_class == 2 ? 'H' : '-')));
     index = append_char(line, index, ' ');
     index = append_unsigned(line, index, vision_score);
+  }
+  if (mode_number == 3U)
+  {
+    Promoted_SignRouteStatus route;
+    Promoted_SignRoute_GetStatus(HAL_GetTick(), &route);
+    index = append_string(line, index, " H:");
+    if (route.road_reference_valid && route.direction)
+      index = append_signed(line, index, route.direction * route.heading_error_mdeg / 1000L);
+    else index = append_string(line, index, "--");
   }
   finish_text(line, index);
   draw_text(2U, 0U, line);
 
   index = append_string(line, 0U, "ROUTE:");
-  if (mode_number == 3U && line_action == 6U)
+  if (line_action == 6U)
     index = append_string(line, index, "OBSERVE");
   else if (mode_number == 3U && line_action == 7U)
     index = append_string(line, index, "SEEK LINE");
   else switch (route_state)
   {
     case 1U: index = append_string(line, index, "ARM"); break;
-    case 2U: index = append_string(line, index, "TURN"); break;
+    case 2U: index = append_string(line, index,
+        mode_number == 4U ? "ENTRY LINE" : "TURN"); break;
     case 3U: index = append_string(line, index, "LOCK"); break;
-    case 4U: index = append_string(line, index, "PROBE"); break;
+    case 4U: index = append_string(line, index,
+        mode_number == 4U ? "ENTRY TURN" : "PROBE"); break;
     case 5U: index = append_string(line, index, "NO SIGN"); break;
     case 6U: index = append_string(line, index, "ARC"); break;
     case 7U: index = append_string(line, index, "EXIT TURN"); break;
@@ -660,13 +708,16 @@ static void build_sign_line_screen(uint8_t mode_number,
     case 9U: index = append_string(line, index, "LINE LOST"); break;
     case 10U: index = append_string(line, index, "SEARCH"); break;
     case 11U: index = append_string(line, index, "CANCEL"); break;
+    case 12U: index = append_string(line, index, "ENTRY RETURN"); break;
+    case 13U: index = append_string(line, index, "FALLBACK LINE"); break;
     default: index = append_string(line, index, "IDLE"); break;
   }
-  if (route_direction != 0)
+  if (route_direction != 0 && !(mode_number==3U && line_action==7U))
   {
     index = append_char(line, index, ' ');
     index = append_char(line, index, route_direction < 0 ? 'L' : 'R');
   }
+  if (line_action == 3U) index = append_string(line, index, " S"); /* search without hiding phase */
   finish_text(line, index);
   draw_text(3U, 0U, line);
 }

@@ -106,7 +106,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
    These are target profiles, not raw motor PWM overrides. */
 #define FAST_STRAIGHT_BASE_PWM                 2550
 #define FAST_STRAIGHT_MAX_PWM                  2750
-#define FAST_STRAIGHT_MAX_CPS                  4000L
+#define FAST_STRAIGHT_MAX_CPS                  3600L
 #define FAST_EDGE_CPS                          3200L
 
 static int16_t follow_base_pwm(void)

@@ -23,7 +23,7 @@ void Promoted_SignLineFollow_Stop(Promoted_SignLineFollowController *c)
 {
   if (!c->running) return;
   c->running = c->override_active = c->observation_paused = 0U;
-  c->arc_tracking_active=0U;
+  c->observation_cycle=c->arc_tracking_active=0U;
   c->arc_steer_direction=0;
   c->last_owner=Promoted_SIGN_FOLLOW_OWNER_STOP;
   c->last_line_action=Promoted_LINE_ACTION_STOP;
@@ -78,6 +78,7 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
   uint8_t exit_follow = route->profile == Promoted_SIGN_ROUTE_PROFILE_STANDARD &&
       route->state == Promoted_SIGN_ROUTE_EXIT_CLEAR;
   uint8_t guarded_search, override, action;
+  uint8_t center_search=mode3 && Promoted_SignObservation_SeekingLine();
 
   if (!c->running || base_speed <= 0)
   {
@@ -94,6 +95,13 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     c->arc_tracking_active=0U;
     c->arc_steer_direction=0;
   }
+  if ((paused || center_search) && !c->observation_cycle)
+  {
+    c->observation_search_direction=Promoted_LineRecovery_IsSearching() ?
+        Promoted_LineRecovery_GetDirection() : c->guard.last_direction;
+    c->observation_cycle=1U;
+  }
+  if (!paused && !center_search) c->observation_cycle=0U;
   if (paused)
   {
     if (!c->observation_paused)
@@ -111,6 +119,22 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     return 6U;
   }
   if (c->observation_paused) resume_observation(c);
+  if (center_search)
+  {
+    uint32_t now=HAL_GetTick();
+    if (!Promoted_LineRecovery_IsSearching())
+    {
+      Promoted_line_tracking_yield_to_route();
+      Promoted_LineRecovery_Begin(c->observation_search_direction,now);
+    }
+    c->override_active=1U;
+    c->last_owner=Promoted_SIGN_FOLLOW_OWNER_CENTERING;
+    DriveBase_SetSpeedLimitCps(0L);
+    DriveBase_SetLineFaultObservation(1U,mask,5U);
+    (void)Promoted_LineRecovery_StepCentering(reading,&output,now);
+    c->last_line_action=(uint8_t)output.action;
+    return 7U; /* SEEK LINE; any middle contact is stopped by observation. */
+  }
   /* SL2 supplies only the existing sign-entry/gyro search guard. Its visible
      line table is not used for ordinary or acquired-arc steering. */
   Promoted_SimpleLine_StepRoute(&c->guard, mask, route, route_command);

@@ -146,10 +146,12 @@ void Promoted_SimpleLine_StepRoute(Promoted_SimpleLineController *controller, ui
     uint8_t opposite = route->direction < 0 ?
         (tracking_mask == 1U || tracking_mask == 3U) :
         (tracking_mask == 8U || tracking_mask == 12U);
-    /* An opposing outer branch is not capture. A lone inner sensor still
-       describes the approach line and must permit normal forward correction,
-       including immediately after observation; it is not imaginary white. */
-    if (opposite) tracking_mask=0U;
+    /* An opposing OUTER-ONLY branch is not capture. In mode3 any middle
+       contact is still real approach-line feedback, including an adjacent
+       outer+middle pair after observation. Never turn that pair into white.
+       Mode4 retains its independent branch-selection policy. */
+    if (opposite && (route->profile != Promoted_SIGN_ROUTE_PROFILE_STANDARD ||
+                     (tracking_mask & 6U) == 0U)) tracking_mask=0U;
     Promoted_SimpleLine_SetDirection(controller, route->direction);
   }
   /* Current line wins even on the same cycle as a route transition. Never
