@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
-comprehensive_candidate_status: 98a4a8f_reflashed_readback_GO_OLED_retest_pending
+comprehensive_candidate_status: 98a4a8f_reflashed_readback_GO_OLED_normal_user_report
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 115920
 comprehensive_candidate_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
@@ -27,7 +27,7 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 115920
 flashed_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
 flashed_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31300A617E838E29365F46
-ground_test_status: no_motion_test_98a4a8f_OLED_retest_pending
+ground_test_status: no_motion_test_98a4a8f_OLED_normal_user_report
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
@@ -38,7 +38,7 @@ k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_98a4a8f_readback_GO_OLED_retest_pending
+stm32_runtime_status: COM11_98a4a8f_readback_GO_OLED_normal_user_report
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
 temporary_flash_selector_commit: 98a4a8f_OLED_retest
 github_release_tag: v1.2.0-rc.5
@@ -52,6 +52,13 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### OLED retest outcome: normal on latest98a4a8f
+
+User reports OLED normal after reflashing the same latest98a4a8f. Earlier
+black screen did not reproduce in this comparison; no deterministic firmware
+regression or hardware cause is established. Keep latest firmware unchanged.
+No motion-test evidence. This supersedes OLED-pending statements below.
 
 ### Current board: 98a4a8f OLED retest
 

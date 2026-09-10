@@ -16,4 +16,6 @@ GO OK: 0x08000000
 ```
 
 Audio/calibration pages excluded. No post-GO query, motion, K210 change or
-push. OLED repeat outcome pending user observation; root cause not established.
+push. User subsequently reported OLED normal on this same latest image.
+Black screen did not reproduce; root cause remains undetermined. No code fix
+or physical driving validation is implied by this user-observed display result.
