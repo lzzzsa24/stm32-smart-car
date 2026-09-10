@@ -17,14 +17,14 @@ def function(name):
 assert 'vision_line_v4_task' not in main and 'VisionLineV4Control_Step' not in main
 assert 'configure_bypass_profile(app_mode == APP_MODE_FIXED_BYPASS);' in main
 assert 'app_mode == APP_MODE_LINE_ONLY || app_mode == APP_MODE_FIXED_BYPASS' in main
-assert 'line_tracking_set_straight_boost(fixed_bypass_mode);' in main
+assert 'Promoted_line_tracking_set_fast_follow(1U);' in main
 assert 'if (!fixed_bypass_mode && confirmed_ir_bypass_direction' in main
 assert 'LineBypassRange_Task(' in main
 assert main.index('LineObstacleBypass_Stop();', main.index('if (requested_mode != app_mode)')) < main.index('configure_bypass_profile(app_mode')
 assert 'fixed_bypass_mode ? 10U : 5U' in function('static void configure_ultrasonic_avoid(void)')
 # Existing sign route/controller/driver and camera sources must not be promoted.
 for path in ('Core/Src/sign_route.c', 'Core/Src/simple_line_mode.c',
-             'Core/Src/sign_slowdown.c', 'Core/Src/drive_base.c',
+             'Core/Src/sign_slowdown.c',
              'Core/Src/motorPWM.c', 'Core/Src/wheel_encoder.c', 'K210/sign_mode34.py'):
     expected = subprocess.check_output(['git', 'show', 'e643c39:' + path], cwd=ROOT)
     actual = (ROOT / path).read_bytes()

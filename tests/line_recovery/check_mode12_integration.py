@@ -33,7 +33,7 @@ assert "LineObstacleBypass_Task" not in pure
 bypass = block(runtime, "if (LineObstacleBypass_GetState() != LINE_BYPASS_IDLE)")
 assert "LineObstacleBypass_Task(&bypass_input);" in bypass
 done = block(bypass, "if (bypass_state == LINE_BYPASS_DONE)")
-assert bypass.count("line_tracking_follow_once") == 1 and "line_tracking_follow_once" in done
+assert bypass.count("line_tracking_follow_once") == 2 and "line_tracking_follow_once" in done
 assert "line_tracking_rejoin_from_bypass(contact);" in done
 assert "UltrasonicAvoid_ResumeFollowing();" in done and "configure_ultrasonic_avoid();" not in done
 assert bypass.index("LineObstacleBypass_ObserveRawSensors") < bypass.index("LineObstacleBypass_Task")
