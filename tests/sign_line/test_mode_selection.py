@@ -21,6 +21,8 @@ stubs = r'''
 #include <assert.h>
 #include <stdio.h>
 #include "ir_remote.h"
+#include "ir_remote_keymap.h"
+#include "sign_route.h"
 #define GPIO_PIN_RESET 0
 #define key1_GPIO_Port 0
 #define key2_GPIO_Port 0
@@ -31,6 +33,7 @@ stubs = r'''
 #define EXP7_AUDIO_VOLUME_STEP 2
 static uint8_t remote_input, serial_input, button;
 static unsigned stops;
+static int volume_change;
 uint8_t IrRemote_TakeVirtualKey(void) { return remote_input; }
 static uint8_t app_take_serial_virtual_key(void) { return serial_input; }
 static int HAL_GPIO_ReadPin(int port, int pin) { (void)port; return button!=pin; }
@@ -39,7 +42,7 @@ static void BuzzerPhrase400_Stop(void) { ++stops; }
 static void app_audio_toggle(void) {}
 static void app_audio_next(void) {}
 static void app_audio_previous(void) {}
-static void app_audio_adjust_volume(int step) { (void)step; }
+static void app_audio_adjust_volume(int step) { volume_change+=step; }
 '''
 checks = r'''
 _Static_assert(APP_MODE_INTEGRATED==0 && APP_MODE_LINE_ONLY==1 &&
@@ -73,7 +76,38 @@ int main(void)
     remote_input=serial_input=0; button=3;
     assert(read_requested_mode(current)==APP_MODE_SIGN_LINE);
     button=0; assert(read_requested_mode(current)==current);
+    volume_change=0;
+    remote_input=IrRemoteKeyMap_Map(0x0CU);
+    assert(read_requested_mode(current)==current);
+    assert(SignRoute_GetExitAngleDegrees()==(current==APP_MODE_SIGN_LINE?45:40));
+    assert(volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x0EU);
+    assert(read_requested_mode(current)==current);
+    assert(SignRoute_GetExitAngleDegrees()==40 && volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x0CU); serial_input=IR_REMOTE_VIRTUAL_STOP;
+    assert(read_requested_mode(current)==APP_MODE_STOPPED);
+    assert(SignRoute_GetExitAngleDegrees()==40 && volume_change==0);
+    remote_input=IrRemoteKeyMap_Map(0x01U); serial_input=0;
+    assert(read_requested_mode(current)==current && volume_change==2);
+    remote_input=IrRemoteKeyMap_Map(0x09U);
+    assert(read_requested_mode(current)==current && volume_change==0);
+    assert(SignRoute_GetExitAngleDegrees()==40);
+    remote_input=serial_input=0;
   }
+  for(key=0;key<50;++key) {
+    remote_input=IrRemoteKeyMap_Map(0x0CU);
+    assert(read_requested_mode(APP_MODE_SIGN_LINE)==APP_MODE_SIGN_LINE);
+  }
+  assert(SignRoute_GetExitAngleDegrees()==90);
+  SignRoute_Reset(); assert(SignRoute_GetExitAngleDegrees()==90);
+  for(key=0;key<50;++key) {
+    remote_input=IrRemoteKeyMap_Map(0x0EU);
+    assert(read_requested_mode(APP_MODE_SIGN_LINE)==APP_MODE_SIGN_LINE);
+  }
+  assert(SignRoute_GetExitAngleDegrees()==30);
+  SignRoute_AdjustExitAngle(1); SignRoute_AdjustExitAngle(1);
+  assert(SignRoute_GetExitAngleDegrees()==40);
+  puts("PASS: actual NEC keymap+selector change mode3 angle by5, preserve mode/audio/STOP and clamp30..90; route reset retains tuning");
   puts("PASS: actual selector binds standard sign to KEY3 and gyro tangent arc to KEY4; STOP and other numbers retained");
   return 0;
 }
@@ -84,6 +118,7 @@ source = build / "test_mode_selection_extract.c"
 exe = build / "test_mode_selection.exe"
 source.write_text(stubs + enum.group() + "\n" + selector + "\n" + checks, encoding="utf-8")
 subprocess.run(["cl", "/nologo", "/W4", "/WX", "/utf-8", "/std:c11",
-                "/ICore/Inc", str(source), "/Fo" + str(build / "test_mode_selection.obj"),
+                "/ICore/Inc", str(source), "Core/Src/sign_route.c", "Core/Src/ir_remote_keymap.c",
+                "/Fo" + str(build) + "/",
                 "/Fe" + str(exe)], cwd=ROOT, check=True)
 subprocess.run([str(exe)], cwd=ROOT, check=True)

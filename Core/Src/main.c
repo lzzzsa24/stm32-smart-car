@@ -1106,6 +1106,14 @@ static AppMode read_requested_mode(AppMode current_mode)
   {
     app_audio_adjust_volume(-EXP7_AUDIO_VOLUME_STEP);
   }
+  else if (current_mode == APP_MODE_SIGN_LINE && remote_key == IR_REMOTE_VIRTUAL_ADD)
+  {
+    SignRoute_AdjustExitAngle(1);
+  }
+  else if (current_mode == APP_MODE_SIGN_LINE && remote_key == IR_REMOTE_VIRTUAL_SUBTRACT)
+  {
+    SignRoute_AdjustExitAngle(-1);
+  }
 
   if (HAL_GPIO_ReadPin(key1_GPIO_Port, key1_Pin) == GPIO_PIN_RESET ||
       remote_key == IR_REMOTE_VIRTUAL_KEY1)

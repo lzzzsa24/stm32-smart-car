@@ -23,6 +23,9 @@
    line mask, encoder travel and debounce. Alignment only releases steering;
    the selected outer clear-to-black event still completes the route. */
 #define SIGN_EXIT_HEADING_TRIGGER_MDEG 40000L
+#define SIGN_MODE3_EXIT_MIN_DEG 30U
+#define SIGN_MODE3_EXIT_MAX_DEG 90U
+#define SIGN_MODE3_EXIT_STEP_DEG 5U
 #define SIGN_EXIT_HEADING_MIN_MDEG 45000L
 #define SIGN_EXIT_HEADING_MAX_MDEG 120000L
 #define SIGN_ARC_ORIGIN_LOCK_MDEG 20000L

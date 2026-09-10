@@ -78,6 +78,18 @@ typedef struct
 } SignRouteContext;
 
 static SignRouteContext route;
+static uint8_t mode3_exit_angle_deg = (uint8_t)(SIGN_EXIT_HEADING_TRIGGER_MDEG / 1000L);
+
+uint8_t SignRoute_GetExitAngleDegrees(void) { return mode3_exit_angle_deg; }
+void SignRoute_AdjustExitAngle(int8_t direction)
+{
+  int16_t next = mode3_exit_angle_deg;
+  if (direction > 0) next += SIGN_MODE3_EXIT_STEP_DEG;
+  else if (direction < 0) next -= SIGN_MODE3_EXIT_STEP_DEG;
+  if (next < (int16_t)SIGN_MODE3_EXIT_MIN_DEG) next = SIGN_MODE3_EXIT_MIN_DEG;
+  if (next > (int16_t)SIGN_MODE3_EXIT_MAX_DEG) next = SIGN_MODE3_EXIT_MAX_DEG;
+  mode3_exit_angle_deg = (uint8_t)next;
+}
 
 static void enter_phase(SignRouteState state, uint32_t now);
 
@@ -1226,7 +1238,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         route.exit_region_seen=1U;
       /* Only the signed stopped-reference heading triggers mode-3 exit.
          Line mask, encoder travel and elapsed confirmation time are not gates. */
-      if (route.road_reference_valid && road_heading >= SIGN_EXIT_HEADING_TRIGGER_MDEG)
+      if (route.road_reference_valid && road_heading >= (int32_t)mode3_exit_angle_deg * 1000L)
       {
         enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
         route.exit_reason=1U;

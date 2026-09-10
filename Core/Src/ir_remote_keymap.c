@@ -11,6 +11,8 @@
 #define IR_COMMAND_AUDIO_NEXT         0x06U
 #define IR_COMMAND_AUDIO_VOLUME_DOWN  0x09U
 #define IR_COMMAND_NUMBER_0           0x0DU
+#define IR_COMMAND_ADD                0x0CU
+#define IR_COMMAND_SUBTRACT           0x0EU
 #define IR_COMMAND_NUMBER_1           0x10U
 #define IR_COMMAND_NUMBER_2           0x11U
 #define IR_COMMAND_NUMBER_3           0x12U
@@ -33,6 +35,10 @@ uint8_t IrRemoteKeyMap_Map(uint8_t command)
       return IR_REMOTE_VIRTUAL_KEY5;
     case IR_COMMAND_NUMBER_0:
       return IR_REMOTE_VIRTUAL_STOP;
+    case IR_COMMAND_ADD:
+      return IR_REMOTE_VIRTUAL_ADD;
+    case IR_COMMAND_SUBTRACT:
+      return IR_REMOTE_VIRTUAL_SUBTRACT;
     case IR_COMMAND_CENTER_AUDIO:
       return IR_REMOTE_VIRTUAL_AUDIO_TOGGLE;
     case IR_COMMAND_AUDIO_VOLUME_UP:
