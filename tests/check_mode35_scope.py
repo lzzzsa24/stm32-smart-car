@@ -41,6 +41,25 @@ for name in ('line_tracking', 'line_recovery', 'sign_route', 'sign_route_config'
         actual = actual.replace('Promoted_', '').replace('promoted_', '')
         actual = actual.replace('PROMOTED_LINE_TRACKING_HEADER_H', '__LINE_TRACKING_H')
         expected = git_text(source, f'Core/{folder}/{name}.{ext}')
+        # Explicit mode3-only exceptions to mechanical promotion. Functional
+        # route/DriveBase regressions verify these edited functions; all other
+        # modules and shared mode1/2/4 paths remain byte-identical to anchors.
+        if name == 'sign_route' and ext == 'h':
+            actual = actual.replace('  uint8_t heading_drive;  /* mode3 EXIT LINE: forward CPS with gyro correction */\n', '')
+            actual = actual.replace('  int32_t drive_heading_error_mdeg; /* relative to EXIT LINE entry, not the stop */\n', '')
+        if name == 'sign_route' and ext == 'c':
+            actual = actual.replace('  uint8_t exit_started;\n  uint32_t exit_started_ms;', '  uint8_t exit_line_lost;')
+            actual = actual.replace('  int64_t exit_drive_yaw;\n', '')
+            actual = actual.replace(block(actual, 'static void exit_line_command(') + '\n\n', '')
+            for marker in ('static void enter_phase(SignRouteState state, uint32_t now)\n{',
+                           'static void cancel_route(', 'static void complete_route(',
+                           'void SignRoute_Step('):
+                actual = actual.replace(block(actual, marker), block(expected, marker))
+        if name == 'sign_line_follow' and ext == 'c':
+            actual = actual.replace(block(actual, '      if (mode3 && route_command->heading_drive)') + '\n      else if', '      if')
+            actual = actual.replace('    /* Ordinary following/search resumes when route ownership is released. */',
+                "    /* Mode 3's aligned exit is already live tracking, with the same slow\n"
+                '       targets. An old crossing tail must not hide a current outer contact. */')
         assert actual == expected, name
 
 main = current('Core/Src/main.c')
@@ -71,4 +90,4 @@ assert 'Promoted_line_tracking_set_fast_follow(1U);' in block(main, 'static void
 assert 'if (fixed_bypass_mode) Promoted_line_tracking_rejoin_from_bypass(contact);' in main
 assert 'Promoted_SignLineFollow_Stop(&promoted_sign_controller);' in transition
 assert 'Promoted_line_tracking_reset();' in transition
-print('PASS: mode1/2 legacy controllers/hardware unchanged; mode3/4 composite source identity and four-mode dispatch isolation')
+print('PASS: mode1/2 legacy controllers/hardware unchanged; bounded mode3 exit exceptions, remaining promoted source identity and four-mode dispatch isolation')

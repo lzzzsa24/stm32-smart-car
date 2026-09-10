@@ -17,7 +17,7 @@ static void step(uint8_t mask,int32_t yaw,int move)
 static void finish_outer(int side)
 {
   int32_t yaw=last_input_yaw;
-  if(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT || s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR)
+  if(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR || s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR)
   {
     step(6,yaw,12);
     step(side<0?14:7,yaw,12);
@@ -61,10 +61,11 @@ static void stopped_exit(int side,int32_t stopped,uint8_t mask,int32_t apex)
   assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active);
   now+=80;
   step(mask,stopped+side*40000,0);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && s.travel_mm==0);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.travel_mm==0 && c.heading_drive);
+  assert(c.drive_heading_error_mdeg==0); /* no turn back toward the stop */
   assert(s.heading_error_mdeg==side*40000 && s.approach_from_pause);
   step(mask,stopped+side*25000,0);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active && c.heading_drive && s.direction==side);
   step(0,stopped+side*25000,0);
   step((uint8_t)(mask|outer),stopped+side*25000,0);
   assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction && !c.active);
@@ -75,17 +76,37 @@ static void natural_exit(int side,int32_t stopped)
   unsigned i;
   start(side,stopped);
   step(6,stopped+side*52000,0);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active);
   for(i=0;i<30;++i) step(6,stopped+side*35000,12);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active); /* no natural-return shortcut */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active); /* no natural-return shortcut */
   step(6,stopped,0);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side && !c.active);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side && c.active && c.heading_drive);
   finish_outer(side); assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
 }
 static void set_exit_angle(unsigned degrees)
 {
   while(Promoted_SignRoute_GetExitAngleDegrees()<degrees) Promoted_SignRoute_AdjustExitAngle(1);
   while(Promoted_SignRoute_GetExitAngleDegrees()>degrees) Promoted_SignRoute_AdjustExitAngle(-1);
+}
+static void fresh_post_exit_evidence(int side)
+{
+  unsigned i;
+  uint8_t outer=side<0?8:1;
+  start(side,0);
+  step(0,side*39999,0); /* before exit, clear cannot arm success */
+  step(0,side*40000,0); /* transition sample cannot arm success either */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR);
+  for(i=0;i<5;++i)
+  {
+    step(outer,side*40000,0);
+    assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side);
+  }
+  step(outer,0,0); /* heading change cannot complete or arm the outer latch */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive);
+  step(6,0,0); /* first clear strictly AFTER exit entry */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive);
+  step(15,0,0); /* other three sensors do not veto success */
+  assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction && !c.heading_drive);
 }
 static void adjustable_exit(void)
 {
@@ -100,8 +121,10 @@ static void adjustable_exit(void)
       step((uint8_t)mask,10000+side*(threshold-1),0);
       assert(s.state==Promoted_SIGN_ROUTE_ARC);
       step((uint8_t)mask,10000+side*threshold,0);
-      assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
+      assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active && c.heading_drive);
+      assert(c.drive_heading_error_mdeg==0);
       step(0,10000,0);
+      assert(c.drive_heading_error_mdeg==-side*threshold); /* trigger pose is immutable */
       assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && s.direction==side);
       step((uint8_t)(mask|(side<0?8U:1U)),10000,0);
       assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
@@ -109,9 +132,9 @@ static void adjustable_exit(void)
   set_exit_angle(50); start(1,0);
   step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_ARC);
   Promoted_SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_ARC);
-  Promoted_SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
+  Promoted_SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR);
   Promoted_SignRoute_AdjustExitAngle(1); step(6,44000,0);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT); /* settings cannot restart an exit */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR); /* settings cannot restart an exit */
   set_exit_angle(40);
   puts("PASS: all adjustable30..90 boundaries mirror on all16 masks; reset preserves value, live lowering starts ARC exit, completion remains outer-only");
 }
@@ -126,5 +149,7 @@ int main(void)
   }
   puts("PASS: stopped reference and biased poses; all16 masks start at40 with zero travel and sample gap; completion still requires outer clear/black");
   adjustable_exit();
+  fresh_post_exit_evidence(-1); fresh_post_exit_evidence(1);
+  puts("PASS: pre-exit/transition clear cannot arm completion; fresh outer event survives heading change and clears heading drive");
   return 0;
 }

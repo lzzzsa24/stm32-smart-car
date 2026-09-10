@@ -162,7 +162,22 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     {
       c->last_owner=Promoted_SIGN_FOLLOW_OWNER_ROUTE;
       /* Route chooses heading; KEY2's slow rejoin profile chooses wheel CPS. */
-      if (route_command->left_pwm > 0 || route_command->right_pwm > 0)
+      if (mode3 && route_command->heading_drive)
+      {
+        /* Forward leg immediately at the exit angle. Never let a middle/opposite
+           ring contact resume ordinary following before outer completion.
+           Use the existing encoder application and slow correction envelope. */
+        int32_t error=route_command->drive_heading_error_mdeg;
+        int32_t magnitude=error<0?-error:error;
+        int32_t correction=magnitude>2000L?(magnitude-2000L)/50L:0L;
+        int32_t cruise=Promoted_LINE_TRACKING_MIDDLE_GUARD_CPS;
+        if (correction>cruise-1412L) correction=cruise-1412L;
+        output.left_cps=cruise-(error<0?correction:0L);
+        output.right_cps=cruise-(error>0?correction:0L);
+        if (correction) output.action=error<0?
+            Promoted_LINE_ACTION_LEFT_ADJUST:Promoted_LINE_ACTION_RIGHT_ADJUST;
+      }
+      else if (route_command->left_pwm > 0 || route_command->right_pwm > 0)
       {
         int8_t steer = route_command->left_pwm == route_command->right_pwm ? 0 :
             (route_command->left_pwm < route_command->right_pwm ? -1 : 1);
@@ -188,8 +203,7 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
   }
   else
   {
-    /* Mode 3's aligned exit is already live tracking, with the same slow
-       targets. An old crossing tail must not hide a current outer contact. */
+    /* Ordinary following/search resumes when route ownership is released. */
     Promoted_LineTrackingAction line_action;
     if (mode3)
     {
