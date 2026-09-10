@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: ec15dda6608a2a492d9e2cd2fd76eda435d8e177
-comprehensive_candidate_status: ec15dda_build_tests_passed_not_flashed
+comprehensive_candidate_status: ec15dda_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 120784
 comprehensive_candidate_bin_sha256: A1F7EE526F97BA56725F947A71B223E83F5699DC567820071A9077A3FFC61B28
@@ -19,28 +19,28 @@ comprehensive_candidate_hex_sha256: 6DA83DC066371A41BEA0043BC50B5F2717A954BD58A3
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
-flashed_source_commit: f1301b2310db67306a930ef1845e5c375ecc9449
-flash_record_commit: c3a9d6e57b2f3791e532adb83626c2cdb31b1e76
-deployed_tag: deployed/2026-09-10-f1301b2
+flashed_source_commit: ec15dda6608a2a492d9e2cd2fd76eda435d8e177
+flash_record_commit: 3e8c69a9964fb32b2f621a8ac4be6fb33d38ead9
+deployed_tag: deployed/2026-09-10-ec15dda
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 120784
-flashed_bin_sha256: 2B4429BCC21AED81E8DC77372879E40ADE30E0194EF57D0713876AD9765474EC
-flashed_hex_sha256: A2B3520A79B473AD1B7AA96A76BA43C5467CEA01849B209215D473ADEDC24735
-ground_test_status: not_tested_after_f1301b2_deployment
+flashed_bin_sha256: A1F7EE526F97BA56725F947A71B223E83F5699DC567820071A9077A3FFC61B28
+flashed_hex_sha256: 6DA83DC066371A41BEA0043BC50B5F2717A954BD58A3E26F8233177257962EDD
+ground_test_status: not_tested_after_ec15dda_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: b387042d83390f866e1305c99c2687e60b118624
 candidate_bin_size_bytes: 137692
 candidate_bin_sha256: B9C92B0E8C0FED3CBD4EF9D0DDE8295D8703F75439157BDA6B73D0DE18F4D5B2
 candidate_hex_sha256: B47FDBF115F95E0B95129433344D9DC5D0D5818F7DD1442181666D86B8B4D507
-user_reported_flash: tool_verified_f1301b2_readback_GO
+user_reported_flash: tool_verified_ec15dda_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
 remote_sync_branch: integration/main-mode35-sync-20260910
-stm32_runtime_status: COM11_f1301b2_full_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_ec15dda_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: f1301b2_comprehensive_flashed
+temporary_flash_selector_commit: ec15dda_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,13 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive deployment: ec15dda
+
+COM11 full120784-byte write/readback and GO passed. Reserved pages excluded,
+K210 unchanged. No post-GO query, physical test or push. Evidence:
+docs/history/deployments/DEPLOYMENT_EC15DDA_20260910.md.
+Supersedes older unflashed and board-source entries below.
 
 ### Latest comprehensive candidate: ec15dda (not flashed)
 
