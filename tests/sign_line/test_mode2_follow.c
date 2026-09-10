@@ -108,7 +108,7 @@ static void weak_votes_must_not_skip_observation(int side, uint32_t origin)
   init(1,origin);
   for(i=0;i<3;++i)
   {
-    observe_score(side,(uint8_t)(20U+i%2U));
+    observe_score(side,19);
     sample(6,0);
   }
   /* Real application inhibits parking as soon as route.direction is set.
@@ -116,8 +116,8 @@ static void weak_votes_must_not_skip_observation(int side, uint32_t origin)
   if(route.direction) fprintf(stderr,"weak votes prematurely inhibited observation: side=%d state=%d direction=%d\n",side,route.state,route.direction);
   assert(route.direction==0 && !SignObservation_Paused(tick));
   stopped=tick;
-  observe_score(side,22);
-  assert(sample(6,0)==6U && route.direction==side);
+  observe_score(side,20);
+  assert(sample(6,0)==6U && route.direction==0);
   for(i=0;i<198;++i)
   {
     observe_score(side,20);
@@ -129,8 +129,8 @@ static void weak_votes_must_not_skip_observation(int side, uint32_t origin)
   sample(6,0);
   assert(!SignObservation_Paused(tick) && route.direction==side);
   assert(route.approach_from_pause && route.road_reference_valid);
-  for(i=0;i<80;++i) { observe_score(side,22); assert(sample(6,0)!=6U); }
-  puts("PASS: weak votes then 22-percent frame stop for full 2s, publish direction, retain stopped heading and do not repeat confirmed stop");
+  for(i=0;i<80;++i) { observe_score(side,20); assert(sample(6,0)!=6U); }
+  puts("PASS: 19-percent rejected then first 20-percent frame stops for full 2s, votes confirm direction, retain stopped heading and do not repeat confirmed stop");
 }
 static void drive_before_stop(int32_t yaw)
 {

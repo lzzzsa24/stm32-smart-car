@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include "vision_detection.h"
 
-#define SIGN_OBSERVATION_MODE3_SCORE_MINIMUM 22U
+#define SIGN_OBSERVATION_MODE3_SCORE_MINIMUM 20U
 #define SIGN_OBSERVATION_MODE4_SCORE_MINIMUM 26U
 
 /* Recognition pause only. No driving-speed cap or PWM conversion. */
