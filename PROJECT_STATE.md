@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 947794dec76d649c55c1d3588fefafd01c6772f5
-comprehensive_candidate_status: 79d4e9d_integrated_build_tests_COM11_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: 29d490bf7d2ba89d524f2cc34c0f109837849f69
+comprehensive_candidate_status: f278143_integrated_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115996
-comprehensive_candidate_bin_sha256: F7A8EED9F861F7E88129669B8D2F6F02951F58C5A4D49BA77DE6C7E8B6C6DE9F
-comprehensive_candidate_hex_sha256: 1333C95B9ED36D49863946509660F824F4EFA00992DA8FF63493AF2D0B5A2F62
+comprehensive_candidate_bin_size_bytes: 115808
+comprehensive_candidate_bin_sha256: 355A4FDD29D4AD71EB78C0094EB1B0F5E38C0C3FDD5904E7FC17C582B36149A4
+comprehensive_candidate_hex_sha256: AF6CB8A2A9E0B213A124AE662EEDCE75148656EB056494A68A070CEF1CE3BE8C
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 29d490b (not flashed)
+
+f278143 merged onto947794d. Mode4 fallback black contact immediately yields
+to live ARC following; remove saved-direction override and restrict ARC
+search guard to white. Conflicts resolved preserving latest mode3 pause
+handling, stopped-heading reference and exit reacquisition. Mode5 retained.
+Full sign suite, mode1/2, gyro and mode5 integration checks and formal build
+passed. BIN115808 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-f278143. No serial, flash, physical test
+or push; board remains947794d, K210/main firmware unchanged.
 
 ### Latest deployment: 947794d
 
