@@ -884,14 +884,18 @@ static uint8_t line_reading_mask(const LineTrackingReading *line)
                    (line->x4_black ? 1U : 0U));
 }
 
-static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_status)
+static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_status,
+                                     uint8_t route_active)
 {
   VisionUartStats stats;
   DriveBaseTelemetry drive;
   uint32_t now = HAL_GetTick();
 
   DriveBase_GetTelemetry(&drive);
-  SignTrace_Record(now, sign_line_mask, route_status, drive.requested_cps[0], drive.requested_cps[2]);
+  SignTrace_Record(now, sign_line_mask, route_status,
+      drive.requested_cps[0], drive.requested_cps[2],
+      sign_line_controller.last_line_action,
+      sign_line_controller.last_owner, route_active);
 
   if (!tick_reached(now, last_sign_uart_ms + 500U))
   {
@@ -932,6 +936,12 @@ static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_
   DiagnosticUart_WriteString(" SLOW=0 CAP=0"); /* retained diagnostic fields; no sign speed cap */
   DiagnosticUart_WriteString(" SEARCH=");
   DiagnosticUart_WriteUnsigned(route_status->searching);
+  DiagnosticUart_WriteString(" CTRL=");
+  DiagnosticUart_WriteUnsigned(sign_line_controller.last_owner);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteUnsigned(sign_line_controller.last_line_action);
+  DiagnosticUart_WriteString("/");
+  DiagnosticUart_WriteUnsigned(route_active);
   DiagnosticUart_WriteString(" BAD=");
   DiagnosticUart_WriteUnsigned(stats.bad_frames + stats.uart_errors +
                                stats.ring_overflows + stats.queue_overflows);
@@ -1018,7 +1028,7 @@ static void sign_line_task(AppMode mode)
   HAL_GPIO_WritePin(led2_GPIO_Port, led2_Pin,
                     route_status.vision_online != 0U ?
                     GPIO_PIN_SET : GPIO_PIN_RESET);
-  sign_line_telemetry_task(mode, &route_status);
+  sign_line_telemetry_task(mode, &route_status, route_command.active);
 }
 
 static void vision_line_v4_diagnostic_dump(void)

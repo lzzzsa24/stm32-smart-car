@@ -79,17 +79,14 @@ static void mode4_drawn_trajectory(int side)
   reach_arc(side);
   assert(status.profile==SIGN_ROUTE_PROFILE_GYRO_TANGENT);
 
-  /* Visible circle line stays under live sensor control. A brief loss keeps
-     both wheels forward in the arc direction and never requests a spin. */
+  /* Route never owns ARC motors, including during a white gap. The combined
+     SignLineFollow test verifies the forward fallback and live line output. */
   for(angle=10000;angle<arc_sweep;angle+=10000)
   {
     uint8_t mask=angle==70000?0U:6U;
     step(mask,entry_yaw+side*angle,1,angle==20000?1100:0);
     assert(status.state==SIGN_ROUTE_ARC);
-    if(mask==0U)
-      assert(command.active && command.gentle_arc &&
-             command.left_pwm>0 && command.right_pwm>0);
-    else assert(!command.active);
+    assert(!command.active);
   }
 
   for(i=0;i<4;++i) step(6,arc_end_yaw,1,0);

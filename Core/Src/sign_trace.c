@@ -14,7 +14,8 @@ uint8_t SignTrace_Get(uint16_t index, SignTraceRecord *out)
   return 1;
 }
 void SignTrace_Record(uint32_t now, uint8_t mask, const SignRouteStatus *s,
-                      int32_t left_cps, int32_t right_cps)
+                      int32_t left_cps, int32_t right_cps, uint8_t line_action,
+                      uint8_t control_owner, uint8_t route_active)
 {
   SignTraceRecord r={0}, last;
   if (!s) return;
@@ -23,7 +24,10 @@ void SignTrace_Record(uint32_t now, uint8_t mask, const SignRouteStatus *s,
   if (frozen) return;
   dumping=0; /* starting motion cancels an incomplete dump */
   if (count && SignTrace_Get((uint16_t)(count-1),&last) &&
-      now-last.time_ms<20U && last.state==(uint8_t)s->state && last.fault==s->fault)
+      now-last.time_ms<20U && last.state==(uint8_t)s->state && last.fault==s->fault &&
+      last.mask==mask && last.left_cps==left_cps && last.right_cps==right_cps &&
+      last.line_action==line_action && last.control_owner==control_owner &&
+      last.route_active==route_active)
     return;
   r.time_ms=now; r.sequence=s->last_sequence; r.yaw_mdeg=s->yaw_mdeg;
   r.travel_mm=s->travel_mm; r.mask=mask; r.state=(uint8_t)s->state;
@@ -35,6 +39,8 @@ void SignTrace_Record(uint32_t now, uint8_t mask, const SignRouteStatus *s,
   r.exit_heading_peak_mdeg=s->exit_heading_peak_mdeg;
   r.road_reference_valid=s->road_reference_valid;
   r.exit_reason=s->exit_reason; r.arc_sweep_mdeg=s->arc_sweep_mdeg;
+  r.line_action=line_action; r.control_owner=control_owner;
+  r.route_active=route_active;
   records[head]=r; head=(uint16_t)((head+1)%SIGN_TRACE_CAPACITY);
   if(count<SIGN_TRACE_CAPACITY) ++count;
   if(s->state==SIGN_ROUTE_CANCELLED) frozen=1;
@@ -48,7 +54,7 @@ void SignTrace_Task(uint8_t stopped)
   if(request==1U)
   {
     request=0; cursor=0; dumping=1;
-    DiagnosticUart_WriteString("STRACE BEGIN t,mask,state,dir,fault,yaw,mm,seq,online,class,score,heading_error,arc_peak,left_cps,right_cps,pause_ref,exit_heading_peak,road_ref_valid,exit_reason,arc_sweep\r\n");
+    DiagnosticUart_WriteString("STRACE BEGIN t,mask,state,dir,fault,yaw,mm,seq,online,class,score,heading_error,arc_peak,left_cps,right_cps,pause_ref,exit_heading_peak,road_ref_valid,exit_reason,arc_sweep,line_action,owner,route_active\r\n");
     return;
   }
   if(!dumping) return;
@@ -65,6 +71,7 @@ void SignTrace_Task(uint8_t stopped)
   FIELD(r.approach_from_pause);
   FIELD(r.exit_heading_peak_mdeg);
   FIELD(r.road_reference_valid); FIELD(r.exit_reason); FIELD(r.arc_sweep_mdeg);
+  FIELD(r.line_action); FIELD(r.control_owner); FIELD(r.route_active);
 #undef FIELD
   DiagnosticUart_WriteString("\r\n");
 }

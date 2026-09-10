@@ -340,6 +340,7 @@ static void mode4_drawn_drive(int side)
   assert(route.state==SIGN_ROUTE_ARC);
   sample(side<0?8:1,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   assert(!route_command.active);
+  assert(!follower.override_active && follower.last_owner==SIGN_FOLLOW_OWNER_LINE);
   assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
                   drive.requested_cps[2]==0 && drive.requested_cps[0]==2200);
   sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
@@ -349,12 +350,36 @@ static void mode4_drawn_drive(int side)
   sample(7,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   assert(!route_command.active && drive.requested_cps[0]>drive.requested_cps[2]);
   sample(15,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
-  assert(!route_command.active && drive.requested_cps[0]==drive.requested_cps[2]);
+  assert(!route_command.active && !follower.override_active &&
+         follower.last_owner==SIGN_FOLLOW_OWNER_ARC_FALLBACK);
+  assert(drive.requested_cps[0]>0 && drive.requested_cps[2]>0 &&
+         drive.requested_cps[0]!=drive.requested_cps[2]);
   sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
-  assert(route_command.gentle_arc);
-  assert(drive.requested_cps[0]==(side<0?outer:inner));
-  assert(drive.requested_cps[2]==(side<0?inner:outer));
-  assert(drive.requested_cps[0]>0 && drive.requested_cps[2]>0);
+  assert(!route_command.active && !follower.override_active &&
+         follower.last_owner==SIGN_FOLLOW_OWNER_ARC_FALLBACK);
+  assert(drive.requested_cps[0]==outer && drive.requested_cps[2]==inner);
+  assert(drive.requested_cps[0]>0 && drive.requested_cps[2]>0 &&
+         drive.requested_cps[0]!=drive.requested_cps[2]);
+  /* Repeated white/black transitions keep the same ARC owner and immediately
+     accept the current edge instead of resetting into a second controller. */
+  for(i=0;i<20;++i)
+  {
+    uint8_t current=(i&1U)?0U:(side<0?8U:1U);
+    sample(current,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
+    assert(!route_command.active && !follower.override_active);
+    assert(follower.last_owner==(current?SIGN_FOLLOW_OWNER_LINE:
+                                         SIGN_FOLLOW_OWNER_ARC_FALLBACK));
+    assert(drive.requested_cps[0]>=0 && drive.requested_cps[2]>=0);
+  }
+  for(i=0;i<100;++i)
+  {
+    sample(0,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
+    assert(!route_command.active && !follower.override_active &&
+           follower.last_owner==SIGN_FOLLOW_OWNER_ARC_FALLBACK);
+  }
+  sample(side<0?8U:1U,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG+side*10000L);
+  assert(follower.last_owner==SIGN_FOLLOW_OWNER_LINE &&
+         drive.requested_cps[0]>=0 && drive.requested_cps[2]>=0);
   SignLineFollow_Stop(&follower); sample(0,0);
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
 }
@@ -414,7 +439,7 @@ static void arc_feedback_and_entry_search(void)
     for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   }
   assert(failures==0);
-  puts("PASS: ARC raw-line priority, measured curve search direction, entry sweep beyond 25 degrees and STOP");
+  puts("PASS: ARC single owner, raw-line priority, forward white fallback, entry sweep beyond 25 degrees and STOP");
 }
 static void exit_releases_direction(int side, uint32_t origin)
 {
