@@ -9,32 +9,33 @@ Do not infer the active mode map from older experiment documents.
 
 ```text
 state_schema_version: 1
-state_updated_at: 2026-09-10
+state_updated_at: 2026-09-11
 integration_branch: main
-repository_head_at_update: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-latest_code_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-candidate_source_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-candidate_bin_size_bytes: 132176
-candidate_bin_sha256: 987045C4F21D88FAF4FF873F14187F26BADACCAE3162DB7776C5A7E5113B6853
-candidate_hex_sha256: 0407CF64B3128150CFB3ED0670AB1151779202E1183673BDF893FAB02FD03C9D
+repository_head_at_update: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+latest_code_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+candidate_source_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+candidate_bin_size_bytes: 132156
+candidate_bin_sha256: 8C14B8FB10ED8341DD4A0A3FBBE6AC44EF826AA2482624730BCECA7847D872EA
+candidate_hex_sha256: 5E3E41992193398B1444A1939297C41B844BE4974C3EE2178726E09CD5D10C2C
+candidate_status: main_2b4fc1f_COM11_full_readback_GO_passed
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 121028
-flashed_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
-flash_record_commit: e5f62b9924a8cd997151d6c7866df0585b5f9bb1
-deployed_tag: deployed/2026-09-10-a217df8
-flashed_bin_sha256: 308736418B9C96F2BC12B4AB7A06BADD4B1A63584781B6900B01CE120C958079
-flashed_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A76FA
-ground_test_status: new_four_mode_main_not_flashed_or_physically_tested
-user_reported_flash: tool_verified_a217df8_readback_GO
-stm32_runtime_status: last_verified_a217df8_full_readback_GO_no_new_hardware_access
-comprehensive_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
-comprehensive_candidate_status: historical_source_for_four_mode_main_not_future_integration_target
+formal_bin_size_bytes: 132156
+flashed_source_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+flash_record_commit: 53b15e0da0c5cfc54e830101890a43027dea502c
+deployed_tag: deployed/2026-09-11-2b4fc1f
+flashed_bin_sha256: 8C14B8FB10ED8341DD4A0A3FBBE6AC44EF826AA2482624730BCECA7847D872EA
+flashed_hex_sha256: 5E3E41992193398B1444A1939297C41B844BE4974C3EE2178726E09CD5D10C2C
+ground_test_status: four_mode_main_2b4fc1f_flashed_not_physically_tested
+user_reported_flash: tool_verified_2b4fc1f_readback_GO
+stm32_runtime_status: COM11_2b4fc1f_four_mode_main_readback_GO_no_post_GO_query
+comprehensive_candidate_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
+comprehensive_candidate_status: explicit_five_mode_test_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 121028
-comprehensive_candidate_bin_sha256: 308736418B9C96F2BC12B4AB7A06BADD4B1A63584781B6900B01CE120C958079
-comprehensive_candidate_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A76FA
-temporary_flash_selector_commit: a217df8_previous_five_mode_board
+comprehensive_candidate_bin_size_bytes: 121068
+comprehensive_candidate_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
+comprehensive_candidate_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
+temporary_flash_selector_commit: 2b4fc1f_four_mode_main
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
 k210_candidate_status: paired_script_in_K210_sign_mode34_py_for_new_mode3_only
@@ -50,7 +51,35 @@ The repository anchor is the latest firmware commit. Newer documentation-only
 commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
+## Latest board update
+
+After reconnect, four-mode main2b4fc1f passed COM11 full132156-byte readback
+and GO. Audio/calibration pages preserved; K210 unchanged. No post-GO query,
+physical test or push. Evidence: docs/history/deployments/DEPLOYMENT_2B4FC1F_20260911.md.
+This supersedes earlier USB blocker and five-mode board statements below.
+
 ## Current four-mode mapping
+
+Latest local main2b4fc1f merges6594ff0 (notc9df841) without conflicts.
+Mode3 now drives forward immediately along the heading at the configured exit
+angle, no intermediate alignment turn. Fresh post-entry selected outer
+clear/black alone finishes; no route time/distance limit during this forward
+phase. Stale IMU removes trim, not forward motion. Manual STOP remains essential.
+Full promoted sign suite, mode1/2 integration, source scope and ARM build passed.
+Main2b4fc1f subsequently flashed after reconnect; readback/GO passed.
+Board now four-mode2b4fc1f, K210 unchanged. No push or release update.
+Rollback: rollback/2026-09-11-before-6594ff0 ->35a78bb.
+
+Explicit test-only update: user requested62aeda3 into the retained five-mode
+comprehensive branch, merged as62b0de2. Mode3 exit completion requires fresh
+post-entry outer clear/black evidence. Full sign suite and ARM build passed,
+BIN121068 with hashes above, artifacts in comprehensive-v15-sign-horn worktree.
+Rollback: rollback/2026-09-10-before-62aeda3 ->a217df8. Subsequently flashed:
+COM11 full121068-byte readback and GO passed, reserved pages excluded;
+no post-GO query/physical test/push/K210 access.
+That test-only increment was not directly promoted to rc.6. The later main
+6594ff0 contains its own fresh-outer semantics; board is now four-mode2b4fc1f.
+Only this status record changed in canonical main, not its firmware.
 
 | Input | Controller source | Behavior |
 |---|---|---|
@@ -93,14 +122,16 @@ Mode1 retains original IR and sonar configuration via isolated profile restore.
 
 ## Verification and deployment boundary
 
-Main firmware: ARM build text/data/bss132088/84/27048; BIN132176 bytes.
+Latest main firmware: ARM build text/data/bss132068/84/27056; BIN132156 bytes.
+The full consolidation regression listed below refers to c2ed15d; latest
+mode3 increment additionally passed promoted sign, scope and mode1/2 checks.
 Passed legacy line suite (both speeds), promoted line suite (both speeds),
 real promoted DriveBase, sign route/observation/IMU tests, fixed-bypass/profile
 and actual selector tests, DFPlayer/store tests, source scope and K210 runtime.
 The selector tests cover1..4, ignored5, STOP precedence and dedicated +/-.
 No STM32/K210 serial access, flashing, lifted or ground tests in consolidation.
-Board remains a217df8 with the OLD five-mode mapping, not this new main.
-Latest board evidence: docs/history/deployments/DEPLOYMENT_A217DF8_20260910.md.
+Board now2b4fc1f with the four-mode mapping; no ground result yet.
+Latest board evidence: docs/history/deployments/DEPLOYMENT_2B4FC1F_20260911.md.
 
 ## K210 / release
 
