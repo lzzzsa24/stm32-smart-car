@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: af602cf80b9f5b12405b693a57898e485702f051
-comprehensive_candidate_status: 3bd989a_integrated_build_tests_COM11_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: 4ac67d84eebcf6de2dedb783ef23ba2a968cb4f2
+comprehensive_candidate_status: 4940f2f_integrated_sign_line_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 116700
-comprehensive_candidate_bin_sha256: 281ED549028AB60A4EAF0589739B9CF581837215550819AEF9FDF2396DD08B42
-comprehensive_candidate_hex_sha256: 6B2358EF7DAC107B7C9EA569B14F463EE34D8CBC95646B7A3AB99BD87F554D96
+comprehensive_candidate_bin_size_bytes: 116836
+comprehensive_candidate_bin_sha256: B7B018A9CFFEB38FCD0C4F67E67E90F5D67BB471E300E0E1D03DE8D9BAB92C9D
+comprehensive_candidate_hex_sha256: 8FE780D0AAB473A67B7FC8F7FD8670C86CB9682D6C86827A512AA5FC88815F9A
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 4ac67d8 (not flashed)
+
+4940f2f merged ontoaf602cf without conflicts. Shared current-line-priority
+ARC profile steers asymmetric wide contacts by weighted side; symmetric
+wide input remains forward. Affects mode4 and mode3 phases using that shared
+profile; ordinary tracking and mode5 profiles retained. Full sign and line
+suites (both speeds), mode5/gyro integration checks and ARM build passed.
+BIN116836 bytes, hashes above; artifacts in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4940f2f. No serial, flash, physical test
+or push; board remainsaf602cf, K210/main firmware unchanged.
 
 ### Latest deployment: af602cf
 
