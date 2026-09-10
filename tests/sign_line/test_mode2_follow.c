@@ -686,10 +686,12 @@ static void earlier_exit_timing(int side, uint32_t origin, uint8_t edge_contact)
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: upper-half 30-degree edge / 40-degree stopped-heading exit, ambiguous-line rejection, debounce, aligned release and STOP");
 }
-static void observation_resume_uses_live_line(int side, uint32_t origin, uint8_t at_probe)
+static void observation_resume_uses_live_line(int side, uint32_t origin, uint8_t at_probe,
+                                            uint8_t adjacent)
 {
   unsigned i,w,unexpected=0;
   uint8_t inner=side<0?2:4;
+  if(adjacent) inner=side<0?3:12; /* middle plus outer, opposite the sign */
   init(1,origin);
   if(at_probe)
   {
@@ -710,7 +712,10 @@ static void observation_resume_uses_live_line(int side, uint32_t origin, uint8_t
   for(i=0;i<12;++i)
   {
     observe(side); sample(inner,0);
-    if(drive.requested_cps[0]<=0 || drive.requested_cps[2]<=0)
+    if((adjacent && (drive.requested_cps[0]<0 || drive.requested_cps[2]<0 ||
+        drive.requested_cps[0]+drive.requested_cps[2]!=1800 ||
+        follower.last_owner!=SIGN_FOLLOW_OWNER_LINE)) ||
+       (!adjacent && (drive.requested_cps[0]<=0 || drive.requested_cps[2]<=0)))
     {
       fprintf(stderr,"Pause resume ignores inner line: side=%d mask=%u state=%d targets=%ld/%ld\n",
           side,inner,route.state,(long)drive.requested_cps[0],(long)drive.requested_cps[2]);
@@ -933,10 +938,14 @@ int main(void)
   exit_contact_must_end_blind_travel(-1,100);
   exit_contact_must_end_blind_travel(1,UINT32_MAX-120U);
   manual_stop_during_observation();
-  observation_resume_uses_live_line(1,100,0);
-  observation_resume_uses_live_line(-1,UINT32_MAX-120U,0);
-  observation_resume_uses_live_line(1,UINT32_MAX-120U,1);
-  observation_resume_uses_live_line(-1,100,1);
+  observation_resume_uses_live_line(1,100,0,0);
+  observation_resume_uses_live_line(-1,UINT32_MAX-120U,0,0);
+  observation_resume_uses_live_line(1,UINT32_MAX-120U,1,0);
+  observation_resume_uses_live_line(-1,100,1,0);
+  observation_resume_uses_live_line(1,100,0,1);
+  observation_resume_uses_live_line(-1,UINT32_MAX-120U,0,1);
+  observation_resume_uses_live_line(1,UINT32_MAX-120U,1,1);
+  observation_resume_uses_live_line(-1,100,1,1);
   earlier_exit_timing(-1,100,0); earlier_exit_timing(1,UINT32_MAX-120U,0);
   earlier_exit_timing(-1,UINT32_MAX-120U,1); earlier_exit_timing(1,100,1);
   naturally_departed_before_gate(-1,100,0);
