@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
-comprehensive_candidate_status: mode45_github_pushed_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: 47f47968761f25f427b05d0ed9d60f3b28456f1d
+comprehensive_candidate_status: c7bbaaa_merged_sign_line_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 111280
-comprehensive_candidate_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
-comprehensive_candidate_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
+comprehensive_candidate_bin_size_bytes: 111568
+comprehensive_candidate_bin_sha256: 526CD8EDF208F61E8331F9568EE11E62F9187C2E0D4F1DBB888247E9CDE23379
+comprehensive_candidate_hex_sha256: EF1DA9DFCADC53F885BC6885B964906BCAB872A9D06AAE8B115EC4EBA6F5DE27
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 47f4796 (not flashed)
+
+c7bbaaa merged ontoed7eb3b without conflicts. Mode4 initial diagonal entry
+turn now counter-rotates both sides instead of a forward pivot. Mode3 exit
+release, mode5 fast-follow and existing other modes retained. Full sign suite,
+full line suite (both speeds), mode5 integration check and formal build passed.
+Artifacts under worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion;
+BIN111568 bytes, hashes in comprehensive fields. Rollback tag:
+rollback/2026-09-10-before-c7bbaaa. No serial/flash/physical test/push; STM32
+remainsed7eb3b, K210 and main firmware unchanged. Remote comprehensive still
+ed7eb3b until separately requested synchronization.
 
 ### Latest comprehensive deployment: ed7eb3b (2026-09-10)
 
