@@ -720,8 +720,47 @@ static void exit_contact_must_end_blind_travel(int side, uint32_t origin)
   assert(failures==0);
   puts("PASS: mode3 alignment ends motor ownership; live exit edge overrides crossing tail; white uses shared search");
 }
+static void exit_turn_reacquires_before_alignment(int side, uint32_t origin)
+{
+  unsigned i,w,mask;
+  for(mask=1;mask<=15;++mask)
+  {
+    enter_test_arc(side,origin);
+    sample(6,-side*80000);
+    for(w=0;w<4;++w) counts[w]+=2000;
+    for(i=0;i<4;++i) sample(6,side*65000);
+    assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+    /* Original ring contact cannot by itself revoke the exit. But after
+       leaving it, fresh contact must win even with 40 degrees of yaw error. */
+    sample(0,side*50000);
+    assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+    sample((uint8_t)mask,side*40000);
+    if(route.state!=SIGN_ROUTE_EXIT_CLEAR || route_command.active)
+      fprintf(stderr,"EXIT TURN ignored reacquired line: side=%d mask=%u state=%d heading=%ld targets=%ld/%ld\n",
+          side,mask,route.state,(long)route.heading_error_mdeg,
+          (long)drive.requested_cps[0],(long)drive.requested_cps[2]);
+    assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active);
+    assert(!follower.override_active && route.direction==side);
+    if(mask==8) assert(drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+    if(mask==1) assert(drive.requested_cps[0]==2200 && drive.requested_cps[2]==0);
+    /* A later loss cannot re-enable the old gyro turn. A broad reacquisition
+       is enough to release motors, but is not proof of route completion. */
+    for(i=0;i<15;++i)
+    {
+      sample(0,side*40000);
+      assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active && !follower.override_active);
+    }
+    for(i=0;i<4;++i) sample(6,side*35000);
+    assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
+    SignLineFollow_Stop(&follower); sample(0,0);
+    for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  }
+  puts("PASS: mode3 EXIT TURN yields on first reacquired black pattern before alignment; no reclaimed turn, stable completion and STOP");
+}
 int main(void)
 {
+  exit_turn_reacquires_before_alignment(-1,100);
+  exit_turn_reacquires_before_alignment(1,UINT32_MAX-120U);
   exit_contact_must_end_blind_travel(-1,100);
   exit_contact_must_end_blind_travel(1,UINT32_MAX-120U);
   manual_stop_during_observation();

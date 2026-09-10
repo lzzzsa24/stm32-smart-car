@@ -43,6 +43,7 @@ typedef struct
   uint8_t departed;
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
   uint8_t exit_region_seen;
+  uint8_t exit_line_lost;
   uint8_t arc_lower_seen, exit_straight_active;
   uint32_t exit_straight_since_ms;
   int64_t exit_straight_origin_counts;
@@ -386,6 +387,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
   }
   if (state == SIGN_ROUTE_EXIT_SELECT)
   {
+    route.exit_line_lost=0U;
     route.exit_previous_error = route.direction * (route.profile == SIGN_ROUTE_PROFILE_STANDARD ?
         heading_error() : route.imu_yaw-route.approach_yaw);
     route.exit_best_error_mdeg = heading_error();
@@ -806,10 +808,9 @@ static void select_command(SignRouteCommand *command, uint8_t mask)
       route.departed = 1U;
       return;
     }
-    /* The ring itself remains black at the exit. Until heading alignment is
-       complete, a narrow contact must not cancel the qualified exit choice.
-       Wide/both-side evidence still cannot authorize a turn. EXIT_CLEAR,
-       not this unfinished turn, releases control on outgoing-line capture. */
+    /* Continuous contact may still be the original ring. Reacquisition after
+       actual white is handled before this command, without waiting for yaw
+       alignment. Wide/both-side evidence cannot start a forced turn. */
     if (is_junction(mask)) return;
     steer = heading_error() > 0 ? 1 : -1;
     /* Existing KEY2 forward pivot; never request counter-rotation here. */
@@ -1040,6 +1041,22 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     int32_t turn_yaw = -route.direction * route.yaw_mdeg;
     uint32_t timeout = route.state == SIGN_ROUTE_EXIT_SELECT ?
         SIGN_EXIT_ALIGN_TIMEOUT_MS : SIGN_SELECT_TIMEOUT_MS;
+#if SIGN_ROUTE_REQUIRE_IMU
+    if (route.profile == SIGN_ROUTE_PROFILE_STANDARD &&
+        route.state == SIGN_ROUTE_EXIT_SELECT)
+    {
+      if (line_mask == 0U) route.exit_line_lost=1U;
+      else if (route.exit_line_lost)
+      {
+        /* The first new black contact ends forced exit turning immediately,
+           even before the estimated heading aligns. A broad contact releases
+           motors too; only later stable middle contact may complete the route. */
+        enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
+        command->just_finished=1U;
+        return; /* command was cleared at Step entry; no stale pivot survives */
+      }
+    }
+#endif
     if (route.state == SIGN_ROUTE_SELECTING) observe_entry_line(line_mask, now);
     select_command(command, line_mask);
     if (now - route.phase_ms > timeout ||
