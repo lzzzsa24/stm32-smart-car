@@ -17,8 +17,8 @@ comprehensive_candidate_bin_size_bytes: 119440
 comprehensive_candidate_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
 comprehensive_candidate_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
 integration_branch: main
-repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
-latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
+repository_head_at_update: 52c635b30de91bee6ee3db21d6f4404320b258a9
+latest_code_commit: 52c635b30de91bee6ee3db21d6f4404320b258a9
 flashed_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
 flash_record_commit: 3465a92
 deployed_tag: deployed/2026-09-10-b32e03a
@@ -29,10 +29,10 @@ flashed_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9
 flashed_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
 ground_test_status: not_tested_after_b32e03a_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: b48e9e04a89c995f23f162af332e7022044dad61
-candidate_bin_size_bytes: 137532
-candidate_bin_sha256: 1F60ABB0C8595EDF10767F2169163B9D1E217467E16134C31CC9E02A9F96DB50
-candidate_hex_sha256: 877DA7A24AE1B71EA869EB63445E4A6702AA2B4483F05FDAAB1BA49503AFCAEC
+candidate_source_commit: 52c635b30de91bee6ee3db21d6f4404320b258a9
+candidate_bin_size_bytes: 136932
+candidate_bin_sha256: AA69209CA6238941533A293CF0B6F47FE82BBC094AE7712093775227F7FF899E
+candidate_hex_sha256: 15A868669DB5C05F8FBF8A57D29EA64C432E0C8FA213C9F2CFCFFE4E098BA121
 user_reported_flash: tool_verified_b32e03a_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current local main: 52c635b mode3 updated to b32e03a
+
+Mode3 now uses comprehensive middle-guard tracking/recovery and direct2s
+observation with no pre-pause centering. Modes1/2/4 remain legacy; mode5
+keeps previous120-percent straight scaling, not composite144-percent.
+Promoted sign suite, promoted line suite at both speeds, source/scope checker
+and ARM build passed. BIN136932 bytes, candidate hashes above. Details:
+docs/history/candidates/MAIN_MODE3_B32E03A_20260910.md.
+Rollback: rollback/2026-09-10-before-main-mode3-b32e03a ->bc54860.
+No flash/push/release or physical test; board remains full comprehensive
+b32e03a, K210 unchanged. Older local-main statements below are superseded.
 
 ### Latest deployment: b32e03a
 
