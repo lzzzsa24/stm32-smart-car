@@ -3,47 +3,20 @@
 
 static uint32_t sequence, pause_ms;
 static uint8_t sequence_valid, pause_allowed, pause_active, pause_started;
-static uint8_t seeking_line, center_candidate;
-static uint32_t center_ms, center_last_ms;
 
 void SignObservation_Reset(void)
 {
   sequence = pause_ms = 0U;
   sequence_valid = pause_allowed = pause_active = pause_started = 0U;
-  seeking_line=center_candidate=0U;
-  center_ms=center_last_ms=0U;
 }
 void SignObservation_AllowPause(uint8_t allowed) { pause_allowed = allowed; }
 uint8_t SignObservation_Paused(uint32_t now)
 {
   if (pause_active && now - pause_ms >= 2000U) pause_active = 0U;
-  return pause_active || (seeking_line && center_candidate);
+  return pause_active;
 }
-void SignObservation_UpdateLine(uint8_t mask, uint32_t now)
-{
-  mask &= 15U;
-  if (pause_active && mask==0U)
-  {
-    pause_active=0U;
-    seeking_line=1U;
-    center_candidate=0U;
-  }
-  if (!seeking_line) return;
-  if ((mask & 6U)!=6U) { center_candidate=0U; return; }
-  /* Stop at first double-middle contact, confirm stationary, then time 2s. */
-  if (!center_candidate || now-center_last_ms>50U)
-  { center_candidate=1U; center_ms=now; }
-  center_last_ms=now;
-  if (now-center_ms>=30U)
-  {
-    seeking_line=center_candidate=0U;
-    pause_active=1U;
-    pause_ms=now;
-  }
-}
-uint8_t SignObservation_SeekingLine(void) { return seeking_line; }
 uint8_t SignObservation_HoldingRoute(uint32_t now)
-{ return SignObservation_Paused(now) || seeking_line; }
+{ return SignObservation_Paused(now); }
 void SignObservation_ObserveDetection(const VisionDetection *frame, uint32_t now)
 {
   if (frame == NULL || (sequence_valid && frame->sequence == sequence)) return;
@@ -52,7 +25,7 @@ void SignObservation_ObserveDetection(const VisionDetection *frame, uint32_t now
   if (now - frame->received_ms > 350U || frame->class_id < 0 || frame->class_id > 1 ||
       frame->score < 26U || frame->score > 100U || frame->center_x >= 320U || frame->center_y >= 240U)
     return;
-  if (!seeking_line && pause_allowed && (!pause_started || now - pause_ms >= 2500U))
+  if (pause_allowed && (!pause_started || now - pause_ms >= 2500U))
   {
     pause_started = pause_active = 1U;
     pause_ms = now; /* fixed 2 seconds, never renewed by subsequent frames */

@@ -62,11 +62,6 @@ static uint8_t sample(uint8_t mask,int32_t yaw)
   SignRoute_UpdateYaw(3700000LL+yaw,1);
   SimpleLine_UpdateYaw(&follower.guard,3700000LL+yaw,1,1);
   SignRoute_GetStatus(tick,&route);
-  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD)
-  {
-    SignObservation_UpdateLine(mask,tick);
-    if (SignObservation_SeekingLine()) SignRoute_MarkObservationSearch();
-  }
   paused=SignObservation_Paused(tick);
   SignRoute_UpdateObservationPause(route.profile==SIGN_ROUTE_PROFILE_STANDARD ?
       SignObservation_HoldingRoute(tick) : paused,tick);
@@ -302,9 +297,9 @@ static void late_choice(int side)
   for(i=0;i<3;++i)sample(15,0);
   for(i=0;i<40;++i)sample(0,0);
   assert(route.state==SIGN_ROUTE_WAIT_SIGN);
-  for(i=0;i<203;++i){observe(side);sample(0,0);}
-  assert(route.state==SIGN_ROUTE_WAIT_SIGN && SignObservation_SeekingLine());
-  for(i=0;i<204;++i){observe(side);sample(6,0);}
+  for(i=0;i<199;++i){observe(side);sample(0,0);}
+  assert(SignObservation_HoldingRoute(tick) && route.direction==side);
+  for(i=0;i<4;++i){observe(side);sample(6,0);}
   assert(!SignObservation_HoldingRoute(tick) && route.direction==side);
   for(i=0;i<3;++i)sample(15,0);
   sample(0,0);
@@ -740,7 +735,7 @@ static void manual_stop_during_observation(void)
   SignLineFollow_Stop(&follower);
   for(i=0;i<250;++i)
   {
-    sample(i<5?0:6,0); /* centering and its restarted deadline cannot undo STOP */
+    sample(i<5?0:6,0); /* line transitions and the pause deadline cannot undo STOP */
     assert(!follower.running && !follower.observation_paused);
     for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
   }
@@ -827,58 +822,49 @@ static void exit_turn_reacquires_before_alignment(int side, uint32_t origin)
   }
   puts("PASS: mode3 EXIT TURN yields on first reacquired black pattern before alignment; no reclaimed turn, stable completion and STOP");
 }
-static void center_before_observation(int side, uint32_t origin)
+static void direct_observation(int side, uint32_t origin)
 {
-  unsigned i,w;
-  const int32_t centered_yaw=-side*70000;
-  init(1,origin);
-  sample(side<0?8:1,0); /* actual preceding line chooses initial search side */
-  for(i=0;i<3;++i) sample(15,0);
-  assert(route.state==SIGN_ROUTE_PROBE);
-  for(i=0;i<320;++i)
+  unsigned i,w,mask;
+  const int32_t stopped_yaw=-side*70000;
+  for(mask=0;mask<16;++mask)
   {
-    observe(side);
-    sample(i%3==0?0:(i%3==1?4:2),centered_yaw);
-    assert(SignObservation_SeekingLine() && SignObservation_HoldingRoute(tick));
-    assert(!SignObservation_Paused(tick) && route.state==SIGN_ROUTE_PROBE);
-    assert(drive.requested_cps[0]!=0 && drive.requested_cps[0]==-drive.requested_cps[2]);
+    init(1,origin);
+    sample(side<0?8:1,0); /* start with a real turning/searching output */
+    for(i=0;i<3;++i) sample(15,0);
+    for(i=0;i<199;++i)
+    {
+      observe(side);
+      sample((uint8_t)mask,stopped_yaw);
+      assert(SignObservation_Paused(tick) && SignObservation_HoldingRoute(tick));
+      assert(follower.last_owner==SIGN_FOLLOW_OWNER_OBSERVATION);
+      for(w=0;w<4;++w) assert(!drive.requested_cps[w] && !pins[w]);
+    }
+    /* Exact original 2s deadline: no middle pair prerequisite or timer restart. */
+    observe(side); sample((uint8_t)mask,stopped_yaw);
+    assert(!SignObservation_HoldingRoute(tick));
+    assert(route.direction==side && route.approach_from_pause);
+    assert(route.heading_error_mdeg==0 && !route.entry_line_ready);
+    assert(follower.last_owner!=SIGN_FOLLOW_OWNER_OBSERVATION);
+    assert(follower.last_owner!=SIGN_FOLLOW_OWNER_CENTERING);
+    if(mask==0) assert(drive.requested_cps[0]!=0 &&
+        drive.requested_cps[0]==-drive.requested_cps[2]);
+    if(mask==6) for(w=0;w<4;++w)
+        assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
+    SignLineFollow_Stop(&follower); sample(0,stopped_yaw);
+    for(w=0;w<4;++w) assert(!drive.requested_cps[w] && !pins[w]);
   }
-  assert(route.direction==side);
-  sample(6,centered_yaw); /* first double-middle contact stops immediately */
-  assert(SignObservation_Paused(tick));
-  for(w=0;w<4;++w) assert(!drive.requested_cps[w]);
-  sample(4,centered_yaw); /* isolated middle pair cannot start the 2s timer */
-  assert(SignObservation_SeekingLine() && !SignObservation_Paused(tick));
-  assert(drive.requested_cps[0]==-drive.requested_cps[2] && drive.requested_cps[0]!=0);
-  for(i=0;i<4;++i) sample(6,centered_yaw);
-  assert(!SignObservation_SeekingLine() && SignObservation_Paused(tick));
-  for(i=0;i<199;++i)
-  {
-    observe(side); sample(6,centered_yaw);
-    for(w=0;w<4;++w) assert(!drive.requested_cps[w]);
-  }
-  observe(side); sample(6,centered_yaw);
-  assert(!SignObservation_HoldingRoute(tick));
-  assert(route.direction==side && route.state==SIGN_ROUTE_PROBE);
-  assert(route.approach_from_pause && route.heading_error_mdeg==0 && route.yaw_mdeg==0);
-  assert(!route.entry_line_ready);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
-  sample(side<0?8:1,centered_yaw-side*20000);
-  for(i=0;i<4;++i) sample(6,centered_yaw-side*20000);
-  assert(route.state==SIGN_ROUTE_ARC);
-  SignLineFollow_Stop(&follower); sample(0,centered_yaw);
-  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
-  puts("PASS: all-white observation searches through partial contacts, stops on double middle, restarts full 2s, and rebases entry yaw");
+  /* A manual STOP during a white-line observation survives its deadline. */
   init(1,origin);
   for(i=0;i<10;++i) { observe(side); sample(0,0); }
-  assert(SignObservation_SeekingLine() && drive.requested_cps[0]!=0);
+  assert(SignObservation_Paused(tick));
   SignLineFollow_Stop(&follower);
   for(i=0;i<250;++i)
   {
-    sample(6,0);
+    sample(i%2?0:6,0);
     for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
   }
   assert(!SignObservation_HoldingRoute(tick) && !follower.running);
+  puts("PASS: all 16 masks stop immediately for fixed 2s; white resumes search, middle resumes following, stopped heading and STOP retained");
 }
 static void biased_stop_exit(int side, int32_t skew, uint8_t pretravel)
 {
@@ -938,8 +924,8 @@ int main(void)
   for(side=-1;side<=1;side+=2) for(skew=-30000;skew<=30000;skew+=10000)
     for(pretravel=0;pretravel<=1;++pretravel) biased_stop_exit(side,skew,(uint8_t)pretravel);
   puts("PASS: actual motor pipeline handles biased stops, passive departure, opposite normal bend, re-loss and STOP with/without preceding straight travel");
-  center_before_observation(-1,100);
-  center_before_observation(1,UINT32_MAX-120U);
+  direct_observation(-1,100);
+  direct_observation(1,UINT32_MAX-120U);
   exit_turn_reacquires_before_alignment(-1,100);
   exit_turn_reacquires_before_alignment(1,UINT32_MAX-120U);
   exit_contact_must_end_blind_travel(-1,100);
