@@ -1353,8 +1353,36 @@ LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading
 }
 
 LineTrackingAction line_tracking_compute_arc(const LineTrackingReading *reading,
-                                             int16_t base_speed,
-                                             LineTrackingCommand *command)
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command)
 {
   return line_tracking_compute_profile(reading, base_speed, command, 1U, 1U);
+}
+
+LineTrackingAction line_tracking_compute_arc_fallback(const LineTrackingReading *reading,
+                                                      int16_t base_speed,
+                                                      int8_t direction,
+                                                      LineTrackingCommand *command)
+{
+  uint32_t now=HAL_GetTick();
+  if (!reading || !command || !direction)
+  {
+    if (command) command_stop(command);
+    return LINE_ACTION_STOP;
+  }
+  if (reading->sampled_time_valid) now=reading->sampled_ms;
+  if (base_speed<=0)
+  {
+    line_tracking_reset();
+    command_stop(command);
+    return LINE_ACTION_STOP;
+  }
+  /* Keep ISR history bounded even through a long white section. This path
+     deliberately does not start LineRecovery's counter-rotation state. */
+  consume_sampled_evidence(now);
+  last_observation_ms=now;
+  observe_raw_position(reading,now);
+  if (reading_mask(reading)!=0U) line_has_been_seen=1U;
+  line_tracking_make_slow_arc_command(direction,base_speed,command);
+  return direction<0 ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST;
 }

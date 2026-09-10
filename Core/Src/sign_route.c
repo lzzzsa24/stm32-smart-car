@@ -785,9 +785,9 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       pivot_command(command, route.direction);
       return 1U;
     }
-    /* Visible circle line stays under the same live sensor follower as mode 2.
-       Across a short all-white gap, keep a forward arc instead of spinning. */
-    if (line_mask == 0U) tangent_command(command, (int8_t)-route.direction);
+    /* ARC motor ownership remains with SignLineFollow for both visible line
+       and white gaps. Route observes yaw/travel and starts only the exit phase;
+       it must not make every black/white edge reset the live line controller. */
     return 1U;
   }
 

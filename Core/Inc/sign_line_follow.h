@@ -9,7 +9,22 @@ typedef struct
   uint8_t running, override_active, observation_paused;
   uint8_t observation_cycle;
   int8_t observation_search_direction;
+  uint8_t arc_tracking_active;
+  int8_t arc_steer_direction;
+  uint8_t last_owner;
+  uint8_t last_line_action;
 } SignLineFollowController;
+
+typedef enum
+{
+  SIGN_FOLLOW_OWNER_STOP = 0U,
+  SIGN_FOLLOW_OWNER_LINE,
+  SIGN_FOLLOW_OWNER_ROUTE,
+  SIGN_FOLLOW_OWNER_GUARD,
+  SIGN_FOLLOW_OWNER_OBSERVATION,
+  SIGN_FOLLOW_OWNER_CENTERING,
+  SIGN_FOLLOW_OWNER_ARC_FALLBACK
+} SignFollowOwner;
 
 void SignLineFollow_Init(SignLineFollowController *controller);
 void SignLineFollow_Start(SignLineFollowController *controller);

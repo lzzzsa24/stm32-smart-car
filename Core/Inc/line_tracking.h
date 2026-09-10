@@ -126,8 +126,14 @@ LineTrackingAction line_tracking_compute_slow(const LineTrackingReading *reading
 /* Acquired sign arc: current narrow contact ends the old crossing-straight
    tail immediately. Retain the same slow speeds and recovery ownership. */
 LineTrackingAction line_tracking_compute_arc(const LineTrackingReading *reading,
-                                             int16_t base_speed,
-                                             LineTrackingCommand *command);
+                                              int16_t base_speed,
+                                              LineTrackingCommand *command);
+/* Mode-4 ARC only: observe/drain the current sensor snapshot but keep a
+   forward differential fallback instead of entering the generic spin search. */
+LineTrackingAction line_tracking_compute_arc_fallback(const LineTrackingReading *reading,
+                                                      int16_t base_speed,
+                                                      int8_t direction,
+                                                      LineTrackingCommand *command);
 
 #ifdef __cplusplus
 }

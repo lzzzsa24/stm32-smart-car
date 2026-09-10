@@ -11,12 +11,14 @@ typedef struct {
   uint8_t mask, state, fault, online, score;
   uint8_t approach_from_pause;
   uint8_t road_reference_valid, exit_reason;
+  uint8_t line_action, control_owner, route_active;
   int32_t arc_sweep_mdeg;
   int8_t direction, class_id;
 } SignTraceRecord;
 void SignTrace_Init(void);
 void SignTrace_Record(uint32_t now, uint8_t mask, const SignRouteStatus *status,
-                      int32_t left_cps, int32_t right_cps);
+                      int32_t left_cps, int32_t right_cps, uint8_t line_action,
+                      uint8_t control_owner, uint8_t route_active);
 void SignTrace_Request(uint8_t clear);
 void SignTrace_Task(uint8_t stopped);
 uint16_t SignTrace_Count(void);
