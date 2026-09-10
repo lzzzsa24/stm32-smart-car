@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
-comprehensive_candidate_status: b32e03a_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: 5605916dc610432370c8831b5333beaaffdb55ed
+comprehensive_candidate_status: baaa3ad_integrated_tests_build_passed_flash_blocked_USB_serial_absent
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 119440
-comprehensive_candidate_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
-comprehensive_candidate_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
+comprehensive_candidate_bin_size_bytes: 120208
+comprehensive_candidate_bin_sha256: 0766AFE443540AA29845D17056199BF523303013EE106991E80A94684B93ADA6
+comprehensive_candidate_hex_sha256: 1014132700B31959840DEF496BC733263A1C107E561C12707D2B9D76AA1C5C92
 integration_branch: main
 repository_head_at_update: 52c635b30de91bee6ee3db21d6f4404320b258a9
 latest_code_commit: 52c635b30de91bee6ee3db21d6f4404320b258a9
@@ -52,6 +52,23 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 5605916; USB reconnect needed
+
+baaa3ad integrated with missing prerequisites3467b2a/19276f2 as
+da71827/348fa41/08d0af0;5605916 updates composite integration test anchor.
+Mode5 normal straight capped4000 CPS, wide3/4-black target3600 CPS.
+Rolling fixed-bypass turn/travel handoffs also affect mode1 because the
+comprehensive modes1/5 share that owner. Emergency braking and STOP retained.
+Conflicts resolved preserving mode2/3 middle guard and mode4 wide-line logic;
+updated fixed-bypass tests adapted to shared gyro suite, not duplicate files.
+Full line (both speeds), sign and gyro suites, mode5 integration and ARM
+build passed. BIN120208 bytes; hashes above. Build source08d0af0 and5605916
+have identical firmware sources (latter changes only a host test).
+Rollback: rollback/2026-09-10-before-baaa3ad ->b32e03a.
+Flash authorized but fresh enumeration found Bluetooth ports only, no CH340K.
+No programmer opened and no erase/write attempted. Board remainsb32e03a.
+K210 and main firmware unchanged; no push or physical test. Await USB replug.
 
 ### Current local main: 52c635b mode3 updated to b32e03a
 
