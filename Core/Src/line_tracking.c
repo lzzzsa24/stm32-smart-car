@@ -802,6 +802,24 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   if (transverse(reading))
   {
     if (line_tracking_direction_evidence(reading)) update_direction_hint(reading, active_count, now);
+    if (current_line_priority)
+    {
+      /* On a captured circle, an oblique thick-line contact often spans three
+         sensors. Its weighted side is live curve evidence, not a crossbar to
+         drive straight across. Only a truly symmetric wide mask stays straight. */
+      weighted_sum = (int16_t)(-3 * reading->x2_black - reading->x1_black +
+                                reading->x3_black + 3 * reading->x4_black);
+      if (weighted_sum < 0)
+        command_set_pwm(command, TRACKING_SETTLE_INNER_PWM, TRACKING_SETTLE_OUTER_PWM,
+                        LINE_ACTION_LEFT_ADJUST);
+      else if (weighted_sum > 0)
+        command_set_pwm(command, TRACKING_SETTLE_OUTER_PWM, TRACKING_SETTLE_INNER_PWM,
+                        LINE_ACTION_RIGHT_ADJUST);
+      else
+        command_set_pwm(command, TRACKING_SETTLE_CENTER_PWM, TRACKING_SETTLE_CENTER_PWM,
+                        LINE_ACTION_FORWARD);
+      return command->action;
+    }
     observe_crossing(now);
     command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
     return command->action;
