@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 891a7e193947bd9f0e33319cf4e28c1c68528d93
-comprehensive_candidate_status: 50ce17f_integrated_build_tests_COM11_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: 52a67b61be4795c8011d96c068c8bbd5d8747bf2
+comprehensive_candidate_status: 89e78e2_0c32484_integrated_build_tests_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 118840
-comprehensive_candidate_bin_sha256: EFFF0314DEB5296A79AA93112C824F6B9B00AD4F0D6582FACC808CD4EB76E4E4
-comprehensive_candidate_hex_sha256: FA8398BB2317ABED72C6F5C9C94641E8A240283F1A07E92650E8D2F8F96D0923
+comprehensive_candidate_bin_size_bytes: 119264
+comprehensive_candidate_bin_sha256: 3A5D785D962F810E4A29965E8B5FEC6E852411C80102CB346E5FE68C808F84D2
+comprehensive_candidate_hex_sha256: 4C188A3959660B16AD8A4F28C0D74A1D08B8D54826681E4A7BF18E2BE982EA9D
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,22 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 52a67b6 (not flashed)
+
+Merged 89e78e2 as a2bb8ae; replayed main-based 0c32484 as52a67b6,
+adapting its mode2 middle guard to the composite bounded-wait owner and
+preserving mode1 boost, mode3/4 route helpers and mode5 fast following.
+Mode3 uses stopped observation heading first with wider exit tolerances.
+Mode2 opts into1800-CPS middle guard,1412-CPS inner correction and immediate
+search when both middle probes disappear; reset prevents profile leakage.
+Full line-recovery suite (both speeds), full sign-line suite, mode5 app
+profile and formal ARM compile/link passed. BIN119264 bytes; hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback tag: rollback/2026-09-10-before-89e78e2-0c32484 ->891a7e1.
+No serial access, flash, physical test or push. Board remains891a7e1;
+main firmware and K210 unchanged. This candidate supersedes older candidate
+entries below, not the recorded deployment.
 
 ### Latest deployment: 891a7e1
 
