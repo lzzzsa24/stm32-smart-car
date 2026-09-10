@@ -23,7 +23,7 @@ void Promoted_SignLineFollow_Stop(Promoted_SignLineFollowController *c)
 {
   if (!c->running) return;
   c->running = c->override_active = c->observation_paused = 0U;
-  c->observation_cycle=c->arc_tracking_active=0U;
+  c->arc_tracking_active=0U;
   c->arc_steer_direction=0;
   c->last_owner=Promoted_SIGN_FOLLOW_OWNER_STOP;
   c->last_line_action=Promoted_LINE_ACTION_STOP;
@@ -73,12 +73,11 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
       (reading->x1_black ? 4U : 0U) | (reading->x3_black ? 2U : 0U) |
       (reading->x4_black ? 1U : 0U));
   uint8_t arc = route->state == Promoted_SIGN_ROUTE_ARC;
+  uint8_t mode3 = route->profile == Promoted_SIGN_ROUTE_PROFILE_STANDARD;
   uint8_t gyro_arc = arc && route->profile == Promoted_SIGN_ROUTE_PROFILE_GYRO_TANGENT;
   uint8_t exit_follow = route->profile == Promoted_SIGN_ROUTE_PROFILE_STANDARD &&
       route->state == Promoted_SIGN_ROUTE_EXIT_CLEAR;
   uint8_t guarded_search, override, action;
-  uint8_t center_search=route->profile==Promoted_SIGN_ROUTE_PROFILE_STANDARD &&
-      Promoted_SignObservation_SeekingLine();
 
   if (!c->running || base_speed <= 0)
   {
@@ -95,19 +94,10 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     c->arc_tracking_active=0U;
     c->arc_steer_direction=0;
   }
-  if ((paused || center_search) && !c->observation_cycle)
-  {
-    c->observation_search_direction=Promoted_LineRecovery_IsSearching() ?
-        Promoted_LineRecovery_GetDirection() : c->guard.last_direction;
-    c->observation_cycle=1U;
-  }
-  if (!paused && !center_search) c->observation_cycle=0U;
   if (paused)
   {
     if (!c->observation_paused)
     {
-      if (center_search && Promoted_LineRecovery_IsSearching())
-        c->observation_search_direction=Promoted_LineRecovery_GetDirection();
       Promoted_line_tracking_yield_to_route();
     }
     c->observation_paused=c->override_active=1U;
@@ -121,27 +111,11 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     return 6U;
   }
   if (c->observation_paused) resume_observation(c);
-  if (center_search)
-  {
-    uint32_t now=HAL_GetTick();
-    if (!Promoted_LineRecovery_IsSearching())
-    {
-      Promoted_line_tracking_yield_to_route();
-      Promoted_LineRecovery_Begin(c->observation_search_direction,now);
-    }
-    c->override_active=1U;
-    c->last_owner=Promoted_SIGN_FOLLOW_OWNER_CENTERING;
-    DriveBase_SetSpeedLimitCps(0L);
-    DriveBase_SetLineFaultObservation(1U,mask,5U);
-    (void)Promoted_LineRecovery_StepCentering(reading,&output,now);
-    c->last_line_action=(uint8_t)output.action;
-    return 7U; /* SEEK LINE; recovery owns the established encoder targets */
-  }
   /* SL2 supplies only the existing sign-entry/gyro search guard. Its visible
      line table is not used for ordinary or acquired-arc steering. */
   Promoted_SimpleLine_StepRoute(&c->guard, mask, route, route_command);
   guarded_search = c->guard.mode == Promoted_SIMPLE_LINE_SEARCH &&
-      !gyro_arc && (c->guard.entry_guard_active || (arc && mask == 0U));
+      c->guard.entry_guard_active;
   override = route_command->active || guarded_search;
   if (override != c->override_active)
   {
@@ -151,6 +125,9 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
 
   /* Never carry a prior forward cap into shared recovery's signed targets. */
   DriveBase_SetSpeedLimitCps(0L);
+  /* Reapply after route/observation yield resets the shared follower. This
+     selection is idempotent and never resets live mode2 recovery each frame. */
+  Promoted_line_tracking_set_middle_guard(mode3);
 
   if (override)
   {
@@ -190,7 +167,14 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     /* Mode 3's aligned exit is already live tracking, with the same slow
        targets. An old crossing tail must not hide a current outer contact. */
     Promoted_LineTrackingAction line_action;
-    if (gyro_arc && (mask == 0U || symmetric_arc_contact(mask)))
+    if (mode3)
+    {
+      /* Same compute/recovery/encoder application as comprehensive KEY2.
+         Once on the arc, no separate gyro search owner can replace it. */
+      line_action=Promoted_line_tracking_compute(reading,base_speed,&output);
+      c->last_owner=Promoted_SIGN_FOLLOW_OWNER_LINE;
+    }
+    else if (gyro_arc && (mask == 0U || symmetric_arc_contact(mask)))
     {
       /* ARC has one continuous owner. A white gap or directionless broad
          contact uses the last forward curvature without route/guard takeover,
@@ -218,14 +202,14 @@ uint8_t Promoted_SignLineFollow_Step(Promoted_SignLineFollowController *c,
     action = display_action(line_action);
     /* One slow straight target for bars, gaps, rejoin and exit travel, including
        commands supplied by recovery. No timed acceleration or recognition cap. */
-    if (output.valid && (line_action == Promoted_LINE_ACTION_FORWARD || line_action == Promoted_LINE_ACTION_CROSSING))
+    if (!mode3 && output.valid && (line_action == Promoted_LINE_ACTION_FORWARD || line_action == Promoted_LINE_ACTION_CROSSING))
     {
       Promoted_line_tracking_make_route_command(0, base_speed, &output);
       output.action = line_action;
     }
     /* A captured semicircle has no hairpin. Retain KEY2's initial outer-probe
        pivot when its persistent-edge escalation would counter-rotate. */
-    if (arc && (mask == 8U || mask == 1U) && output.valid &&
+    if (gyro_arc && (mask == 8U || mask == 1U) && output.valid &&
         ((output.left_cps < 0 && output.right_cps > 0) ||
          (output.left_cps > 0 && output.right_cps < 0)))
     {

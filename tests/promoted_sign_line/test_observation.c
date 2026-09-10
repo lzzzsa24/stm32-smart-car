@@ -81,51 +81,10 @@ static void rejected_frames(void)
   puts("PASS: stale, non-arrow and malformed frames cannot trigger an observation stop");
 }
 
-static void centered_observation(void)
-{
-  VisionDetection f={0};
-  unsigned i;
-  uint32_t now=UINT32_MAX-999U, restarted;
-  Promoted_SignObservation_Reset(); Promoted_SignObservation_AllowPause(1);
-  f.class_id=0; f.score=26; f.center_x=160; f.center_y=120;
-  f.sequence=1; f.received_ms=now;
-  Promoted_SignObservation_ObserveDetection(&f,now);
-  Promoted_SignObservation_UpdateLine(0,now);
-  assert(Promoted_SignObservation_SeekingLine() && !Promoted_SignObservation_Paused(now));
-  for(i=0;i<100;++i)
-  {
-    now+=40U; f.sequence++; f.received_ms=now;
-    Promoted_SignObservation_ObserveDetection(&f,now);
-    Promoted_SignObservation_UpdateLine(i%3==0?0:(i%3==1?2:4),now);
-    assert(Promoted_SignObservation_SeekingLine() && !Promoted_SignObservation_Paused(now));
-    assert(Promoted_SignObservation_HoldingRoute(now));
-  }
-  Promoted_SignObservation_AllowPause(0); /* confirmed direction cannot bypass restart */
-  now+=10U; Promoted_SignObservation_UpdateLine(6,now);
-  assert(Promoted_SignObservation_Paused(now) && Promoted_SignObservation_SeekingLine());
-  now+=60U; Promoted_SignObservation_UpdateLine(6,now); /* gap restarts stability evidence */
-  assert(Promoted_SignObservation_SeekingLine());
-  for(i=0;i<3;++i) {now+=10U; Promoted_SignObservation_UpdateLine(6,now);}
-  restarted=now;
-  assert(!Promoted_SignObservation_SeekingLine() && Promoted_SignObservation_Paused(now));
-  assert(Promoted_SignObservation_Paused(restarted+1999U));
-  /* White at the exact deadline is checked BEFORE letting the pause end. */
-  Promoted_SignObservation_UpdateLine(0,restarted+2000U);
-  assert(Promoted_SignObservation_SeekingLine() && !Promoted_SignObservation_Paused(restarted+2000U));
-  now=restarted+2010U;
-  for(i=0;i<4;++i) {Promoted_SignObservation_UpdateLine(15,now);now+=10U;}
-  restarted=now-10U;
-  assert(!Promoted_SignObservation_SeekingLine()); /* both middle sensors also in 1111 */
-  assert(Promoted_SignObservation_Paused(restarted+1999U));
-  Promoted_SignObservation_UpdateLine(6,restarted+2000U);
-  assert(!Promoted_SignObservation_HoldingRoute(restarted+2000U));
-  Promoted_SignObservation_Reset();
-  assert(!Promoted_SignObservation_SeekingLine() && !Promoted_SignObservation_HoldingRoute(now));
-  puts("PASS: centering holds navigation, ignores partial contact/camera renewal, validates middle pair, restarts 2s and handles deadline loss/reset/wrap");
-}
+/* Fixed pause timing is independent of sensors; motor-path masks are covered
+   by test_mode2_follow.c. */
 int main(void)
 {
-  centered_observation();
   observation_pause();
   rejected_frames();
   return 0;

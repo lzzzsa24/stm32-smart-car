@@ -7,7 +7,7 @@
  *     触发 V2 黑线绕障控制器；直线段由编码器限制距离，转弯段由
  *     MPU6050 实测相对偏航角，随后在障碍另一侧重新捕获黑线。
  *   - 按下 KEY2：纯寻线模式，红外、超声波和视觉不再控制电机。
- *   - 按下 KEY3：5940727 慢速循迹、识别停车朝向与圆环出口导航。
+ *   - 按下 KEY3：b32e03a 中线保护循迹、直接停车观察与圆环出口导航。
  *   - 遥控数字 4：独立 SL2 简化四线循迹 + 同一套标志选路。
  *   - 遥控数字 5：5940727 快速循迹和固定路线绕障，无需 K210。
  *   - 数字 0 随时停车；各模式都会在松开按键后保持。
@@ -1049,11 +1049,7 @@ static void promoted_sign_task(AppMode mode)
   MpuYaw_GetReading(&yaw);
   Promoted_SignRoute_UpdateYaw(yaw.yaw_mdeg, MpuYaw_IsReady(now));
   Promoted_SimpleLine_UpdateYaw(&promoted_sign_controller.guard, yaw.yaw_mdeg, MpuYaw_IsReady(now), yaw.generation);
-  if (mode==APP_MODE_SIGN_LINE_ADVANCED)
-  {
-    Promoted_SignObservation_UpdateLine(sign_line_mask,now);
-    if (Promoted_SignObservation_SeekingLine()) Promoted_SignRoute_MarkObservationSearch();
-  }
+  /* Stop directly for observation, regardless of the current line mask. */
   observation_paused = Promoted_SignObservation_Paused(now);
   Promoted_SignRoute_UpdateObservationPause(mode==APP_MODE_SIGN_LINE_ADVANCED ?
       Promoted_SignObservation_HoldingRoute(now) : observation_paused, now);

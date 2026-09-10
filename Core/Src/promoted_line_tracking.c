@@ -605,7 +605,9 @@ void Promoted_line_tracking_set_smooth_mode(uint8_t enable)
 
 void Promoted_line_tracking_set_middle_guard(uint8_t enable)
 {
-  middle_guard_enabled = enable != 0U ? 1U : 0U;
+  uint8_t next = enable != 0U ? 1U : 0U;
+  if (middle_guard_enabled == next) return;
+  middle_guard_enabled = next;
   smooth_filter_valid = 0U;
   smooth_centered_active = 0U;
   smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
