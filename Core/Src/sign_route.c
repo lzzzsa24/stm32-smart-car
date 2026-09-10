@@ -44,6 +44,7 @@ typedef struct
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
   uint8_t exit_region_seen;
   uint8_t exit_line_lost;
+  uint8_t exit_outer_clear_seen;
   uint8_t arc_lower_seen, exit_straight_active;
   uint32_t exit_straight_since_ms;
   int64_t exit_straight_origin_counts;
@@ -384,6 +385,7 @@ void SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid)
 
 static void enter_phase(SignRouteState state, uint32_t now)
 {
+  SignRouteState previous_state=route.state;
   if (state == SIGN_ROUTE_PROBE)
   {
     route.probe_hold_started = 0U;
@@ -428,11 +430,14 @@ static void enter_phase(SignRouteState state, uint32_t now)
   if (state == SIGN_ROUTE_EXIT_SELECT)
   {
     route.exit_line_lost=0U;
+    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
     route.exit_previous_error = route.direction * (route.profile == SIGN_ROUTE_PROFILE_STANDARD ?
         heading_error() : route.imu_yaw-route.approach_yaw);
     route.exit_best_error_mdeg = heading_error();
     if (route.exit_best_error_mdeg < 0) route.exit_best_error_mdeg = -route.exit_best_error_mdeg;
   }
+  if (state==SIGN_ROUTE_EXIT_CLEAR && previous_state!=SIGN_ROUTE_EXIT_SELECT)
+    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -914,6 +919,19 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   route.last_step_ms = now;
   update_geometry();
 #if SIGN_ROUTE_REQUIRE_IMU
+  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD && route.direction &&
+      (route.state==SIGN_ROUTE_EXIT_SELECT || route.state==SIGN_ROUTE_EXIT_CLEAR))
+  {
+    uint8_t outer=route.direction<0?8U:1U;
+    if (!(line_mask & outer)) route.exit_outer_clear_seen=1U;
+    else if (route.exit_outer_clear_seen)
+    {
+      /* Only this outer sensor participates: middle, opposite outer and
+         heading cannot veto the requested clear-then-black success. */
+      complete_route(now,command);
+      return;
+    }
+  }
   if (!route.imu_valid && route.state != SIGN_ROUTE_IDLE &&
       route.state != SIGN_ROUTE_LOCKED && route.state != SIGN_ROUTE_CANCELLED)
   {
@@ -1097,12 +1115,11 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       if (line_mask == 0U) route.exit_line_lost=1U;
       else if (route.exit_line_lost)
       {
-        /* The first new black contact ends forced exit turning immediately,
-           even before the estimated heading aligns. A broad contact releases
-           motors too; only later stable middle contact may complete the route. */
+        /* New contact releases steering, but only the selected outer sensor's
+           clear-then-black event (handled above) declares success. */
         enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
         command->just_finished=1U;
-        return; /* command was cleared at Step entry; no stale pivot survives */
+        return;
       }
     }
 #endif
@@ -1240,7 +1257,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       if (natural_departure_confirmed(line_mask,road_heading,now))
       {
         route.exit_reason=2U;
-        complete_route(now,command);
+        enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
+        route.natural_verify=1U;
         return;
       }
       if (is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
@@ -1262,8 +1280,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
         if (natural_exit)
         {
           route.exit_reason=2U;
-          complete_route(now,command);
-          return; /* Already on the aligned outgoing line: no extra route phase. */
+          enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
+          route.natural_verify=1U;
+          return; /* Track passively while waiting for the selected outer. */
         }
         enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
         route.exit_reason=1U;
@@ -1304,9 +1323,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     {
       /* Passive verification cannot take motors back, even after line loss or
          a later bend. A missed window cancels this route, never a late turn. */
-      if (natural_departure_confirmed(line_mask,heading_error(),now))
-        complete_route(now,command);
-      else if (now-route.phase_ms>SIGN_DEPART_VERIFY_TIMEOUT_MS ||
+      if (now-route.phase_ms>SIGN_DEPART_VERIFY_TIMEOUT_MS ||
                route.travel_mm>SIGN_DEPART_VERIFY_MAX_MM)
       {
         route.exit_reason=3U;
@@ -1332,6 +1349,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       exit_min_mm=0L;
       /* Completion confirmation is passive: never take the motors back,
          including on white, a broad mark, or a failed line capture. */
+      return; /* Only the selected outer event at Step entry completes mode3. */
     }
     else
     {

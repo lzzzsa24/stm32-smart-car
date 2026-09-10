@@ -191,6 +191,8 @@ static void check_early_arc(int side)
     assert(status.state==SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
   }
   for(i=0;i<2;++i) { now+=40; step(6,-side*12000,1,0); }
+  assert(status.state==SIGN_ROUTE_EXIT_CLEAR); /* middle alone is not success */
+  step(side<0?8:1,-side*12000,1,0);
   assert(status.state==SIGN_ROUTE_LOCKED);
 }
 
