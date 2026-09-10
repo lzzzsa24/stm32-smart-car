@@ -11,10 +11,12 @@ int main(void)
   SignRouteStatus s={0}; SignTraceRecord r; unsigned i;
   SignTrace_Init(); s.state=SIGN_ROUTE_ARC;
   s.heading_error_mdeg=-12000; s.arc_peak_mdeg=160000;
+  s.approach_from_pause=1;
   for(i=0;i<300;++i) { s.yaw_mdeg=(int32_t)i; SignTrace_Record(0xFFFFFF00U+i*20,12,&s,2200,0); }
   assert(!writes && SignTrace_Count()==256);
   assert(SignTrace_Get(0,&r) && r.yaw_mdeg==44);
   assert(r.heading_error_mdeg==-12000 && r.arc_peak_mdeg==160000 && r.left_cps==2200 && r.right_cps==0);
+  assert(r.approach_from_pause==1);
   s.state=SIGN_ROUTE_CANCELLED; s.fault=3;
   SignTrace_Record(0xFFFFFF00U+299*20+1,0,&s,0,0); /* immediate transition, no 20ms wait */
   assert(SignTrace_Get(255,&r) && r.fault==3);

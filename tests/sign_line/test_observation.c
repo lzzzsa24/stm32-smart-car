@@ -10,7 +10,7 @@ static void observation_pause(void)
   unsigned i;
   SignObservation_Reset(); SignRoute_Reset();
   SignObservation_AllowPause(1);
-  f.class_id=0; f.score=25; f.center_x=160; f.center_y=120;
+  f.class_id=0; f.score=26; f.center_x=160; f.center_y=120;
   for(i=0;i<30;++i)
   {
     f.sequence=i+1; f.received_ms=100+i*100;
@@ -40,9 +40,9 @@ static void observation_pause(void)
   assert(!SignObservation_Paused(9300));
   SignObservation_ObserveDetection(&f,9800); assert(!SignObservation_Paused(9800)); /* duplicate */
   SignObservation_Reset(); SignObservation_AllowPause(1);
-  f.sequence++; f.received_ms=10000; f.score=24;
+  f.sequence++; f.received_ms=10000; f.score=25;
   SignObservation_ObserveDetection(&f,10000); assert(!SignObservation_Paused(10000));
-  f.sequence++; f.score=25;
+  f.sequence++; f.score=26;
   SignObservation_ObserveDetection(&f,10000); assert(SignObservation_Paused(10000));
   SignObservation_Reset(); assert(!SignObservation_Paused(4801));
   SignObservation_AllowPause(0); f.sequence++; f.received_ms=5000;
@@ -51,7 +51,7 @@ static void observation_pause(void)
   f.sequence++; f.received_ms=UINT32_MAX-999U;
   SignObservation_ObserveDetection(&f,f.received_ms);
   assert(SignObservation_Paused(999)); assert(!SignObservation_Paused(1000));
-  puts("PASS: 25-percent pause gate, fixed 2s, confirmed inhibition, 500ms retry, reset and wrap");
+  puts("PASS: 26-percent pause gate, fixed 2s, confirmed inhibition, 500ms retry, reset and wrap");
 }
 
 static void rejected_frames(void)
@@ -61,7 +61,7 @@ static void rejected_frames(void)
   for(i=0;i<7;++i)
   {
     SignObservation_Reset(); SignObservation_AllowPause(1);
-    f.class_id=0; f.score=25; f.center_x=160; f.center_y=120;
+    f.class_id=0; f.score=26; f.center_x=160; f.center_y=120;
     f.received_ms=100; f.sequence++;
     switch(i)
     {

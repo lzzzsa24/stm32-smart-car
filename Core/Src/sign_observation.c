@@ -21,7 +21,7 @@ void SignObservation_ObserveDetection(const VisionDetection *frame, uint32_t now
   sequence = frame->sequence;
   sequence_valid = 1U;
   if (now - frame->received_ms > 350U || frame->class_id < 0 || frame->class_id > 1 ||
-      frame->score < 25U || frame->score > 100U || frame->center_x >= 320U || frame->center_y >= 240U)
+      frame->score < 26U || frame->score > 100U || frame->center_x >= 320U || frame->center_y >= 240U)
     return;
   if (pause_allowed && (!pause_started || now - pause_ms >= 2500U))
   {

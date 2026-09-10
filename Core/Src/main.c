@@ -926,6 +926,9 @@ static void sign_line_telemetry_task(AppMode mode, const SignRouteStatus *route_
   DiagnosticUart_WriteUnsigned(route_status->yaw_valid);
   DiagnosticUart_WriteString(" P=");
   DiagnosticUart_WriteUnsigned((uint32_t)route_status->profile);
+  DiagnosticUart_WriteString(route_status->approach_from_pause ? " REF=PAUSE" : " REF=PROBE");
+  DiagnosticUart_WriteString(" H=");
+  DiagnosticUart_WriteSigned(route_status->heading_error_mdeg);
   DiagnosticUart_WriteString(" SLOW=0 CAP=0"); /* retained diagnostic fields; no sign speed cap */
   DiagnosticUart_WriteString(" SEARCH=");
   DiagnosticUart_WriteUnsigned(route_status->searching);

@@ -247,7 +247,7 @@ static void ring(int side,uint32_t origin)
     for(w=0;w<4;++w)counts[w]+=22;
     tick+=40; sample(6,side*(angle-80)*1000);
   }
-  assert(route.state==SIGN_ROUTE_EXIT_SELECT && !route_command.active); /* visible line keeps control */
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active); /* qualified exit owns heading until aligned */
   for(angle=90;angle>=12;--angle)
   {
     tick+=40; sample(0,side*angle*1000);
@@ -435,8 +435,75 @@ static void exit_releases_direction(int side, uint32_t origin)
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: exit clears L/R and route motor ownership; opposite bend/re-loss use shared follower; no delayed exit turn");
 }
+static void continuous_line_exit(int side, uint32_t origin, uint8_t early_edge)
+{
+  unsigned i,w;
+  int angle, start_heading=early_edge?70000:90000;
+  uint8_t selected=side<0?8:1;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  /* An outside contact before the exit region is still ordinary arc tracking. */
+  for(i=0;i<4;++i) sample(selected,side*60000);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  for(i=0;i<4;++i) sample(early_edge?selected:6,side*start_heading);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+  /* Continuous ring line cannot revoke an unfinished, angle-qualified exit.
+     A fixed heading cannot falsely finish it just because the middle is black. */
+  for(i=0;i<10;++i)
+  {
+    sample(6,side*start_heading);
+    assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+    assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
+                   drive.requested_cps[0]==2200 && drive.requested_cps[2]==0);
+  }
+  sample(15,side*start_heading); assert(!route_command.active);
+  sample(9,side*start_heading); assert(!route_command.active);
+  for(angle=start_heading-5000;angle>10000;angle-=5000)
+  {
+    sample(6,side*angle);
+    assert(route_command.active && route.state==SIGN_ROUTE_EXIT_SELECT);
+  }
+  for(i=0;i<5;++i) sample(6,side*10000);
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(i=0;i<40;++i) sample(0,side*120000);
+  assert(route.state==SIGN_ROUTE_LOCKED && !route_command.active && !follower.override_active);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  puts("PASS: continuous ring line cannot cancel the exit choice; aligned outgoing line releases it; no renewed lap command");
+}
+static void paused_heading_reference(int side, uint32_t origin)
+{
+  unsigned i,w;
+  const int32_t stopped_yaw=side*10000;
+  init(1,origin);
+  for(i=0;i<203;++i) { observe(side); sample(6,stopped_yaw); }
+  assert(route.approach_from_pause && route.heading_error_mdeg==0);
+  /* The approach can need a small correction between the observation stop
+     and the crossbar. That must not silently redefine the outgoing heading. */
+  for(i=0;i<3;++i) sample(15,stopped_yaw+side*20000);
+  assert(route.state==SIGN_ROUTE_PROBE && route.heading_error_mdeg==side*20000);
+  assert(route.approach_from_pause);
+  sample(side<0?8:1,stopped_yaw-side*20000);
+  for(i=0;i<4;++i) sample(6,stopped_yaw-side*20000);
+  assert(route.state==SIGN_ROUTE_ARC);
+  sample(6,stopped_yaw-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(6,stopped_yaw);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active); /* midpoint also faces zero */
+  for(i=0;i<4;++i) sample(6,stopped_yaw+side*80000);
+  assert(route.state==SIGN_ROUTE_ARC);
+  for(i=0;i<4;++i) sample(6,stopped_yaw);
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && route.heading_error_mdeg==0);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  puts("PASS: 2-second stop anchors outgoing heading despite later approach correction; midpoint zero does not end the arc");
+}
 int main(void)
 {
+  paused_heading_reference(-1,100); paused_heading_reference(1,UINT32_MAX-120U);
+  continuous_line_exit(-1,100,0); continuous_line_exit(1,UINT32_MAX-120U,0);
+  continuous_line_exit(-1,UINT32_MAX-120U,1); continuous_line_exit(1,100,1);
   mode4_drawn_drive(-1); mode4_drawn_drive(1);
   arc_feedback_and_entry_search();
   exit_releases_direction(-1,100); exit_releases_direction(1,100);

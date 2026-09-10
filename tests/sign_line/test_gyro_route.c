@@ -58,7 +58,7 @@ static void test(int side)
     assert(s.state==SIGN_ROUTE_ARC && !c.active); /* no exit from white, wide or both sides */
   }
   for(i=0;i<4;++i) step(side<0?12:3,entry+side*170000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT && !c.active);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
   for(i=0;i<4;++i) step(6,entry+side*170000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* no yaw: not completed */
   for(i=0;i<4;++i) step(0,0,1);
@@ -119,18 +119,58 @@ static void natural_exit(int side)
   assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* error worsens >15 deg: withdraw */
 
   start(side);
-  step(6,-side*120000,1); /* permitted entry apex at the configured boundary */
+  SignRoute_UpdateEncoders(2000,2000,2000,2000);
+  for(i=0;i<4;++i) step(6,entry+side*170000,1);
+  step(6,entry+side*186000,1);
+  assert(s.state==SIGN_ROUTE_CANCELLED && !c.active); /* same bound when ring line stays black */
+
+  start(side);
+  step(6,-side*120000,1); /* a larger estimated entry apex must not advance the exit */
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
   for(i=0;i<4;++i) step(6,side*50000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_SELECT);
-  step(0,side*10000,1); /* aligned after 40 degrees: old extra 45-degree gate blocked this */
+  assert(s.state==SIGN_ROUTE_ARC); /* phase yaw is 170, but signed road heading is only 50 */
+  for(i=0;i<4;++i) step(6,side*90000,1);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
+  step(0,side*10000,1);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && c.active && c.left_pwm==c.right_pwm);
-  puts("PASS: natural exit below 170deg, aligned heading requires no extra 45deg, live rejoin and divergent-heading withdrawal");
+  puts("PASS: signed road heading controls exit independently of the estimated entry apex; live rejoin and divergence bounds");
+}
+static void pause_reference_lifetime(void)
+{
+  unsigned i; VisionDetection d={0};
+  SignRoute_Reset(); now=UINT32_MAX-999U;
+  SignRoute_UpdateYaw(10000,1); SignRoute_UpdateObservationPause(1,now);
+  now+=2000U;
+  SignRoute_UpdateYaw(20000,1); SignRoute_UpdateObservationPause(0,now);
+  step(6,35000,1);
+  assert(s.approach_from_pause && s.heading_error_mdeg==15000);
+  SignRoute_UpdateObservationPause(0,now); /* ordinary false samples cannot move the reference */
+  step(6,35000,1);
+  assert(s.approach_from_pause && s.heading_error_mdeg==15000);
+  /* An unconfirmed repeat stop replaces the earlier candidate heading. */
+  SignRoute_UpdateObservationPause(1,now); now+=2000U;
+  SignRoute_UpdateYaw(50000,1); SignRoute_UpdateObservationPause(0,now);
+  step(6,55000,1); assert(s.approach_from_pause && s.heading_error_mdeg==5000);
+  /* A stale stop cannot become a later unrelated fork's heading reference. */
+  now+=5001U;
+  for(i=0;i<3;++i)
+  {
+    d.class_id=0; d.score=80; d.center_x=160; d.center_y=120;
+    d.sequence=++seq; d.received_ms=now;
+    SignRoute_ObserveDetection(&d); step(6,60000,1);
+  }
+  for(i=0;i<3;++i) step(15,60000,1);
+  assert(s.state==SIGN_ROUTE_PROBE && !s.approach_from_pause && s.heading_error_mdeg==0);
+  SignRoute_Reset(); SignRoute_UpdateYaw(70000,1); SignRoute_UpdateObservationPause(1,now);
+  now+=2000U; SignRoute_UpdateYaw(80000,0); SignRoute_UpdateObservationPause(0,now);
+  SignRoute_GetStatus(now,&s); assert(!s.approach_from_pause);
+  puts("PASS: stopped-heading capture, no continuous overwrite, repeat/expiry/reset and invalid-gyro fallback");
 }
 int main(void)
 {
   test(-1); test(1);
   natural_exit(-1); natural_exit(1);
+  pause_reference_lifetime();
   puts("PASS: MPU yaw gates mirrored entry/half-circle/exit; stale and wrong-way withdraw; tick wrap");
   return 0;
 }
