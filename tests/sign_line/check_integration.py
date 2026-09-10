@@ -65,7 +65,9 @@ assert "line_tracking_compute_arc_fallback(reading,base_speed," in adapter
 route = (ROOT / "Core/Src/sign_route.c").read_text(encoding="utf-8")
 gyro_arc = route[route.index("if (route.state == SIGN_ROUTE_ARC)"):route.index("if (route.state == SIGN_ROUTE_EXIT_SELECT)")]
 assert "tangent_command(command" not in gyro_arc
-assert "SignObservation_ObserveDetection(&detection, HAL_GetTick());" in detection_task
+assert "SignObservation_ObserveDetection(&detection, HAL_GetTick()," in detection_task
+assert "mode == APP_MODE_SIGN_LINE ? SIGN_OBSERVATION_MODE3_SCORE_MINIMUM :" in detection_task
+assert "SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);" in detection_task
 assert "SignObservation_AllowPause(observation_route.direction == 0 &&" in detection_task
 assert "SignObservation_Reset();" in transition
 assert "forward_limit_cps" not in adapter
