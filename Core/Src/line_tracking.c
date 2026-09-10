@@ -179,7 +179,7 @@ static void command_set_pwm(LineTrackingCommand *command,
   if (fast_follow_enabled && action == LINE_ACTION_FORWARD &&
       command->left_cps > 0L && command->left_cps == command->right_cps)
   {
-    command->left_cps = (command->left_cps * 120L + 50L) / 100L;
+    command->left_cps = (command->left_cps * 144L + 50L) / 100L;
     command->right_cps = command->left_cps;
   }
   /* Preparing does not own the motors. DriveBase accepts only exact targets;
