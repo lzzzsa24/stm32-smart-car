@@ -24,7 +24,7 @@ cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_observation.c
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_observation.exe
 if not "%errorlevel%"=="0" exit /b 1
-cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\sign_line\test_mode2_follow.c Core\Src\sign_line_follow.c Core\Src\sign_observation.c Core\Src\simple_line_mode.c Core\Src\sign_route.c Core\Src\line_tracking.c Core\Src\line_recovery.c Core\Src\line_sensor_sample.c Core\Src\line_fault_log.c Core\Src\drive_base.c Core\Src\line_turn_load.c tests\line_recovery\tick_stub.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_mode2_follow.exe
+cl /nologo /W4 /WX /utf-8 /std:c11 /Itests\line_recovery\stubs /ICore\Inc tests\sign_line\test_mode2_follow.c Core\Src\sign_line_follow.c Core\Src\sign_observation.c Core\Src\simple_line_mode.c Core\Src\sign_route.c Core\Src\line_tracking.c Core\Src\line_recovery.c Core\Src\line_sensor_sample.c Core\Src\line_fault_log.c Core\Src\drive_base.c Core\Src\line_turn_pulse.c Core\Src\line_turn_load.c tests\line_recovery\tick_stub.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_mode2_follow.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_mode2_follow.exe
 if not "%errorlevel%"=="0" exit /b 1

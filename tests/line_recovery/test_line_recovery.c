@@ -30,6 +30,8 @@ void HAL_GPIO_WritePin(GPIO_TypeDef *p,uint16_t n,GPIO_PinState s)
 int32_t DriveBase_EquivalentCpsFromPwm(int16_t p) { return p; }
 void DriveBase_PrepareLineTurnAssist(int32_t l,int32_t r) { (void)l; (void)r; }
 void DriveBase_PrepareFastLineTurnAssist(int32_t l,int32_t r) { (void)l; (void)r; }
+void DriveBase_PreparePulsedLineTurn(int32_t l,int32_t r) { (void)l; (void)r; }
+void DriveBase_LinePulseTick(uint32_t now) { (void)now; }
 void DriveBase_SetLineFaultObservation(uint8_t e,uint8_t s,uint8_t r)
 { (void)e; (void)s; (void)r; }
 void DriveBase_GetTelemetry(DriveBaseTelemetry *t) { *t=telemetry; }

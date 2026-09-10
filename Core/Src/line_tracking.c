@@ -112,7 +112,9 @@ static int16_t follow_center_pwm(void)
 { return fast_follow_enabled ? 2400 : TRACKING_SETTLE_CENTER_PWM; }
 static void prepare_follow_assist(int32_t left, int32_t right)
 {
-  if (fast_follow_enabled) DriveBase_PrepareFastLineTurnAssist(left, right);
+  if (fast_follow_enabled && recovery_state != LINE_RECOVERY_ACTIVE)
+    DriveBase_PreparePulsedLineTurn(left, right);
+  else if (fast_follow_enabled) DriveBase_PrepareFastLineTurnAssist(left, right);
   else DriveBase_PrepareLineTurnAssist(left, right);
 }
 

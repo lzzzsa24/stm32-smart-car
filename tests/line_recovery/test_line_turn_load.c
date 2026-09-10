@@ -5,6 +5,7 @@
 #include <string.h>
 #include "drive_base.h"
 #include "line_turn_load.h"
+#include "line_turn_pulse.h"
 #include "wheel_encoder.h"
 #include "battery_monitor.h"
 #include "motorPWM.h"
@@ -1414,6 +1415,104 @@ static void test_fast_follow_continuity(void)
   puts("PASS: mode5 real four-wheel 1000-frame centre/left/right/wide sequence has no brake/stop commands; cap and legacy reentry retained");
 }
 
+static void test_macro_turn_pulse(void)
+{
+  unsigned ms,w;
+  uint32_t start;
+  DriveBaseTelemetry d;
+  LineTurnPulseState pulse={0};
+  int32_t target[4]={1700,1700,3400,3400}, position[4]={0};
+  int16_t output[4];
+  LineTurnPulse_Update(&pulse,100,target,position,0,output);
+  assert(output[0]==3300 && output[2]==3300);
+  position[0]=68; LineTurnPulse_Update(&pulse,105,target,position,0,output);
+  assert(output[0]==0 && output[1]==3300 && output[2]==3300);
+  position[0]=0; LineTurnPulse_Update(&pulse,106,target,position,0,output);
+  assert(output[0]==0); /* Recoil cannot restart an ended push. */
+  LineTurnPulse_Update(&pulse,112,target,position,0,output);
+  assert(output[1]==0 && output[2]==3300); /* Preserve inner/outer ratio. */
+  target[1]=3400; LineTurnPulse_Update(&pulse,113,target,position,0,output);
+  assert(output[1]==0); /* A wider request waits until the next cycle. */
+  LineTurnPulse_Update(&pulse,124,target,position,0,output);
+  for(w=0;w<4;++w) assert(output[w]==0);
+  LineTurnPulse_Update(&pulse,140,target,position,0,output);
+  assert(output[0]==3300 && output[2]==3300);
+  pulse=(LineTurnPulseState){0};
+  LineTurnPulse_Update(&pulse,UINT32_MAX-10,target,position,0,output);
+  LineTurnPulse_Update(&pulse,13,target,position,0,output);
+  assert(output[2]==0); /* 24ms including rollover. */
+  LineTurnPulse_Update(&pulse,29,target,position,0,output); assert(output[2]==3300);
+  target[0]=INT32_MIN; LineTurnPulse_Update(&pulse,30,target,position,0,output);
+  for(w=0;w<4;++w) assert(output[w]==0);
+
+  reset(); start=tick;
+  for(ms=0;ms<120;++ms)
+  {
+    tick=start+ms;
+    DriveBase_PreparePulsedLineTurn(-3200,3200);
+    DriveBase_SetSideCps(-3200,3200); DriveBase_Task(tick);
+    DriveBase_GetTelemetry(&d); assert(d.mode==DRIVE_BASE_SPEED);
+    for(w=0;w<4;++w)
+      assert(pins[w]==(ms%40<24 ? (w<2?-3300:3300) : 0));
+  }
+  /* Direction chatter cannot extend the off phase beyond 16ms. */
+  for(ms=0;ms<=16;++ms)
+  {
+    int32_t left=ms%2? -3200:3200;
+    ++tick; DriveBase_PreparePulsedLineTurn(left,-left);
+    DriveBase_SetSideCps(left,-left); DriveBase_Task(tick);
+    for(w=0;w<4;++w) assert(ms==16 ? absolute(pins[w])==3300 : pins[w]==0);
+  }
+  /* Live STOP cancels both phases; the next ordinary turn never inherits PWM. */
+  DriveBase_Stop(DRIVE_STOP_COAST); ++tick; DriveBase_Task(tick);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  command(3200,-3200,1); tick+=20; DriveBase_Task(tick);
+  assert(absolute(pins[0])!=3300);
+  reset(); DriveBase_PreparePulsedLineTurn(3200,-3200); tick+=21;
+  DriveBase_SetSideCps(3200,-3200); tick+=20; DriveBase_Task(tick);
+  assert(absolute(pins[0])!=3300);
+  reset(); DriveBase_PreparePulsedLineTurn(3200,-3200);
+  DriveBase_SetSideCps(2400,-2400); tick+=20; DriveBase_Task(tick);
+  assert(absolute(pins[0])!=3300);
+  reset(); DriveBase_PreparePulsedLineTurn(3200,3200);
+  DriveBase_SetSideCps(3200,3200); tick+=20; DriveBase_Task(tick);
+  assert(absolute(pins[0])!=3300);
+  reset(); start=tick; DriveBase_PreparePulsedLineTurn(3200,-3200);
+  DriveBase_SetSideCps(3200,-3200);
+  for(ms=0;ms<=60;++ms) { tick=start+ms; DriveBase_Task(tick); }
+  assert(absolute(pins[0])!=3300); /* Expiry returns to ordinary feedback. */
+  reset();
+  {
+    DrivePositionCommand move={{1000,1000,1000,1000},{2500,2500,2500,2500},1000,12,DRIVE_STOP_COAST};
+    assert(DriveBase_StartPositionMove(&move));
+    DriveBase_PreparePulsedLineTurn(3200,-3200); DriveBase_SetSideCps(3200,-3200);
+    DriveBase_GetTelemetry(&d); assert(d.mode==DRIVE_BASE_POSITION);
+  }
+  reset(); line_tracking_reset();
+  puts("PASS: macro turn 3300 PWM, 24/16ms cycles, repeated-command phase, per-wheel ratio/count cutoff, recoil, chatter, wrap, lease and STOP/position isolation");
+  reset(); start=tick;
+  DriveBase_PreparePulsedLineTurn(1700,3400);
+  DriveBase_SetSideCps(1700,3400); DriveBase_Task(tick);
+  assert(pins[0]==3300 && pins[2]==3300);
+  tick=start+12; DriveBase_LinePulseTick(tick);
+  assert(pins[0]==0 && pins[2]==3300);
+  tick=start+24; DriveBase_LinePulseTick(tick);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  tick=start+100; DriveBase_LinePulseTick(tick);
+  for(w=0;w<4;++w) assert(pins[w]==0); /* ISR never starts a missed pulse. */
+  DriveBase_SetSideCps(4000,4000); DriveBase_Task(tick);
+  assert(pins[0]>0); tick+=40; DriveBase_LinePulseTick(tick);
+  assert(pins[0]>0); /* Old pulse deadline cannot cut a new owner. */
+  reset();
+  puts("PASS: 1ms OFF-only cutoff survives stalled main loop and cannot start pulses or cut subsequent continuous drive");
+  DriveBase_PreparePulsedLineTurn(1700,3400);
+  DriveBase_SetSideCps(1700,3400); DriveBase_Task(tick); assert(pins[2]==3300);
+  DriveBase_SetSpeedLimitCps(1700);
+  for(w=0;w<4;++w) assert(pins[w]==0);
+  DriveBase_GetTelemetry(&d); assert(d.requested_cps[0]==850 && d.requested_cps[2]==1700);
+  reset();
+}
+
 int main(void)
 {
   LineTurnLoadState s={0};
@@ -1422,6 +1521,7 @@ int main(void)
   unsigned i;
   test_fast_turn_assist();
   test_fast_follow_continuity();
+  test_macro_turn_pulse();
   test_bypass_contact_handoff();
   test_mode1_boost_real_drive();
   /* A single bad sample gets no assistance; the ramp and cap are finite. */
