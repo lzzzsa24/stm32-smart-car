@@ -20,7 +20,8 @@ typedef enum
   SIGN_ROUTE_SEARCHING,   /* display-only; search keeps the underlying route phase */
   SIGN_ROUTE_CANCELLED,   /* route withdrawn; line controller still runs */
   SIGN_ROUTE_ENTRY_RETURN,
-  SIGN_ROUTE_ENTRY_FALLBACK
+  SIGN_ROUTE_ENTRY_FALLBACK,
+  SIGN_ROUTE_FALLBACK_ARC_TURN
 } SignRouteState;
 
 typedef enum
