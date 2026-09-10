@@ -57,15 +57,18 @@ typedef struct
   SignRouteProfile profile;
   int32_t heading_error_mdeg; /* current heading minus approach, wrapped +/-180 deg */
   int32_t arc_peak_mdeg;  /* maximum arc angle observed on a narrow track line */
-  uint8_t approach_from_pause; /* active mode-3 reference came from observation-stop completion */
+  uint8_t approach_from_pause; /* provisional stopped pose; road_reference_valid distinguishes trust */
   int32_t exit_heading_peak_mdeg; /* signed upper-half peak on line, relative to straight reference */
+  uint8_t road_reference_valid; /* qualified moving-line estimate, not stopped centering */
+  uint8_t exit_reason; /* 0 none, 1 angle/reacquisition, 2 natural return, 3 missed window */
+  int32_t arc_sweep_mdeg; /* directed visible-line sweep, independent of road reference */
 } SignRouteStatus;
 
 void SignRoute_Init(void);
 /* Mode 4 selects the gyro-tangent profile; mode 3 keeps STANDARD. */
 void SignRoute_SetProfile(SignRouteProfile profile);
-/* Mode 3 anchors its straight-road heading on completion without starting a
-   turn. Mode 4 starts its drawn trajectory here only with a confirmed direction. */
+/* Mode 3 preserves a qualified moving road reference across observation.
+   Mode 4 starts its drawn trajectory here only with a confirmed direction. */
 void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now);
 /* Rebase pre-entry geometry when the centered mode-3 observation finishes. */
 void SignRoute_MarkObservationSearch(void);

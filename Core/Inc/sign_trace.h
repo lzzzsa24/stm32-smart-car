@@ -10,6 +10,8 @@ typedef struct {
   int32_t exit_heading_peak_mdeg;
   uint8_t mask, state, fault, online, score;
   uint8_t approach_from_pause;
+  uint8_t road_reference_valid, exit_reason;
+  int32_t arc_sweep_mdeg;
   int8_t direction, class_id;
 } SignTraceRecord;
 void SignTrace_Init(void);

@@ -36,6 +36,12 @@ static void init(int side, uint32_t origin)
   now=origin; seq=0;
   SignRoute_Reset(); SimpleLine_Init(&line); SimpleLine_Start(&line);
   SignRoute_UpdateEncoders(0,0,0,0);
+  for(i=0;i<45;++i)
+  {
+    int32_t n=(int32_t)(i+1)*12;
+    SignRoute_UpdateEncoders(n,n,n,n); step(6,0,1,0);
+  }
+  assert(status.road_reference_valid);
   for(i=0;i<3;++i) { if(side) observe(side); step(6,0,1,0); }
   for(i=0;i<3;++i) step(15,0,1,0);
   assert(status.state==SIGN_ROUTE_PROBE);

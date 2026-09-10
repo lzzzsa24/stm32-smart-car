@@ -14,6 +14,12 @@ static void start(int side)
   unsigned i; VisionDetection d={0};
   SignRoute_Reset(); now=0xFFFFFF00U; seq=0;
   SignRoute_UpdateEncoders(0,0,0,0);
+  for(i=0;i<45;++i)
+  {
+    int32_t n=(int32_t)(i+1)*12;
+    SignRoute_UpdateEncoders(n,n,n,n); step(6,0,1);
+  }
+  assert(s.road_reference_valid);
   for(i=0;i<3;++i)
   {
     d.class_id=side<0?0:1; d.score=80; d.center_x=160; d.center_y=120;

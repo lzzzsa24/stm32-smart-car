@@ -85,6 +85,16 @@ static void observe(int side)
   SignObservation_ObserveDetection(&d,tick);
   SignRoute_ObserveDetection(&d);
 }
+static void learn_road(int32_t yaw)
+{
+  unsigned i,w;
+  for(i=0;i<45;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=12;
+    sample(6,yaw);
+  }
+  assert(route.road_reference_valid && route.heading_error_mdeg==0);
+}
 static uint8_t normalized(LineTrackingAction a)
 {
   if(a==LINE_ACTION_STOP)return 0;
@@ -227,6 +237,7 @@ static void ring(int side,uint32_t origin)
 {
   unsigned i,w; int angle; uint8_t selected=side<0?8:1,opposite=side<0?1:8;
   init(1,origin);
+  learn_road(0);
   /* Camera and control loop keep running throughout the observation stop. */
   for(i=0;i<203;++i) { observe(side); sample(6,0); }
   for(i=0;i<3;++i) sample(15,0);
@@ -345,6 +356,7 @@ static void enter_test_arc(int side, uint32_t origin)
 {
   unsigned i;
   init(1,origin);
+  learn_road(0);
   for(i=0;i<203;++i) { observe(side); sample(6,0); }
   for(i=0;i<3;++i) sample(15,0);
   sample(side<0?8:1,-side*20000);
@@ -498,13 +510,14 @@ static void paused_heading_reference(int side, uint32_t origin)
   unsigned i,w;
   const int32_t stopped_yaw=side*10000;
   init(1,origin);
+  learn_road(stopped_yaw);
   for(i=0;i<203;++i) { observe(side); sample(6,stopped_yaw); }
-  assert(route.approach_from_pause && route.heading_error_mdeg==0);
+  assert(route.road_reference_valid && !route.approach_from_pause && route.heading_error_mdeg==0);
   /* The approach can need a small correction between the observation stop
      and the crossbar. That must not silently redefine the outgoing heading. */
   for(i=0;i<3;++i) sample(15,stopped_yaw+side*20000);
   assert(route.state==SIGN_ROUTE_PROBE && route.heading_error_mdeg==side*20000);
-  assert(route.approach_from_pause);
+  assert(route.road_reference_valid && !route.approach_from_pause);
   sample(side<0?8:1,stopped_yaw-side*20000);
   for(i=0;i<4;++i) sample(6,stopped_yaw-side*20000);
   assert(route.state==SIGN_ROUTE_ARC);
@@ -517,7 +530,7 @@ static void paused_heading_reference(int side, uint32_t origin)
   for(i=0;i<4;++i) sample(6,stopped_yaw);
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && route.heading_error_mdeg==0);
   for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
-  puts("PASS: 2-second stop anchors outgoing heading despite later approach correction; midpoint zero does not end the arc");
+  puts("PASS: moving-line reference survives observation and later approach correction; midpoint zero does not end the arc");
 }
 static void naturally_departed_before_gate(int side, uint32_t origin, int32_t outgoing)
 {
@@ -559,27 +572,28 @@ static void departure_evidence_is_bounded(int side)
   /* Waiting with centered sensors and zero wheel travel is not an exit. */
   for(i=0;i<30;++i) sample(6,0);
   assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
-  /* Following a changing tangent is not the stable outgoing road. */
+  /* A return may withdraw ARC authority, but a changing tangent is not
+     confirmed outgoing road and cannot restore the old forced turn. */
   for(i=0;i<20;++i)
   {
     for(w=0;w<4;++w) counts[w]+=22;
     sample(6,side*(25000-(int32_t)i*1000));
-    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+    assert(route.state!=SIGN_ROUTE_LOCKED && route.state!=SIGN_ROUTE_EXIT_SELECT && !route_command.active);
   }
   /* White/both sides/full black cannot finish even with forward wheel counts. */
   for(i=0;i<30;++i)
   {
     for(w=0;w<4;++w) counts[w]+=22;
     sample(i%3==0?0:(i%3==1?9:15),0);
-    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+    assert(route.state!=SIGN_ROUTE_LOCKED && route.state!=SIGN_ROUTE_EXIT_SELECT && !route_command.active);
   }
   for(i=0;i<8;++i)
   { for(w=0;w<4;++w) counts[w]+=22; sample(6,0); }
   tick+=60; sample(6,0);
-  assert(route.state==SIGN_ROUTE_ARC); /* stale loop interval cannot satisfy stable capture */
+  assert(route.state!=SIGN_ROUTE_LOCKED && !route_command.active); /* gap cannot confirm */
   for(i=0;i<8;++i)
   { for(w=0;w<4;++w) counts[w]+=22; sample(6,0); }
-  assert(route.state==SIGN_ROUTE_ARC);
+  assert(route.state!=SIGN_ROUTE_LOCKED && !route_command.active);
 
   /* Only an outward contact PLUS actual heading return can select early. */
   enter_test_arc(side,100);
@@ -828,8 +842,62 @@ static void center_before_observation(int side, uint32_t origin)
   }
   assert(!SignObservation_HoldingRoute(tick) && !follower.running);
 }
+static void biased_stop_exit(int side, int32_t skew, uint8_t trusted)
+{
+  unsigned i,w;
+  init(1,UINT32_MAX-999U);
+  if(trusted) learn_road(0);
+  for(i=0;i<203;++i) { observe(side); sample(6,skew); }
+  assert(route.road_reference_valid==trusted);
+  assert(route.heading_error_mdeg==(trusted?skew:0));
+  for(i=0;i<3;++i) sample(15,skew);
+  sample(side<0?8:1,skew-side*20000);
+  for(i=0;i<4;++i) sample(6,skew-side*20000);
+  assert(route.state==SIGN_ROUTE_ARC);
+  for(i=0;i<30;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=16;
+    sample(6,-side*(20000+(int32_t)i*1800));
+  }
+  for(i=0;i<50;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=16;
+    sample(6,side*(-74000+(int32_t)i*2400));
+    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  }
+  for(w=0;w<4;++w) counts[w]+=12;
+  sample(6,side*24000);
+  assert(route.state==SIGN_ROUTE_EXIT_CLEAR && route.exit_reason==2);
+  assert(!route_command.active && !follower.override_active);
+  assert(!follower.guard.entry_guard_active && !follower.guard.curve_yaw_valid);
+  /* Even before completion, opposite current line owns the wheels. */
+  sample(side<0?1:8,side*20000);
+  assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
+                 drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+  for(i=0;i<30;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=12;
+    sample(6,0); assert(!route_command.active && !follower.override_active);
+  }
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0);
+  for(i=0;i<4;++i)
+  {
+    sample(side<0?1:8,side*90000);
+    assert(!route_command.active && !follower.override_active);
+    assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
+                   drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+  }
+  for(i=0;i<40;++i) { sample(0,side*100000); assert(!follower.override_active); }
+  assert(drive.requested_cps[0]!=0 && drive.requested_cps[0]==-drive.requested_cps[2]);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+}
 int main(void)
 {
+  int side,skew,trusted;
+  for(side=-1;side<=1;side+=2) for(skew=-30000;skew<=30000;skew+=10000)
+    for(trusted=0;trusted<=1;++trusted) biased_stop_exit(side,skew,(uint8_t)trusted);
+  puts("PASS: actual motor pipeline handles biased stops, passive departure, opposite normal bend, re-loss and STOP with/without qualified reference");
   center_before_observation(-1,100);
   center_before_observation(1,UINT32_MAX-120U);
   exit_turn_reacquires_before_alignment(-1,100);

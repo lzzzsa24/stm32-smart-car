@@ -20,6 +20,10 @@ if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_probe_hold.exe
 if not "%errorlevel%"=="0" exit /b 1
 set CL=
+cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_road_reference.c Core\Src\sign_route.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_road_reference.exe
+if not "%errorlevel%"=="0" exit /b 1
+manual-build-sign-line-host-test\test_road_reference.exe
+if not "%errorlevel%"=="0" exit /b 1
 cl /nologo /W4 /WX /utf-8 /std:c11 /ICore\Inc tests\sign_line\test_observation.c Core\Src\sign_observation.c Core\Src\sign_route.c /Fomanual-build-sign-line-host-test\ /Femanual-build-sign-line-host-test\test_observation.exe
 if not "%errorlevel%"=="0" exit /b 1
 manual-build-sign-line-host-test\test_observation.exe
