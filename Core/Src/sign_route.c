@@ -575,9 +575,10 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
     if (stable((uint8_t)(narrow_line(line_mask) &&
                          route.travel_mm >= SIGN_GYRO_TANGENT_FALLBACK_MIN_MM), now))
     {
-      route.state = SIGN_ROUTE_LOCKED;
-      route.finished_ms = now;
-      route.none_since_ms = 0U;
+      /* Reacquisition here is the circle sought by the fallback leg. Keep the
+         route direction and enter ARC so gyro exit handling still runs. */
+      enter_phase(SIGN_ROUTE_ARC, now);
+      route.entry_line_ready = 1U;
       command->active = 0U;
       command->just_finished = 1U;
     }
