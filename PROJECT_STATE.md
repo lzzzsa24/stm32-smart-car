@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: e9049bbe5b1d7b51990584dd6e1743c4858587b8
-comprehensive_candidate_status: e9049bb_COM11_full_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
+comprehensive_candidate_status: 9eba339_integrated_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120184
-comprehensive_candidate_bin_sha256: B9CB6328CB60F73C7BF8844382B959589AD5CA47D00EF34EE694171F831C04B4
-comprehensive_candidate_hex_sha256: 75B0F7C32957EF07DFB9EAA5217F510D6521977B5FB1F897C5BDB7AB6438B783
+comprehensive_candidate_bin_size_bytes: 119440
+comprehensive_candidate_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
+comprehensive_candidate_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
 integration_branch: main
 repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
 latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
@@ -36,8 +36,8 @@ candidate_hex_sha256: 877DA7A24AE1B71EA869EB63445E4A6702AA2B4483F05FDAAB1BA49503
 user_reported_flash: tool_verified_e9049bb_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
-remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
-remote_sync_branch: integration/mode5-fixed-bypass-rc5
+remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
+remote_sync_branch: integration/main-mode35-sync-20260910
 stm32_runtime_status: COM11_e9049bb_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
 temporary_flash_selector_commit: e9049bb_comprehensive_flashed
@@ -52,6 +52,20 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: b32e03a and GitHub synchronization
+
+9eba339 merged onto e9049bb without conflicts. Mode3 recognition now stops
+directly for2s for every line mask; no pre-observation centering/search.
+Mode2-shared tracking, mode5 extra20% straight targets and mode4 retained.
+Full sign suite, mode1/2 and mode5 integration checks and ARM build passed.
+BIN119440 bytes; hashes above. No flash or physical test: board remainse9049bb,
+K210 unchanged. Main code remainsb48e9e0 (does not include later test changes).
+Rollback: rollback/2026-09-10-before-9eba339 ->e9049bb.
+Sync scope: main via PR18, comprehensive-v15 branch, latest deployed tags and
+the rollback anchors needed for these changes; unrelated worker branches and
+untracked purchase guide excluded. PR https://github.com/lzzzsa24/test-exp7-unified-motion-v1/pull/18
+records the live merge result. No new release; rc.5 stays on its original source.
 
 ### Latest deployment: e9049bb
 
