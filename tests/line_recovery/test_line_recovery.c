@@ -94,7 +94,7 @@ static void test_fast_follow(void)
   {
     unsigned outer=side?8:2, pair=side?12:3;
     reset(0,1); line_tracking_set_fast_follow(1);
-    hold(5,260); assert(output.left_cps==2750 && output.right_cps==2750);
+    hold(5,260); assert(output.left_cps==3300 && output.right_cps==3300);
     sample(pair,10,3000);
     assert((side?output.left_cps:output.right_cps)==3400);
     assert((side?output.right_cps:output.left_cps)==1700);
@@ -131,8 +131,8 @@ static void test_fast_no_timed_holds(void)
     unsigned outer=side?8:2, opposite=side?2:8;
     int32_t search_left=side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
     reset(0,1); line_tracking_set_fast_follow(1);
-    sample(5,1,3000); assert(output.left_cps==2550);
-    sample(5,20,3000); assert(output.left_cps==2590); /* no stationary acceleration hold */
+    sample(5,1,3000); assert(output.left_cps==3060);
+    sample(5,20,3000); assert(output.left_cps==3108); /* no stationary acceleration hold */
     for(repeat=0;repeat<50;++repeat)
     {
       sample(outer,1,3000);
@@ -167,7 +167,7 @@ static void test_fast_no_timed_holds(void)
   sample(8,1,3000); sample(0,10,3000);
   assert(!output.valid && telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
   sample(5,1,3000); assert(LineRecovery_IsSearching());
-  sample(5,1,3000); assert(output.valid && output.left_cps==2550);
+  sample(5,1,3000); assert(output.valid && output.left_cps==3060);
   puts("PASS: fast no-hold 1ms sharp-corner/loss/capture/crossing sequences, inner-only direction continuity, wrap and external brake/STOP");
 }
 

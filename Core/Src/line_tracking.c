@@ -172,6 +172,14 @@ static void command_set_pwm(LineTrackingCommand *command,
   if (command == 0) return;
   command->left_cps = DriveBase_EquivalentCpsFromPwm(left_pwm);
   command->right_cps = DriveBase_EquivalentCpsFromPwm(right_pwm);
+  /* Scale actual straight speed, not the nonlinear PWM calibration input.
+     Corner, crossing and low-speed rejoin commands keep their own targets. */
+  if (fast_follow_enabled && action == LINE_ACTION_FORWARD &&
+      command->left_cps > 0L && command->left_cps == command->right_cps)
+  {
+    command->left_cps = (command->left_cps * 120L + 50L) / 100L;
+    command->right_cps = command->left_cps;
+  }
   /* Preparing does not own the motors. DriveBase accepts only exact targets;
      a consumer applying a speed cap must rebind the claim to the final pair. */
   prepare_follow_assist(command->left_cps, command->right_cps);
