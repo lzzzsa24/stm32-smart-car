@@ -8,6 +8,7 @@
 
 #include "main.h"
 #include "mpu6050_yaw.h"
+#include "sign_route.h"
 
 #define OLED_WIDTH                 128U
 #define OLED_PAGES                   4U
@@ -619,7 +620,15 @@ static void build_sign_line_screen(uint8_t mode_number,
   uint8_t index;
 
   clear_framebuffer();
-  draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 GYRO");
+  if (mode_number == 3U)
+  {
+    char prefix[8];
+    index = append_string(prefix, 0U, "M3 E");
+    index = append_unsigned(prefix, index, SignRoute_GetExitAngleDegrees());
+    prefix[index] = '\0'; /* bounded30..90 -> six characters */
+    draw_battery_header(prefix);
+  }
+  else draw_battery_header("M4 GYRO");
 
   if (mode_number == 3U)
   {
@@ -667,6 +676,15 @@ static void build_sign_line_screen(uint8_t mode_number,
         vision_class == 0 ? 'L' : (vision_class == 1 ? 'R' : (vision_class == 2 ? 'H' : '-')));
     index = append_char(line, index, ' ');
     index = append_unsigned(line, index, vision_score);
+  }
+  if (mode_number == 3U)
+  {
+    SignRouteStatus route;
+    SignRoute_GetStatus(HAL_GetTick(), &route);
+    index = append_string(line, index, " H:");
+    if (route.road_reference_valid && route.direction)
+      index = append_signed(line, index, route.direction * route.heading_error_mdeg / 1000L);
+    else index = append_string(line, index, "--");
   }
   finish_text(line, index);
   draw_text(2U, 0U, line);

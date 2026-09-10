@@ -82,6 +82,39 @@ static void natural_exit(int side,int32_t stopped)
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.direction==side && !c.active);
   finish_outer(side); assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
 }
+static void set_exit_angle(unsigned degrees)
+{
+  while(SignRoute_GetExitAngleDegrees()<degrees) SignRoute_AdjustExitAngle(1);
+  while(SignRoute_GetExitAngleDegrees()>degrees) SignRoute_AdjustExitAngle(-1);
+}
+static void adjustable_exit(void)
+{
+  unsigned degrees,mask;
+  int side;
+  for(degrees=30;degrees<=90;degrees+=5) for(side=-1;side<=1;side+=2)
+    for(mask=0;mask<16;++mask)
+    {
+      int32_t threshold=(int32_t)degrees*1000;
+      set_exit_angle(degrees); start(side,10000);
+      assert(SignRoute_GetExitAngleDegrees()==degrees);
+      step((uint8_t)mask,10000+side*(threshold-1),0);
+      assert(s.state==SIGN_ROUTE_ARC);
+      step((uint8_t)mask,10000+side*threshold,0);
+      assert(s.state==SIGN_ROUTE_EXIT_SELECT);
+      step(0,10000,0);
+      assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.direction==side);
+      step((uint8_t)(mask|(side<0?8U:1U)),10000,0);
+      assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+    }
+  set_exit_angle(50); start(1,0);
+  step(6,44000,0); assert(s.state==SIGN_ROUTE_ARC);
+  SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==SIGN_ROUTE_ARC);
+  SignRoute_AdjustExitAngle(-1); step(6,44000,0); assert(s.state==SIGN_ROUTE_EXIT_SELECT);
+  SignRoute_AdjustExitAngle(1); step(6,44000,0);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* settings cannot restart an exit */
+  set_exit_angle(40);
+  puts("PASS: all adjustable30..90 boundaries mirror on all16 masks; reset preserves value, live lowering starts ARC exit, completion remains outer-only");
+}
 int main(void)
 {
   int side,offset,apex; unsigned mask;
@@ -92,5 +125,6 @@ int main(void)
     natural_exit(side,offset);
   }
   puts("PASS: stopped reference and biased poses; all16 masks start at40 with zero travel and sample gap; completion still requires outer clear/black");
+  adjustable_exit();
   return 0;
 }

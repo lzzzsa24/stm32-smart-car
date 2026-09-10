@@ -1,5 +1,8 @@
 # Mode 3: angle starts exit, selected outer completes it
 
+Later update: MODE3_ADJUSTABLE_EXIT.md makes the40-degree default adjustable
+30..90 using the independent remote +/- keys; the completion rule below remains.
+
 Base: comprehensive ec15dda. This supersedes the start conditions in
 MODE3_EXIT_DISPATCH.md and MODE3_OUTER_EXIT_EVENT.md; their selected-outer
 clear-to-black completion rule remains authoritative.
