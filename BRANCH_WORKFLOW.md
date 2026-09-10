@@ -10,7 +10,7 @@ new mode number in handoffs; do not blindly merge a worker's old main.c selector
 
 - Repository and canonical checkout:
   `F:/myproject/jidian/project/test-exp7-unified-motion-v1`
-- GitHub: `https://github.com/lzzzsa24/test-exp7-unified-motion-v1`
+- GitHub: `https://github.com/lzzzsa24/stm32-smart-car`
 - Canonical integration/deployment branch: `main`
 - Shared live status: `PROJECT_STATE.md`
 - Formal build entrypoint: `build_unified_motion.ps1`
