@@ -1,5 +1,6 @@
 #include "sign_route.h"
 #include "sign_route_config.h"
+#include "sign_observation.h"
 #include "vehicle_geometry.h"
 
 #include <stddef.h>
@@ -18,6 +19,7 @@
 typedef struct
 {
   int8_t class_id[SIGN_WINDOW_SIZE];
+  uint8_t score[SIGN_WINDOW_SIZE];
   uint16_t center_x[SIGN_WINDOW_SIZE];
   uint16_t center_y[SIGN_WINDOW_SIZE];
   uint32_t time_ms[SIGN_WINDOW_SIZE];
@@ -158,6 +160,7 @@ static void remove_stale(uint32_t now)
   for (i = remove; i < route.count; ++i)
   {
     route.class_id[i - remove] = route.class_id[i];
+    route.score[i - remove] = route.score[i];
     route.center_x[i - remove] = route.center_x[i];
     route.center_y[i - remove] = route.center_y[i];
     route.time_ms[i - remove] = route.time_ms[i];
@@ -166,6 +169,7 @@ static void remove_stale(uint32_t now)
 }
 
 static void append_observation(int8_t class_id,
+                               uint8_t score,
                                uint16_t center_x,
                                uint16_t center_y,
                                uint32_t now)
@@ -178,6 +182,7 @@ static void append_observation(int8_t class_id,
     for (i = 1U; i < SIGN_WINDOW_SIZE; ++i)
     {
       route.class_id[i - 1U] = route.class_id[i];
+      route.score[i - 1U] = route.score[i];
       route.center_x[i - 1U] = route.center_x[i];
       route.center_y[i - 1U] = route.center_y[i];
       route.time_ms[i - 1U] = route.time_ms[i];
@@ -185,6 +190,7 @@ static void append_observation(int8_t class_id,
     route.count = SIGN_WINDOW_SIZE - 1U;
   }
   route.class_id[route.count] = class_id;
+  route.score[route.count] = score;
   route.center_x[route.count] = center_x;
   route.center_y[route.count] = center_y;
   route.time_ms[route.count] = now;
@@ -195,6 +201,7 @@ static void try_confirm(uint32_t now)
 {
   int8_t candidate;
   uint8_t votes = 0U;
+  uint8_t observation_vote = 0U;
   uint8_t i;
 
   if ((route.state != SIGN_ROUTE_IDLE && route.state != SIGN_ROUTE_PROBE &&
@@ -214,9 +221,15 @@ static void try_confirm(uint32_t now)
     if (route.class_id[i] == candidate)
     {
       ++votes;
+      if (route.score[i] >= SIGN_OBSERVATION_MODE3_SCORE_MINIMUM)
+        observation_vote = 1U;
     }
   }
-  if (votes >= 3U)
+  /* Main evaluates parking before this vote. A mode-3 direction must not
+     inhibit its first observation using only frames below the parking gate.
+     Weak frames still contribute; the same candidate needs one qualifying
+     frame in the current window. Mode 4 retains its existing voting policy. */
+  if (votes >= 3U && (route.profile != SIGN_ROUTE_PROFILE_STANDARD || observation_vote))
   {
     route.direction = candidate == 0 ? -1 : 1;
     if (route.state == SIGN_ROUTE_IDLE) route.state = SIGN_ROUTE_ARMED;
@@ -342,7 +355,7 @@ void SignRoute_ObserveDetection(const VisionDetection *detection)
   {
     clear_window();
   }
-  append_observation(candidate, detection->center_x,
+  append_observation(candidate, detection->score, detection->center_x,
                      detection->center_y, now);
 
   if (detection->class_id == -1)

@@ -92,6 +92,7 @@ static void threshold_layers(void)
   for(side=0;side<=1;++side) for(score=19;score<=26;++score)
   {
     SignObservation_Reset(); SignRoute_Reset();
+    SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
     f.class_id=(int8_t)side; f.score=(uint8_t)score;
     f.center_x=160; f.center_y=120;
     for(i=0;i<3;++i)
@@ -104,22 +105,58 @@ static void threshold_layers(void)
       assert(SignObservation_Paused(f.received_ms)==(score>=22));
     }
     SignRoute_GetStatus(f.received_ms,&r);
-    assert(r.direction==(score>=20 ? (side==0?-1:1) : 0));
+    assert(r.direction==(score>=22 ? (side==0?-1:1) : 0));
     if(score==20 || score==21)
     {
-      /* Audit: weak votes can lock direction without a pause; a later 22
-         does not reopen observation under the existing application policy. */
+      /* Weak votes remain provisional until the first parking-grade frame. */
       SignObservation_AllowPause(r.direction==0);
       f.sequence++; f.received_ms+=100; f.score=22;
       SignObservation_ObserveDetection(&f,f.received_ms,SIGN_OBSERVATION_MODE3_SCORE_MINIMUM);
-      assert(!SignObservation_Paused(f.received_ms));
+      SignRoute_ObserveDetection(&f);
+      assert(SignObservation_Paused(f.received_ms));
+      SignRoute_GetStatus(f.received_ms,&r);
+      assert(r.direction==(side==0?-1:1));
     }
     SignObservation_Reset(); SignObservation_AllowPause(1);
     f.score=(uint8_t)score; f.sequence++;
     SignObservation_ObserveDetection(&f,f.received_ms,SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);
     assert(SignObservation_Paused(f.received_ms)==(score>=26));
   }
-  puts("PASS: mode3 21 rejected/22 accepted, mode4 retains 26; 20/21 three-vote direction can bypass observation");
+  puts("PASS: mode3 weak votes cannot bypass 22-percent observation; mode4 retains 26-percent parking");
+}
+
+static void confirmation_gate_window(void)
+{
+  VisionDetection f={0};
+  SignRouteStatus r;
+  unsigned profile,scenario,i;
+  for(profile=0;profile<2;++profile) for(scenario=0;scenario<5;++scenario)
+  {
+    SignRoute_Reset(); SignRoute_SetProfile((SignRouteProfile)profile);
+    f.class_id=0; f.score=22; f.center_x=160; f.center_y=120;
+    f.sequence=1; f.received_ms=100;
+    SignRoute_ObserveDetection(&f);
+    if(scenario==1) f.received_ms+=700U; /* qualifying frame expires before votes */
+    for(i=0;i<6;++i)
+    {
+      f.sequence++;
+      f.received_ms+=100U;
+      f.class_id=scenario==0?1:0;
+      f.score=20;
+      if(scenario==2 && i==0) f.sequence++; /* queue gap */
+      if(scenario==3) f.center_x=250;       /* new object */
+      if(scenario==4 && i<3) f.class_id=-1; /* evict qualifying vote before a majority */
+      SignRoute_ObserveDetection(&f);
+    }
+    SignRoute_GetStatus(f.received_ms,&r);
+    assert(r.direction==(profile ? (scenario==0?1:-1) : 0));
+    f.sequence++; f.received_ms+=100; f.score=22;
+    SignRoute_ObserveDetection(&f);
+    SignRoute_GetStatus(f.received_ms,&r);
+    assert(r.direction==(scenario==0?1:-1));
+  }
+  SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
+  puts("PASS: observation-grade vote is same-class, fresh and cleared by queue gap, object jump or window eviction; mode4 voting unchanged");
 }
 static void seek_and_restart(void)
 {
@@ -153,6 +190,7 @@ static void seek_and_restart(void)
 }
 int main(void)
 {
+  confirmation_gate_window();
   seek_and_restart();
   threshold_layers();
   observation_pause();

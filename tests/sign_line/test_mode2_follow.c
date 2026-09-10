@@ -87,9 +87,9 @@ static void finish_outer(int side)
     sample(6,yaw);
   }
 }
-static void observe(int side)
+static void observe_score(int side, uint8_t score)
 {
-  VisionDetection d={0}; d.class_id=side<0?0:1; d.score=80;
+  VisionDetection d={0}; d.class_id=side<0?0:1; d.score=score;
   d.center_x=160; d.center_y=120; d.sequence=++seq; d.received_ms=tick;
   SignRoute_GetStatus(tick,&route);
   SignObservation_AllowPause(route.direction==0 && (route.state==SIGN_ROUTE_IDLE ||
@@ -98,6 +98,39 @@ static void observe(int side)
       route.profile==SIGN_ROUTE_PROFILE_STANDARD ? SIGN_OBSERVATION_MODE3_SCORE_MINIMUM :
                                                   SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);
   SignRoute_ObserveDetection(&d);
+}
+static void observe(int side) { observe_score(side,80); }
+
+static void weak_votes_must_not_skip_observation(int side, uint32_t origin)
+{
+  unsigned i,w;
+  uint32_t stopped;
+  init(1,origin);
+  for(i=0;i<3;++i)
+  {
+    observe_score(side,(uint8_t)(20U+i%2U));
+    sample(6,0);
+  }
+  /* Real application inhibits parking as soon as route.direction is set.
+     Weak pre-stop votes therefore must not publish a committed direction. */
+  if(route.direction) fprintf(stderr,"weak votes prematurely inhibited observation: side=%d state=%d direction=%d\n",side,route.state,route.direction);
+  assert(route.direction==0 && !SignObservation_Paused(tick));
+  stopped=tick;
+  observe_score(side,22);
+  assert(sample(6,0)==6U && route.direction==side);
+  for(i=0;i<198;++i)
+  {
+    observe_score(side,20);
+    assert(sample(6,0)==6U);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==0);
+  }
+  assert(tick-stopped==1990U);
+  observe_score(side,20);
+  sample(6,0);
+  assert(!SignObservation_Paused(tick) && route.direction==side);
+  assert(route.approach_from_pause && route.road_reference_valid);
+  for(i=0;i<80;++i) { observe_score(side,22); assert(sample(6,0)!=6U); }
+  puts("PASS: weak votes then 22-percent frame stop for full 2s, publish direction, retain stopped heading and do not repeat confirmed stop");
 }
 static void drive_before_stop(int32_t yaw)
 {
@@ -1036,6 +1069,8 @@ static void biased_stop_exit(int side, int32_t skew, uint8_t pretravel)
 int main(void)
 {
   int side,skew,pretravel;
+  weak_votes_must_not_skip_observation(-1,100);
+  weak_votes_must_not_skip_observation(1,UINT32_MAX-120U);
   for(side=-1;side<=1;side+=2) for(skew=-30000;skew<=30000;skew+=10000)
     for(pretravel=0;pretravel<=1;++pretravel) biased_stop_exit(side,skew,(uint8_t)pretravel);
   puts("PASS: actual motor pipeline handles biased stops, passive departure, opposite normal bend, re-loss and STOP with/without preceding straight travel");
