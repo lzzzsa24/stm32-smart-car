@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: f1301b2310db67306a930ef1845e5c375ecc9449
-comprehensive_candidate_status: f1301b2_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: ec15dda6608a2a492d9e2cd2fd76eda435d8e177
+comprehensive_candidate_status: ec15dda_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 120784
-comprehensive_candidate_bin_sha256: 2B4429BCC21AED81E8DC77372879E40ADE30E0194EF57D0713876AD9765474EC
-comprehensive_candidate_hex_sha256: A2B3520A79B473AD1B7AA96A76BA43C5467CEA01849B209215D473ADEDC24735
+comprehensive_candidate_bin_sha256: A1F7EE526F97BA56725F947A71B223E83F5699DC567820071A9077A3FFC61B28
+comprehensive_candidate_hex_sha256: 6DA83DC066371A41BEA0043BC50B5F2717A954BD58A3E26F8233177257962EDD
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -52,6 +52,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: ec15dda (not flashed)
+
+c443e2b merged without conflicts. Mode3 observation and qualifying vote
+threshold now20 percent; mode4 stays26. Full sign suite, mode12/mode5
+integration checks, diff check and ARM build passed. BIN120784 bytes;
+candidate hashes above. Artifacts in comprehensive-v15-sign-horn worktree,
+manual-build-unified-motion. Rollback:
+rollback/2026-09-10-before-c443e2b ->f1301b2.
+No serial/flash/physical test/push; board staysf1301b2, K210/main unchanged.
+Supersedes older comprehensive candidates, not deployed evidence.
 
 ### Latest comprehensive deployment: f1301b2 after reconnect
 
