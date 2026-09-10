@@ -78,7 +78,7 @@ assert "DriveBase_PrepareLineTurnAssist(left, right);" in tracking
 assert "DriveBase_SetSideCps(left, right);" in tracking
 assert transition.count("SignLineFollow_Start(&sign_line_controller);") == 2
 assert "pwm_motor" not in sign_task
-assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(5U);" in detection_task
+assert "if (SignHorn_Observe(&detection, HAL_GetTick()))\n      (void)BuzzerPhrase400_Start(mode == APP_MODE_SIGN_LINE ? 1U : 5U);" in detection_task
 assert "SignHorn_Reset();" in transition
 assert not (ROOT / "Core/Src/sign_slowdown.c").exists()
 assert not (ROOT / "Core/Inc/sign_slowdown.h").exists()

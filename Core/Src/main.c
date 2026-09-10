@@ -970,7 +970,7 @@ static void sign_line_detection_task(AppMode mode)
                                     SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))
-      (void)BuzzerPhrase400_Start(5U);
+      (void)BuzzerPhrase400_Start(mode == APP_MODE_SIGN_LINE ? 1U : 5U);
   }
 }
 
