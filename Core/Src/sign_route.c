@@ -538,15 +538,6 @@ static void observe_arc_sweep(uint8_t mask)
   route.arc_sweep_mdeg=(int32_t)(route.sweep_max_yaw-route.sweep_min_yaw);
 }
 
-static uint8_t stopped_heading_return(uint8_t mask, int32_t heading)
-{
-  return route.road_reference_valid && route.motion_forward && is_track_line(mask) &&
-      route.arc_lower_seen && route.travel_mm>=SIGN_ARC_MIN_MM &&
-      route.exit_heading_peak_mdeg>=SIGN_EXIT_RETURN_PEAK_MDEG &&
-      route.exit_heading_peak_mdeg-heading>=SIGN_EXIT_RETURN_DROP_MDEG &&
-      heading>=-SIGN_EXIT_RETURN_RANGE_MDEG && heading<=SIGN_EXIT_RETURN_RANGE_MDEG;
-}
-
 static uint8_t natural_departure_confirmed(uint8_t mask, int32_t road_heading, uint32_t now)
 {
   int64_t forward_mm;
@@ -1238,7 +1229,6 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 #if SIGN_ROUTE_REQUIRE_IMU
     if (route.profile == SIGN_ROUTE_PROFILE_STANDARD)
     {
-      int32_t error=heading_error();
       uint8_t exit_edge=route.direction < 0 ? 8U : 1U;
       if (is_track_line(line_mask) && route.arc_origin_locked && route.travel_mm >= SIGN_ARC_MIN_MM &&
           directed_arc_yaw > route.arc_peak_mdeg)
@@ -1247,13 +1237,9 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       if (route.arc_lower_seen && is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
           road_heading > route.exit_heading_peak_mdeg)
         route.exit_heading_peak_mdeg=road_heading;
-      if (stopped_heading_return(line_mask,road_heading))
-      {
-        enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
-        route.natural_verify=1U; route.exit_reason=2U;
-        route.exit_straight_active=0U; command->just_finished=1U;
-        return;
-      }
+      /* A single heading return is not proof that the chassis left the arc.
+         Only the existing stable-time AND forward-distance evidence may
+         bypass active exit steering for an actual natural departure. */
       if (natural_departure_confirmed(line_mask,road_heading,now))
       {
         route.exit_reason=2U;
@@ -1264,8 +1250,6 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       if (is_track_line(line_mask) && route.travel_mm >= SIGN_ARC_MIN_MM &&
           road_heading >= SIGN_EXIT_HEADING_MIN_MDEG)
         route.exit_region_seen=1U;
-      uint8_t natural_exit=route.road_reference_valid && route.exit_region_seen && center && route.motion_forward &&
-          error >= -SIGN_EXIT_CAPTURE_MDEG && error <= SIGN_EXIT_CAPTURE_MDEG;
       uint8_t edge_ready=(line_mask & exit_edge) &&
           (road_heading >= SIGN_EXIT_EDGE_HEADING_MDEG ||
            (route.arc_lower_seen && road_heading >= SIGN_EXIT_EARLY_MIN_MDEG &&
@@ -1275,15 +1259,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
           (edge_ready || road_heading >= SIGN_EXIT_HEADING_TRIGGER_MDEG);
       /* All-white search and full-black backgrounds cannot trigger exit.
          The signed upper-half heading, not a guessed apex, authorizes it. */
-      if (stable(natural_exit ? 2U : (turn_ready ? 1U : 0U), now))
+      if (stable(turn_ready, now))
       {
-        if (natural_exit)
-        {
-          route.exit_reason=2U;
-          enter_phase(SIGN_ROUTE_EXIT_CLEAR,now);
-          route.natural_verify=1U;
-          return; /* Track passively while waiting for the selected outer. */
-        }
         enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
         route.exit_reason=1U;
         route.departed=1U;
