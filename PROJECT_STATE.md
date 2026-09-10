@@ -53,6 +53,13 @@ checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
 
+### f399de7 repeated deployment after USB reconnect
+
+Same source and BIN hash rechecked; CH340K COM11 restored. Repeat selective
+write/full120008-byte readback and GO passed, exit0. Reserved pages preserved;
+K210 untouched, no post-GO query or physical test. Source/hashes unchanged.
+Repeat evidence appended to DEPLOYMENT_F399DE7_20260910.md.
+
 ### Latest comprehensive deployment: f399de7
 
 8fdca11 merged: mode3 horn once, mode4 five times; includes7936efd angle-start
