@@ -17,25 +17,25 @@ candidate_source_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
 candidate_bin_size_bytes: 132156
 candidate_bin_sha256: 8C14B8FB10ED8341DD4A0A3FBBE6AC44EF826AA2482624730BCECA7847D872EA
 candidate_hex_sha256: 5E3E41992193398B1444A1939297C41B844BE4974C3EE2178726E09CD5D10C2C
-candidate_status: main_2b4fc1f_verified_flash_blocked_USB_absent
+candidate_status: main_2b4fc1f_COM11_full_readback_GO_passed
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 121068
-flashed_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
-flash_record_commit: 6ce2702ee6b46c98f4aeaf011bc3d192f74ffadc
-deployed_tag: deployed/2026-09-10-62b0de2
-flashed_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
-flashed_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
-ground_test_status: new_four_mode_main_not_flashed_or_physically_tested
-user_reported_flash: tool_verified_62b0de2_readback_GO
-stm32_runtime_status: COM11_62b0de2_full_readback_GO_no_post_GO_query
+formal_bin_size_bytes: 132156
+flashed_source_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+flash_record_commit: 53b15e0da0c5cfc54e830101890a43027dea502c
+deployed_tag: deployed/2026-09-11-2b4fc1f
+flashed_bin_sha256: 8C14B8FB10ED8341DD4A0A3FBBE6AC44EF826AA2482624730BCECA7847D872EA
+flashed_hex_sha256: 5E3E41992193398B1444A1939297C41B844BE4974C3EE2178726E09CD5D10C2C
+ground_test_status: four_mode_main_2b4fc1f_flashed_not_physically_tested
+user_reported_flash: tool_verified_2b4fc1f_readback_GO
+stm32_runtime_status: COM11_2b4fc1f_four_mode_main_readback_GO_no_post_GO_query
 comprehensive_candidate_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
 comprehensive_candidate_status: explicit_five_mode_test_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 121068
 comprehensive_candidate_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
 comprehensive_candidate_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
-temporary_flash_selector_commit: 62b0de2_five_mode_board_not_four_mode_main
+temporary_flash_selector_commit: 2b4fc1f_four_mode_main
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
 k210_candidate_status: paired_script_in_K210_sign_mode34_py_for_new_mode3_only
@@ -51,6 +51,13 @@ The repository anchor is the latest firmware commit. Newer documentation-only
 commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
+## Latest board update
+
+After reconnect, four-mode main2b4fc1f passed COM11 full132156-byte readback
+and GO. Audio/calibration pages preserved; K210 unchanged. No post-GO query,
+physical test or push. Evidence: docs/history/deployments/DEPLOYMENT_2B4FC1F_20260911.md.
+This supersedes earlier USB blocker and five-mode board statements below.
+
 ## Current four-mode mapping
 
 Latest local main2b4fc1f merges6594ff0 (notc9df841) without conflicts.
@@ -59,9 +66,8 @@ angle, no intermediate alignment turn. Fresh post-entry selected outer
 clear/black alone finishes; no route time/distance limit during this forward
 phase. Stale IMU removes trim, not forward motion. Manual STOP remains essential.
 Full promoted sign suite, mode1/2 integration, source scope and ARM build passed.
-User authorized main flash, but fresh enumeration found only Bluetooth ports;
-programmer not opened and no erase/write. Reconnect before retrying main2b4fc1f.
-Board remains five-mode62b0de2, K210 unchanged. No push or release update.
+Main2b4fc1f subsequently flashed after reconnect; readback/GO passed.
+Board now four-mode2b4fc1f, K210 unchanged. No push or release update.
 Rollback: rollback/2026-09-11-before-6594ff0 ->35a78bb.
 
 Explicit test-only update: user requested62aeda3 into the retained five-mode
@@ -71,7 +77,8 @@ BIN121068 with hashes above, artifacts in comprehensive-v15-sign-horn worktree.
 Rollback: rollback/2026-09-10-before-62aeda3 ->a217df8. Subsequently flashed:
 COM11 full121068-byte readback and GO passed, reserved pages excluded;
 no post-GO query/physical test/push/K210 access.
-This increment is NOT promoted to four-mode main or rc.6; board now62b0de2.
+That test-only increment was not directly promoted to rc.6. The later main
+6594ff0 contains its own fresh-outer semantics; board is now four-mode2b4fc1f.
 Only this status record changed in canonical main, not its firmware.
 
 | Input | Controller source | Behavior |
@@ -123,8 +130,8 @@ real promoted DriveBase, sign route/observation/IMU tests, fixed-bypass/profile
 and actual selector tests, DFPlayer/store tests, source scope and K210 runtime.
 The selector tests cover1..4, ignored5, STOP precedence and dedicated +/-.
 No STM32/K210 serial access, flashing, lifted or ground tests in consolidation.
-Board now62b0de2 with the OLD five-mode mapping, not this new main.
-Latest board evidence: docs/history/deployments/DEPLOYMENT_62B0DE2_20260910.md.
+Board now2b4fc1f with the four-mode mapping; no ground result yet.
+Latest board evidence: docs/history/deployments/DEPLOYMENT_2B4FC1F_20260911.md.
 
 ## K210 / release
 
