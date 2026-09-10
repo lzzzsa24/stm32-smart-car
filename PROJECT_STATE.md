@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: b0e5461f9e86299be967abc766a680b3e0266893
-comprehensive_candidate_status: b0e5461_ready_COM11_Open_device_error_before_erase
+comprehensive_candidate_source_commit: 6da3ac8c76d7a58c2f1cbe5d145f179099bd60d2
+comprehensive_candidate_status: 6da3ac8_ready_flash_blocked_USB_absent
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120024
-comprehensive_candidate_bin_sha256: C80901F7BD61276F474AD2D932DBF7BFB4F300EBF70AFA97436442C0B5CBA86E
-comprehensive_candidate_hex_sha256: C1E614F3396DC20AADFE7633727A0BBA7B51B271090C4A458F8F1C3E222B1D76
+comprehensive_candidate_bin_size_bytes: 120528
+comprehensive_candidate_bin_sha256: E7562A2F41A93BC46C4AD267F41EE7088F5C72E87D016E414C57AC9CEAF2F6A6
+comprehensive_candidate_hex_sha256: F81C885367472B40B3DD7B19D285BE79C02F5C64E523F7BF5C0D4EDC847526AE
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 6da3ac8; USB reconnect required
+
+f47d0b6 merged onto b0e5461, retaining9f232cd. Mode3 OLED second row now
+shows cached IMU initialization/stationary wait/calibration/ready/fault state;
+does not service/restart IMU. Full sign suite and ARM build passed.
+BIN120528 bytes, candidate hashes above; comprehensive-v15 worktree artifacts.
+Rollback: rollback/2026-09-10-before-f47d0b6 ->b0e5461.
+Fresh enumeration found only Bluetooth COM ports; programmer not opened,
+no erase/write attempted. Board remains last verifiedf399de7, K210 unchanged.
+No physical test/push. Replug USB before retrying this newer candidate.
+Supersedes older b0e5461 candidate/blocker; main firmware unchanged.
 
 ### Latest comprehensive candidate: b0e5461; USB reconnect required
 
