@@ -98,14 +98,14 @@ static void test_fast_follow(void)
     assert((side?output.right_cps:output.left_cps)==1700);
     sample(outer,10,3000);
     assert((side?output.left_cps:output.right_cps)==3200);
-    assert((side?output.right_cps:output.left_cps)==0);
+    assert((side?output.right_cps:output.left_cps)==-3200);
     hold(outer,60);
     assert(output.left_cps==-output.right_cps);
     assert((side?output.left_cps:output.right_cps)==3200);
     /* Wide interference immediately ends the spin and remains moving. */
     sample(7,10,3000); assert(output.left_cps==2400 && output.right_cps==2400);
-    hold(5,150); hold(0,50);
-    assert(output.left_cps==2400 && output.right_cps==2400);
+    hold(5,150); sample(0,1,3000);
+    assert(LineRecovery_IsSearching() && !output.valid);
     hold(0,80); assert(LineRecovery_IsSearching() && !output.valid);
     hold(5,140); assert(output.valid && output.left_cps>=2800);
     assert(!brakes && !attacks);
@@ -118,7 +118,48 @@ static void test_fast_follow(void)
     assert((side?output.left_cps:output.right_cps)==2200);
     reset(0,1); hold(5,700); assert(output.left_cps==2700);
   }
-  puts("PASS: mode5 fast centre, mirrored edge/adjacent steering, rolling 120ms rejoin, wide/gap priority, caps and mode reset");
+  puts("PASS: mode5 immediate edge/white response, rolling rejoin, live wide priority, caps and mode reset");
+}
+
+static void test_fast_no_timed_holds(void)
+{
+  unsigned side, repeat;
+  for(side=0;side<2;++side)
+  {
+    unsigned outer=side?8:2, opposite=side?2:8;
+    int32_t search_left=side?LINE_SEARCH_TARGET_CPS:-LINE_SEARCH_TARGET_CPS;
+    reset(0,1); line_tracking_set_fast_follow(1);
+    sample(5,1,3000); assert(output.left_cps==2800);
+    sample(5,20,3000); assert(output.left_cps==2840); /* no 120ms acceleration hold */
+    for(repeat=0;repeat<50;++repeat)
+    {
+      sample(outer,1,3000);
+      assert(output.left_cps==(side?3200:-3200)); /* no zero inside wheel */
+      sample(0,1,3000);
+      assert(!output.valid && telemetry.requested_cps[0]==search_left);
+      /* Even the opposite inner contact must not erase the successful side.
+         It captures and steers now, without a 4ms or 120ms timer. */
+      sample(side?1:4,1,3000);
+      assert(output.valid && !LineRecovery_IsSearching());
+      assert(output.left_cps>0 && output.right_cps>0);
+      sample(0,1,3000);
+      assert(!output.valid && telemetry.requested_cps[0]==search_left);
+      sample(5,1,3000);
+      assert(output.valid && output.left_cps>=2800);
+      sample(15,1,3000); assert(output.left_cps==2400 && output.right_cps==2400);
+      sample(opposite,1,3000); assert(output.left_cps==(side?-3200:3200));
+      sample(0,1,3000); assert(!output.valid && telemetry.requested_cps[0]==-search_left);
+    }
+    assert(!brakes && !attacks);
+    DriveBase_Stop(DRIVE_STOP_BRAKE); sample(0,1,3000);
+    assert(telemetry.mode==DRIVE_BASE_BRAKING && !output.valid);
+    sample(0,1,0); assert(!output.left_cps && !output.right_cps);
+  }
+  tick=UINT32_MAX-5; reset(0,1); line_tracking_set_fast_follow(1);
+  sample(8,1,3000); sample(0,10,3000);
+  assert(!output.valid && telemetry.requested_cps[0]==LINE_SEARCH_TARGET_CPS);
+  sample(5,1,3000); assert(output.valid && output.left_cps==2800);
+  puts("PASS: fast no-hold 1ms sharp-corner/loss/capture/crossing sequences, inner-only direction continuity, wrap and external brake/STOP");
 }
 
 static void assert_search(void)
@@ -1043,6 +1084,7 @@ static void test_mode1_straight_boost(void)
 int main(void)
 {
   test_fast_follow();
+  test_fast_no_timed_holds();
   unsigned smooth,forward,i;
   test_mode1_straight_boost();
   test_persistent_outer_escalates();

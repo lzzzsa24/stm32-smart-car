@@ -141,8 +141,9 @@ void LineRecovery_ObserveDirection(const LineTrackingReading *r, uint32_t now)
     exit_edge_seen = 0U;
   }
 }
-LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
-                                     LineTrackingCommand *command, uint32_t now)
+static LineRecoveryResult step_recovery(const LineTrackingReading *r,
+                                     LineTrackingCommand *command, uint32_t now,
+                                     uint8_t immediate_capture)
 {
   DriveBaseTelemetry telemetry;
   uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
@@ -181,14 +182,16 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
     {
       /* Require repeated nearby observations, not one isolated sample or
          an assumed 20-ms-wide stripe. Switch to rolling capture immediately. */
-      if (!center_candidate || now - center_last_ms > SENSOR_MAX_SAMPLE_GAP_MS)
-      { center_candidate = 1U; center_since = now; }
-      else if (now - center_since >= SENSOR_CONFIRM_MS)
+      if (immediate_capture || (center_candidate &&
+          now - center_last_ms <= SENSOR_MAX_SAMPLE_GAP_MS &&
+          now - center_since >= SENSOR_CONFIRM_MS))
       {
         phase = REC_CAPTURED;
         exit_edge_seen = 0U;
         return LINE_RECOVERY_CAPTURED;
       }
+      if (!center_candidate || now - center_last_ms > SENSOR_MAX_SAMPLE_GAP_MS)
+      { center_candidate = 1U; center_since = now; }
       center_last_ms = now;
     }
   }
@@ -200,3 +203,11 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
   }
   return LINE_RECOVERY_BUSY;
 }
+
+LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
+                                     LineTrackingCommand *command, uint32_t now)
+{ return step_recovery(r, command, now, 0U); }
+
+LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *r,
+                                             LineTrackingCommand *command, uint32_t now)
+{ return step_recovery(r, command, now, 1U); }

@@ -104,10 +104,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
    These are target profiles, not raw motor PWM overrides. */
 #define FAST_STRAIGHT_BASE_PWM                 2800
 #define FAST_STRAIGHT_MAX_PWM                  3050
-#define FAST_CENTER_HOLD_MS                     120U
-#define FAST_REJOIN_MS                          120U
 #define FAST_EDGE_CPS                          3200L
-#define FAST_EDGE_ESCALATE_MS                    60U
 
 static int16_t follow_base_pwm(void)
 { return fast_follow_enabled ? FAST_STRAIGHT_BASE_PWM : TRACKING_SMOOTH_STRAIGHT_BASE_PWM; }
@@ -621,8 +618,7 @@ static void observe_raw_position(const LineTrackingReading *r, uint32_t now)
     }
     held_outer_side = outer;
     held_outer_last_ms = now;
-    if (now - held_outer_since_ms >=
-        (fast_follow_enabled ? FAST_EDGE_ESCALATE_MS : TRACKING_EDGE_ESCALATE_MS))
+    if (fast_follow_enabled || now - held_outer_since_ms >= TRACKING_EDGE_ESCALATE_MS)
       held_outer_strong = 1U;
   }
   /* A static nonadjacent pair is ambiguous. A recent lone-inner observation
@@ -730,7 +726,7 @@ static void consume_sampled_evidence(uint32_t through_ms)
     /* Observe all narrow evidence even during the crossing motor guard or
        active recovery, so centre/opposite-side evidence can expire a hold. */
     update_direction_hint(&r, n, sample.time_ms);
-    if (crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
+    if (!fast_follow_enabled && crossing_active && sample.time_ms - crossing_last_ms < TRACKING_CROSS_CLEAR_MS)
     {
       continue;
     }
@@ -809,6 +805,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   }
   if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
   update_direction_hint(reading, active_count, now);
+  /* Current wide input returned above; fast following has no crossing tail. */
+  if (fast_follow_enabled) crossing_active = 0U;
   if (crossing_active)
   {
     if (!(current_line_priority && active_count) &&
@@ -830,7 +828,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   }
   if (recovery_state == LINE_RECOVERY_ACTIVE)
   {
-    LineRecoveryResult result = LineRecovery_Step(reading, command, now);
+    LineRecoveryResult result = fast_follow_enabled ?
+        LineRecovery_StepImmediate(reading, command, now) : LineRecovery_Step(reading, command, now);
     if (result != LINE_RECOVERY_FAILED && LineRecovery_GetDirection() != last_logged_side)
     {
       recovery_turn_direction = LineRecovery_GetDirection();
@@ -878,7 +877,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     smooth_filter_valid = 0U;
     smooth_centered_active = 0U;
     smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
-    if (middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
+    if (!fast_follow_enabled && middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
     {
       command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_FORWARD);
       return command->action;
@@ -914,7 +913,8 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     recovery_state = LINE_RECOVERY_ACTIVE;
     /* Issue the new spin targets in this same iteration. Repeated narrow-line
        captures/losses must not insert a brake or a generic zero-speed command. */
-    if (LineRecovery_Step(reading, command, now) == LINE_RECOVERY_FAILED)
+    if ((fast_follow_enabled ? LineRecovery_StepImmediate(reading, command, now) :
+         LineRecovery_Step(reading, command, now)) == LINE_RECOVERY_FAILED)
     {
       recovery_stop(LineRecovery_GetStopReason());
       command_stop(command);
@@ -923,8 +923,19 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   }
   if (recovery_state == LINE_RECOVERY_SETTLE)
   {
-    if (now - recovery_state_started_ms >=
-        (fast_follow_enabled ? FAST_REJOIN_MS : TRACKING_REACQUIRE_SETTLE_MS) &&
+    if (fast_follow_enabled)
+    {
+      /* No timed slow tail. A lone middle hit can still be oblique: retain
+         the successful search side until both middle sensors centre the car.
+         This is direction memory only; normal steering continues below. */
+      LineRecovery_Commit();
+      if (reading->x1_black && reading->x3_black)
+      {
+        recovery_state = LINE_RECOVERY_NORMAL;
+        recovery_turn_direction = 0;
+      }
+    }
+    else if (now - recovery_state_started_ms >= TRACKING_REACQUIRE_SETTLE_MS &&
         middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
     {
       LineRecovery_Commit();
@@ -1006,7 +1017,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
           smooth_straight_pwm = follow_base_pwm();
         }
         else if (now - smooth_centered_since_ms >=
-                 (fast_follow_enabled ? FAST_CENTER_HOLD_MS : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
+                 (fast_follow_enabled ? 0U : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
                  now - smooth_ramp_update_ms >=
                  TRACKING_SMOOTH_RAMP_INTERVAL_MS)
         {

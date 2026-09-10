@@ -36,5 +36,9 @@ void LineRecovery_BeginAmbiguous(int8_t initial_side, uint32_t now);
    supplies forward steering. Only all-white search owns opposite wheel targets. */
 LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
                                      LineTrackingCommand *command, uint32_t now);
+/* Fast follower: current middle-only evidence captures without a time gate.
+   External brake/fault ownership remains authoritative. No persistent setting. */
+LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *reading,
+                                             LineTrackingCommand *command, uint32_t now);
 void LineRecovery_Commit(void);
 #endif
