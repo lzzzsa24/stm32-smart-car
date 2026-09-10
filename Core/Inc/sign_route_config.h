@@ -26,11 +26,13 @@
 /* Leave turning room before the 90-degree tangent at the far junction.
    Keep natural-exit evidence separate: an earlier turn request is not proof
    that the car has already joined the outgoing straight. */
-#define SIGN_EXIT_EDGE_HEADING_MDEG 45000L
-#define SIGN_EXIT_HEADING_TRIGGER_MDEG 55000L
+/* Advance active exit selection by 15 degrees on the increasing upper-half
+   heading. Do not advance the separate natural-departure completion gate. */
+#define SIGN_EXIT_EDGE_HEADING_MDEG 30000L
+#define SIGN_EXIT_HEADING_TRIGGER_MDEG 40000L
 #define SIGN_EXIT_HEADING_MIN_MDEG 45000L
 #define SIGN_EXIT_HEADING_MAX_MDEG 120000L
-/* A real outward correction can start before the nominal 55/65-degree gates. */
+/* Retained outward-correction fallback; nominal edge selection now starts at 30. */
 #define SIGN_EXIT_EARLY_MIN_MDEG 35000L
 #define SIGN_EXIT_EARLY_DROP_MDEG 8000L
 /* Natural departure: upper-half evidence, heading return and forward line travel. */

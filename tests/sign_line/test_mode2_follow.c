@@ -501,13 +501,13 @@ static void exit_releases_direction(int side, uint32_t origin)
 static void continuous_line_exit(int side, uint32_t origin, uint8_t early_edge)
 {
   unsigned i,w;
-  int angle, start_heading=early_edge?45000:55000;
+  int angle, start_heading=early_edge?30000:40000;
   uint8_t selected=side<0?8:1;
   enter_test_arc(side,origin);
   sample(6,-side*80000);
   for(w=0;w<4;++w) counts[w]+=2000;
   /* An outside contact before the exit region is still ordinary arc tracking. */
-  for(i=0;i<4;++i) sample(selected,side*40000);
+  for(i=0;i<4;++i) sample(selected,side*29000);
   assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
   for(i=0;i<4;++i) sample(early_edge?selected:6,side*start_heading);
   assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
@@ -628,11 +628,11 @@ static void departure_evidence_is_bounded(int side)
   { for(w=0;w<4;++w) counts[w]+=22; sample(6,0); }
   assert(route.state!=SIGN_ROUTE_LOCKED && !route_command.active);
 
-  /* Only an outward contact PLUS actual heading return can select early. */
+  /* Between the new 30/40-degree gates, only the outward contact selects. */
   enter_test_arc(side,100);
   sample(6,-side*80000);
   for(w=0;w<4;++w) counts[w]+=2000;
-  for(i=0;i<4;++i) sample(selected,side*44000);
+  for(i=0;i<4;++i) sample(selected,side*29000);
   assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
   for(i=0;i<4;++i) sample(opposite,side*35000);
   assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
@@ -644,12 +644,12 @@ static void departure_evidence_is_bounded(int side)
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
   SignLineFollow_Stop(&follower); sample(0,0);
   for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
-  puts("PASS: no stationary/curving/ambiguous/gapped false completion; outward returning edge captures exit before 70 degrees");
+  puts("PASS: no stationary/curving/ambiguous/gapped false completion; 35-degree contact selects only the outward edge");
 }
 static void earlier_exit_timing(int side, uint32_t origin, uint8_t edge_contact)
 {
   unsigned i,w;
-  int angle, heading=edge_contact?45000:55000;
+  int angle, heading=edge_contact?30000:40000;
   uint8_t mask=edge_contact?(side<0?8:1):6;
   enter_test_arc(side,origin);
   sample(6,-side*80000);
@@ -682,7 +682,7 @@ static void earlier_exit_timing(int side, uint32_t origin, uint8_t edge_contact)
   for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   SignLineFollow_Stop(&follower); sample(0,0);
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
-  puts("PASS: upper-half 45-degree edge / 55-degree stopped-heading exit, ambiguous-line rejection, debounce, aligned release and STOP");
+  puts("PASS: upper-half 30-degree edge / 40-degree stopped-heading exit, ambiguous-line rejection, debounce, aligned release and STOP");
 }
 static void observation_resume_uses_live_line(int side, uint32_t origin, uint8_t at_probe)
 {
