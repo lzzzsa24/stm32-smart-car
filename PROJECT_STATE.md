@@ -10,37 +10,37 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: dd0fa579c731f657368c5383384d98aa98caab1e
-comprehensive_candidate_status: dd0fa57_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: 19420eaed5fff3d7244dcc41fc1608e1d24ff641
+comprehensive_candidate_status: 19420ea_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120236
-comprehensive_candidate_bin_sha256: CE7C7C71F18E72C03C661D2BBCB785C653B484460ADC4722F4CBB6F2B70E02C9
-comprehensive_candidate_hex_sha256: E3079E28C51823792BF5695B055D543E1B28516679DE4CC46982AE979E7FE417
+comprehensive_candidate_bin_size_bytes: 120984
+comprehensive_candidate_bin_sha256: B3F46577809D8FDAC3B938B3218E9762701DB0E4981C25CDAC49AAAC2CC7FF84
+comprehensive_candidate_hex_sha256: CAA4AAE9D69F3C9E4FE7F455C08639801DDEFD9D009CCDAA2EC86CADBF2FE970
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
-flashed_source_commit: dd0fa579c731f657368c5383384d98aa98caab1e
-flash_record_commit: cb084a9886bf174dc0b9f3644d39482ce2058ae5
-deployed_tag: deployed/2026-09-10-dd0fa57
+flashed_source_commit: 19420eaed5fff3d7244dcc41fc1608e1d24ff641
+flash_record_commit: 7a46be4718786ec029001bf8e8e27dd4332daff6
+deployed_tag: deployed/2026-09-10-19420ea
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 120236
-flashed_bin_sha256: CE7C7C71F18E72C03C661D2BBCB785C653B484460ADC4722F4CBB6F2B70E02C9
-flashed_hex_sha256: E3079E28C51823792BF5695B055D543E1B28516679DE4CC46982AE979E7FE417
-ground_test_status: not_tested_after_dd0fa57_deployment
+formal_bin_size_bytes: 120984
+flashed_bin_sha256: B3F46577809D8FDAC3B938B3218E9762701DB0E4981C25CDAC49AAAC2CC7FF84
+flashed_hex_sha256: CAA4AAE9D69F3C9E4FE7F455C08639801DDEFD9D009CCDAA2EC86CADBF2FE970
+ground_test_status: not_tested_after_19420ea_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: b387042d83390f866e1305c99c2687e60b118624
 candidate_bin_size_bytes: 137692
 candidate_bin_sha256: B9C92B0E8C0FED3CBD4EF9D0DDE8295D8703F75439157BDA6B73D0DE18F4D5B2
 candidate_hex_sha256: B47FDBF115F95E0B95129433344D9DC5D0D5818F7DD1442181666D86B8B4D507
-user_reported_flash: tool_verified_dd0fa57_readback_GO
+user_reported_flash: tool_verified_19420ea_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
 remote_sync_branch: integration/main-mode35-sync-20260910
-stm32_runtime_status: COM11_dd0fa57_full_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_19420ea_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: dd0fa57_comprehensive_flashed
+temporary_flash_selector_commit: 19420ea_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive deployment: 19420ea
+
+bac8728 and prerequisites merged without conflicts. Mode3 observation seeks
+either middle contact on white; selected outer clear-to-black completes exit.
+Full sign suite, integration checks and ARM build passed. COM11 full120984-byte
+write/readback and GO passed. Reserved pages excluded, K210/main unchanged.
+No post-GO query, physical test or push. Evidence:
+docs/history/deployments/DEPLOYMENT_19420EA_20260910.md.
+Supersedes older comprehensive/board records below.
 
 ### Latest comprehensive deployment: dd0fa57
 
