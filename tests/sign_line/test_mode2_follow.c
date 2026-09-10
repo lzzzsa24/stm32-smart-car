@@ -14,6 +14,7 @@
 #include "line_sensor_sample.h"
 #include "line_search_model.h"
 #include "line_fault_log.h"
+#include "line_recovery.h"
 static uint32_t tick, seq;
 static int32_t counts[4], fraction[4];
 static int16_t pins[4];
@@ -872,7 +873,8 @@ static void seek_one_middle_before_observation(int side, uint8_t middle, uint32_
     assert(SignObservation_SeekingLine() && !SignObservation_Paused(tick));
     assert(SignObservation_HoldingRoute(tick) && !route_command.active);
     assert(follower.last_owner==SIGN_FOLLOW_OWNER_CENTERING);
-    assert(drive.requested_cps[0]!=0 && drive.requested_cps[0]==-drive.requested_cps[2]);
+    assert((drive.requested_cps[0]==1800 || drive.requested_cps[0]==-1800) &&
+           drive.requested_cps[0]==-drive.requested_cps[2]);
   }
   assert(route.direction==side);
   sample(middle,stopped_yaw); /* a SINGLE middle stops in this very cycle */
@@ -897,8 +899,51 @@ static void seek_one_middle_before_observation(int side, uint8_t middle, uint32_
   puts("PASS: white observation seeks through outer-only contacts; either single middle stops and starts full 2s, retains sign, rebases yaw and enters ARC");
 }
 
+static int32_t observation_search_effort(int side,int edges,uint16_t battery)
+{
+  unsigned i,w;
+  int32_t effort=0;
+  init(1,UINT32_MAX-120U); voltage=battery;
+  LineRecovery_Begin((int8_t)side,tick);
+  observe(side); sample(0,0);
+  for(i=0;i<80;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=drive.requested_cps[w]<0?-edges:edges;
+    observe(side); sample(0,0);
+    assert(drive.mode==DRIVE_BASE_SPEED && !DriveBase_GetLineDegradedMask());
+    for(w=0;w<4;++w)
+      assert(drive.requested_cps[w]==(w<2?side:-side)*1800);
+  }
+  for(w=0;w<4;++w)
+  {
+    int32_t pwm=pins[w]<0?-pins[w]:pins[w];
+    assert(drive.controlled_cps[w]==drive.requested_cps[w]);
+    assert(pwm>0 && pwm<=MOTOR_PWM_PERIOD);
+    assert((pins[w]>0)==(drive.requested_cps[w]>0));
+    effort+=pwm;
+  }
+  sample(2,0); /* either middle still owns immediate stop */
+  assert(SignObservation_Paused(tick));
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  return effort;
+}
+static void observation_search_closed_loop(void)
+{
+  int side;
+  for(side=-1;side<=1;side+=2)
+  {
+    int32_t tracking=observation_search_effort(side,18,8400);
+    int32_t lagging=observation_search_effort(side,6,8400);
+    int32_t stalled=observation_search_effort(side,0,7000);
+    int32_t lower_battery=observation_search_effort(side,18,7000);
+    assert(lagging>tracking && stalled>=lagging && lower_battery>=tracking);
+    printf("PASS: observation spin side=%d target1800; PWM sums tracked=%ld lagging=%ld stalled-low-battery=%ld tracked-low-battery=%ld\n",
+        side,(long)tracking,(long)lagging,(long)stalled,(long)lower_battery);
+  }
+}
 int main(void)
 {
+  observation_search_closed_loop();
 
   weak_votes_must_not_skip_observation(-1,100);
   weak_votes_must_not_skip_observation(1,UINT32_MAX-120U);
