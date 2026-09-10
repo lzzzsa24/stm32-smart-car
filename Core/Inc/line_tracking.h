@@ -77,6 +77,10 @@ void line_tracking_yield_to_route(void);
    direction 0 = settle straight, -1/+1 = existing left/right outer pivot. */
 void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
                                       LineTrackingCommand *command);
+/* Mode-4 fixed-angle entry: equal-magnitude opposite wheel targets through the
+   same encoder closed loop and turn-assistance path as other line commands. */
+void line_tracking_make_route_spin_command(int8_t direction, int16_t base_speed,
+                                           LineTrackingCommand *command);
 /* Both sides remain forward using KEY2's settle turn pair. */
 void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
                                          LineTrackingCommand *command);

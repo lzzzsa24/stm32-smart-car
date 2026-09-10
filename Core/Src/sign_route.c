@@ -455,6 +455,15 @@ static void pivot_command(SignRouteCommand *command, int8_t direction)
   command->right_pwm = direction < 0 ? SIGN_ROUTE_PWM : 0;
 }
 
+static void spin_command(SignRouteCommand *command, int8_t direction)
+{
+  if (!direction) return;
+  command->active = 1U;
+  command->gentle_arc = 0U;
+  command->left_pwm = direction < 0 ? -SIGN_ROUTE_PWM : SIGN_ROUTE_PWM;
+  command->right_pwm = (int16_t)-command->left_pwm;
+}
+
 static uint8_t narrow_line(uint8_t mask)
 {
   mask &= 0x0FU;
@@ -492,7 +501,7 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       straight_command(command);
       return 1U;
     }
-    pivot_command(command, route.direction);
+    spin_command(command, route.direction);
     return 1U;
   }
 
