@@ -77,7 +77,9 @@ static void observe(int side)
   SignRoute_GetStatus(tick,&route);
   SignObservation_AllowPause(route.direction==0 && (route.state==SIGN_ROUTE_IDLE ||
       route.state==SIGN_ROUTE_ARMED || route.state==SIGN_ROUTE_PROBE || route.state==SIGN_ROUTE_WAIT_SIGN));
-  SignObservation_ObserveDetection(&d,tick);
+  SignObservation_ObserveDetection(&d,tick,
+      route.profile==SIGN_ROUTE_PROFILE_STANDARD ? SIGN_OBSERVATION_MODE3_SCORE_MINIMUM :
+                                                  SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);
   SignRoute_ObserveDetection(&d);
 }
 static void drive_before_stop(int32_t yaw)

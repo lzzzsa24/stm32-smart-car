@@ -17,13 +17,14 @@ uint8_t SignObservation_Paused(uint32_t now)
 }
 uint8_t SignObservation_HoldingRoute(uint32_t now)
 { return SignObservation_Paused(now); }
-void SignObservation_ObserveDetection(const VisionDetection *frame, uint32_t now)
+void SignObservation_ObserveDetection(const VisionDetection *frame, uint32_t now,
+                                     uint8_t minimum_score)
 {
   if (frame == NULL || (sequence_valid && frame->sequence == sequence)) return;
   sequence = frame->sequence;
   sequence_valid = 1U;
   if (now - frame->received_ms > 350U || frame->class_id < 0 || frame->class_id > 1 ||
-      frame->score < 26U || frame->score > 100U || frame->center_x >= 320U || frame->center_y >= 240U)
+      frame->score < minimum_score || frame->score > 100U || frame->center_x >= 320U || frame->center_y >= 240U)
     return;
   if (pause_allowed && (!pause_started || now - pause_ms >= 2500U))
   {

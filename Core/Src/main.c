@@ -965,7 +965,9 @@ static void sign_line_detection_task(AppMode mode)
     SignObservation_AllowPause(observation_route.direction == 0 &&
         (observation_route.state == SIGN_ROUTE_IDLE || observation_route.state == SIGN_ROUTE_ARMED ||
          observation_route.state == SIGN_ROUTE_PROBE || observation_route.state == SIGN_ROUTE_WAIT_SIGN));
-    SignObservation_ObserveDetection(&detection, HAL_GetTick());
+    SignObservation_ObserveDetection(&detection, HAL_GetTick(),
+        mode == APP_MODE_SIGN_LINE ? SIGN_OBSERVATION_MODE3_SCORE_MINIMUM :
+                                    SIGN_OBSERVATION_MODE4_SCORE_MINIMUM);
     SignRoute_ObserveDetection(&detection);
     if (SignHorn_Observe(&detection, HAL_GetTick()))
       (void)BuzzerPhrase400_Start(5U);
