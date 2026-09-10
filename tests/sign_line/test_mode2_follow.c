@@ -499,8 +499,91 @@ static void paused_heading_reference(int side, uint32_t origin)
   for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
   puts("PASS: 2-second stop anchors outgoing heading despite later approach correction; midpoint zero does not end the arc");
 }
+static void naturally_departed_before_gate(int side, uint32_t origin, int32_t outgoing)
+{
+  unsigned i,w;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<20;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=22;
+    sample(6,0);
+    assert(route.state==SIGN_ROUTE_ARC); /* the midpoint has not passed the upper half */
+  }
+  sample(6,side*55000); /* this run never reaches the old 70-degree flag */
+  for(i=0;i<25;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=22;
+    sample(i%4==0?4:6,side*outgoing);
+    assert(!route_command.active);
+  }
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !follower.override_active);
+  sample(6,side*outgoing);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  sample(side<0?1:8,side*outgoing);
+  for(i=0;i<40;++i) sample(0,side*100000);
+  assert(route.state==SIGN_ROUTE_LOCKED && !route_command.active && !follower.override_active);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  puts("PASS: upper-half peak below 70 and a slightly oblique outgoing line still complete ARC and release old direction");
+}
+static void departure_evidence_is_bounded(int side)
+{
+  unsigned i,w;
+  uint8_t selected=side<0?8:1,opposite=side<0?1:8;
+  enter_test_arc(side,100);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  sample(6,side*55000);
+  /* Waiting with centered sensors and zero wheel travel is not an exit. */
+  for(i=0;i<30;++i) sample(6,0);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  /* Following a changing tangent is not the stable outgoing road. */
+  for(i=0;i<20;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=22;
+    sample(6,side*(25000-(int32_t)i*1000));
+    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  }
+  /* White/both sides/full black cannot finish even with forward wheel counts. */
+  for(i=0;i<30;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=22;
+    sample(i%3==0?0:(i%3==1?9:15),0);
+    assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  }
+  for(i=0;i<8;++i)
+  { for(w=0;w<4;++w) counts[w]+=22; sample(6,0); }
+  tick+=60; sample(6,0);
+  assert(route.state==SIGN_ROUTE_ARC); /* stale loop interval cannot satisfy stable capture */
+  for(i=0;i<8;++i)
+  { for(w=0;w<4;++w) counts[w]+=22; sample(6,0); }
+  assert(route.state==SIGN_ROUTE_ARC);
+
+  /* Only an outward contact PLUS actual heading return can select early. */
+  enter_test_arc(side,100);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(selected,side*60000);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  for(i=0;i<4;++i) sample(opposite,side*50000);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  for(i=0;i<4;++i) sample(selected,side*50000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+  assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
+                 drive.requested_cps[0]==2200 && drive.requested_cps[2]==0);
+  for(i=0;i<5;++i) sample(6,0);
+  assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  puts("PASS: no stationary/curving/ambiguous/gapped false completion; outward returning edge captures exit before 70 degrees");
+}
 int main(void)
 {
+  naturally_departed_before_gate(-1,100,0);
+  naturally_departed_before_gate(1,UINT32_MAX-120U,25000);
+  departure_evidence_is_bounded(-1); departure_evidence_is_bounded(1);
   paused_heading_reference(-1,100); paused_heading_reference(1,UINT32_MAX-120U);
   continuous_line_exit(-1,100,0); continuous_line_exit(1,UINT32_MAX-120U,0);
   continuous_line_exit(-1,UINT32_MAX-120U,1); continuous_line_exit(1,100,1);

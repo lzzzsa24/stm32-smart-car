@@ -56,6 +56,7 @@ typedef struct
   int32_t heading_error_mdeg; /* current heading minus approach, wrapped +/-180 deg */
   int32_t arc_peak_mdeg;  /* maximum arc angle observed on a narrow track line */
   uint8_t approach_from_pause; /* active mode-3 reference came from observation-stop completion */
+  int32_t exit_heading_peak_mdeg; /* signed upper-half peak on line, relative to straight reference */
 } SignRouteStatus;
 
 void SignRoute_Init(void);
