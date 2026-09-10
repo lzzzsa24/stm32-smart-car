@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: af34e325c2af3ebd4abfc9e02651745864e85022
-comprehensive_candidate_status: a051788_integrated_line_sign_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: a05d73c91f4557006a338225ebceaa1d2371eb40
+comprehensive_candidate_status: 609f29b_integrated_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115352
-comprehensive_candidate_bin_sha256: EB1E21BE8EDB4B4300C4B272FD8D1D27AD9C13D970182F7DE31C958E675B10F0
-comprehensive_candidate_hex_sha256: 7C185BAE7D0522586496F64A03132B52CBEEF345E39AD28AA6790749DC6A82A0
+comprehensive_candidate_bin_size_bytes: 115356
+comprehensive_candidate_bin_sha256: E7E90C3329B939D47748A4E57387CA452EE901351CEB7738C513AAF49C4472C3
+comprehensive_candidate_hex_sha256: 274D431163DB1F7DD4F5ACBAB4441B997F830DEB935EAE6B7A7B3A046D42E058
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: a05d73c (not flashed)
+
+609f29b merged ontoaf34e32. Mode3 exit alignment starts at signed55-degree
+outgoing-edge or65-degree narrow-line evidence, preserving independent
+natural-completion evidence. Mode4 recovery and mode5 constrained pulse
+steering retained. Full sign suite and mode1/2, gyro, mode5 integration checks
+plus formal ARM build passed. BIN115356 bytes; comprehensive hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-609f29b. No serial, flash, physical test
+or push; board remains4eda8fe, K210/main firmware unchanged.
 
 ### Latest comprehensive candidate: af34e32 (not flashed)
 
