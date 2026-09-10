@@ -17,8 +17,8 @@ comprehensive_candidate_bin_size_bytes: 120112
 comprehensive_candidate_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
 comprehensive_candidate_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58CADF90160BE91D59E0F9
 integration_branch: main
-repository_head_at_update: 71b2e7f
-latest_code_commit: cd44bb0
+repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
+latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
 flashed_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
 flash_record_commit: 5048a84
 deployed_tag: deployed/2026-09-10-5940727
@@ -29,10 +29,10 @@ flashed_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B
 flashed_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58CADF90160BE91D59E0F9
 ground_test_status: not_tested_after_5940727_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
-candidate_bin_size_bytes: 102264
-candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
-candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
+candidate_source_commit: b48e9e04a89c995f23f162af332e7022044dad61
+candidate_bin_size_bytes: 137532
+candidate_bin_sha256: 1F60ABB0C8595EDF10767F2169163B9D1E217467E16134C31CC9E02A9F96DB50
+candidate_hex_sha256: 877DA7A24AE1B71EA869EB63445E4A6702AA2B4483F05FDAAB1BA49503AFCAEC
 user_reported_flash: tool_verified_5940727_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -52,6 +52,23 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current local main: b48e9e0 selective mode3 / mode5 promotion
+
+Source5940727 mode3 and mode5 promoted; mode1/2/4 retain original main
+controllers and configurations. Promoted controllers use isolated symbols
+and opt-in shared drive extensions, not wholesale composite replacement.
+Mode3 now observation centering/2s hold/stopped-heading-priority exit/horn;
+mode5 fast following/rolling capture/pulsed counter-turns and fixed bypass.
+Mode2 middle guard and mode4 gyro-tangent profile are NOT selected in main.
+Source-equivalence/scope checker, legacy line/sign, promoted line/sign/real
+DriveBase, gyro and mode5 bypass suites passed; formal ARM build passed.
+BIN137532 bytes; exact candidate hashes above. See
+docs/history/candidates/MAIN_MODE35_20260910.md and README mode table.
+Rollback: rollback/2026-09-10-before-main-mode35 ->3257b05.
+No flash/push/release or physical test. Board remains full comprehensive
+5940727; K210 unchanged. Main candidate is NOT the board image. Published
+rc.5 remains71b2e7f; older local-main code statements below are superseded.
 
 ### Latest deployment: 5940727 after USB reconnect
 
