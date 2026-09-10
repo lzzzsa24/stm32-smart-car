@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
-comprehensive_candidate_status: 5940727_flash_failed_after_erase_USB_replug_required
+comprehensive_candidate_status: 5940727_COM11_full_readback_GO_passed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 120112
 comprehensive_candidate_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
@@ -19,28 +19,28 @@ comprehensive_candidate_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
-flashed_source_commit: 891a7e193947bd9f0e33319cf4e28c1c68528d93
-flash_record_commit: bec92db
-deployed_tag: deployed/2026-09-10-891a7e1
+flashed_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
+flash_record_commit: 5048a84
+deployed_tag: deployed/2026-09-10-5940727
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 118840
-flashed_bin_sha256: EFFF0314DEB5296A79AA93112C824F6B9B00AD4F0D6582FACC808CD4EB76E4E4
-flashed_hex_sha256: FA8398BB2317ABED72C6F5C9C94641E8A240283F1A07E92650E8D2F8F96D0923
-ground_test_status: not_tested_after_891a7e1_deployment
+formal_bin_size_bytes: 120112
+flashed_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
+flashed_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58CADF90160BE91D59E0F9
+ground_test_status: not_tested_after_5940727_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: tool_verified_891a7e1_readback_GO
+user_reported_flash: tool_verified_5940727_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_5940727_attempt_erased_59_pages_write_unconfirmed_USB_device_error
+stm32_runtime_status: COM11_5940727_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 5940727_pending_recovery_after_erase
+temporary_flash_selector_commit: 5940727_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: 5940727 after USB reconnect
+
+Fresh COM11 enumeration, exact120112-byte candidate hash checked, selective
+59-page erase, full write/readback and GO passed with exit0. Reserved audio
+and calibration pages excluded. Earlier interrupted-write warning below is
+resolved by this complete retry; board now has verified5940727 application.
+Includes mode2 middle guard, mode3 stopped-heading policy, mode4 continuous
+ARC control and retained mode5 fast following. K210/main firmware unchanged.
+No post-GO query, physical test or push. Evidence:
+docs/history/deployments/DEPLOYMENT_5940727_20260910.md.
 
 ### Current board warning: 5940727 deployment interrupted after erase
 
