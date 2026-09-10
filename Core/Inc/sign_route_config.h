@@ -14,28 +14,21 @@
 #define SIGN_ENTRY_MAX_MDEG 120000L
 #define SIGN_GYRO_ARC_MAX_MDEG 225000L
 #define SIGN_SELECT_CAPTURE_MIN_MDEG 45000L
-#define SIGN_EXIT_ALIGN_MDEG 10000L
-#define SIGN_EXIT_CAPTURE_MDEG 15000L
+#define SIGN_EXIT_ALIGN_MDEG 25000L
+#define SIGN_EXIT_CAPTURE_MDEG 30000L
 #define SIGN_EXIT_DIVERGE_MDEG 15000L
-/* Mode 3: signed yaw relative to a moving, centered-line road estimate.
+/* Mode 3: signed yaw relative to the completed two-second observation stop.
    Multiply MPU yaw error by sign direction: lower half <0, upper half >0. */
-#define SIGN_ROAD_SAMPLE_MS 200U
-#define SIGN_ROAD_SAMPLE_MM 60L
-#define SIGN_ROAD_SAMPLE_RANGE_MDEG 4000L
-#define SIGN_ROAD_REFERENCE_MAX_AGE_MS 5000U
-/* Offset-independent departure: sustained arc progress followed by a return.
-   Once observed, old ARC motor authority can never be reacquired. */
-#define SIGN_DEPART_ARC_PROGRESS_MDEG 110000L
-#define SIGN_DEPART_MAX_PROGRESS_MDEG 200000L
-#define SIGN_DEPART_RETURN_MDEG 15000L
+/* A stopped-heading return plus live line starts passive verification.
+   Arc-relative sweep is diagnostic only, never an exit gate. */
 #define SIGN_DEPART_VERIFY_TIMEOUT_MS 600U
 #define SIGN_DEPART_VERIFY_MAX_MM 140L
 /* Leave turning room before the 90-degree tangent at the far junction.
    Keep natural-exit evidence separate: an earlier turn request is not proof
    that the car has already joined the outgoing straight. */
-#define SIGN_EXIT_EDGE_HEADING_MDEG 55000L
-#define SIGN_EXIT_HEADING_TRIGGER_MDEG 65000L
-#define SIGN_EXIT_HEADING_MIN_MDEG 70000L
+#define SIGN_EXIT_EDGE_HEADING_MDEG 45000L
+#define SIGN_EXIT_HEADING_TRIGGER_MDEG 55000L
+#define SIGN_EXIT_HEADING_MIN_MDEG 45000L
 #define SIGN_EXIT_HEADING_MAX_MDEG 120000L
 /* A real outward correction can start before the nominal 55/65-degree gates. */
 #define SIGN_EXIT_EARLY_MIN_MDEG 35000L
@@ -43,7 +36,7 @@
 /* Natural departure: upper-half evidence, heading return and forward line travel. */
 #define SIGN_EXIT_RETURN_PEAK_MDEG 25000L
 #define SIGN_EXIT_RETURN_DROP_MDEG 15000L
-#define SIGN_EXIT_RETURN_RANGE_MDEG 30000L
+#define SIGN_EXIT_RETURN_RANGE_MDEG 40000L
 #define SIGN_EXIT_STEADY_RANGE_MDEG 6000L
 #define SIGN_EXIT_STEADY_MS 120U
 #define SIGN_EXIT_STEADY_MM 40L

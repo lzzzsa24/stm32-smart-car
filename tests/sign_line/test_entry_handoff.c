@@ -41,7 +41,7 @@ static void init(int side, uint32_t origin)
     int32_t n=(int32_t)(i+1)*12;
     SignRoute_UpdateEncoders(n,n,n,n); step(6,0,1,0);
   }
-  assert(status.road_reference_valid);
+  assert(!status.road_reference_valid);
   for(i=0;i<3;++i) { if(side) observe(side); step(6,0,1,0); }
   for(i=0;i<3;++i) step(15,0,1,0);
   assert(status.state==SIGN_ROUTE_PROBE);
@@ -173,16 +173,16 @@ static void check_early_arc(int side)
     assert(status.state==SIGN_ROUTE_ARC);
   }
   assert(status.state==SIGN_ROUTE_EXIT_SELECT);
-  assert(angle-80<=66);
+  assert(angle-80<=56);
   /* Low-speed alignment takes four seconds; the former 2.5s timer cancelled
      it before a target heading could be reached. */
-  for(angle=angle-80;angle>=12;--angle)
+  for(angle=angle-80;angle>=26;--angle)
   {
-    now+=60; step(0,side*angle*1000,1,0);
+    now+=120; step(0,side*angle*1000,1,0);
     assert(status.state==SIGN_ROUTE_EXIT_SELECT);
     assert(command.active && (side<0 ? left==0 && right>0 : right==0 && left>0));
   }
-  now+=90; step(0,-side*12000,1,0); /* crosses over the entire +/-10-degree band */
+  now+=90; step(0,-side*12000,1,0); /* enters the widened alignment band */
   assert(status.state==SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
   for(i=0;i<20;++i)
   {
