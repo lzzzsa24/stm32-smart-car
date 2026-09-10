@@ -41,6 +41,9 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
 LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *reading,
                                              LineTrackingCommand *command, uint32_t now);
 void LineRecovery_Commit(void);
+/* Opt-in mode-3 centering: caller owns double-middle stopping, not this step. */
+LineRecoveryResult LineRecovery_StepCentering(const LineTrackingReading *reading,
+                                             LineTrackingCommand *command, uint32_t now);
 /* Two distinct nearby live snapshots, with no stationary confirmation wait. */
 LineRecoveryResult LineRecovery_StepRolling(const LineTrackingReading *reading,
                                            LineTrackingCommand *command, uint32_t now);

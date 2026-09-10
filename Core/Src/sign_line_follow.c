@@ -1,7 +1,10 @@
 #include "sign_line_follow.h"
+#include "main.h"
 #include "line_search_model.h"
 #include "drive_base.h"
 #include "motorPWM.h"
+#include "line_recovery.h"
+#include "sign_observation.h"
 #include <string.h>
 
 void SignLineFollow_Init(SignLineFollowController *c)
@@ -20,6 +23,7 @@ void SignLineFollow_Stop(SignLineFollowController *c)
 {
   if (!c->running) return;
   c->running = c->override_active = c->observation_paused = 0U;
+  c->observation_cycle=0U;
   SimpleLine_Stop(&c->guard);
   line_tracking_yield_to_route();
   DriveBase_Stop(DRIVE_STOP_COAST);
@@ -62,15 +66,29 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
   uint8_t exit_follow = route->profile == SIGN_ROUTE_PROFILE_STANDARD &&
       route->state == SIGN_ROUTE_EXIT_CLEAR;
   uint8_t guarded_search, override, action;
+  uint8_t center_search=route->profile==SIGN_ROUTE_PROFILE_STANDARD &&
+      SignObservation_SeekingLine();
 
   if (!c->running || base_speed <= 0)
   {
     SignLineFollow_Stop(c);
     return SIMPLE_LINE_STOP;
   }
+  if ((paused || center_search) && !c->observation_cycle)
+  {
+    c->observation_search_direction=LineRecovery_IsSearching() ?
+        LineRecovery_GetDirection() : c->guard.last_direction;
+    c->observation_cycle=1U;
+  }
+  if (!paused && !center_search) c->observation_cycle=0U;
   if (paused)
   {
-    if (!c->observation_paused) line_tracking_yield_to_route();
+    if (!c->observation_paused)
+    {
+      if (center_search && LineRecovery_IsSearching())
+        c->observation_search_direction=LineRecovery_GetDirection();
+      line_tracking_yield_to_route();
+    }
     c->observation_paused=c->override_active=1U;
     DriveBase_SetSpeedLimitCps(0L);
     DriveBase_SetLineFaultObservation(1U,mask,5U);
@@ -80,6 +98,20 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     return 6U;
   }
   if (c->observation_paused) resume_observation(c);
+  if (center_search)
+  {
+    uint32_t now=HAL_GetTick();
+    if (!LineRecovery_IsSearching())
+    {
+      line_tracking_yield_to_route();
+      LineRecovery_Begin(c->observation_search_direction,now);
+    }
+    c->override_active=1U;
+    DriveBase_SetSpeedLimitCps(0L);
+    DriveBase_SetLineFaultObservation(1U,mask,5U);
+    (void)LineRecovery_StepCentering(reading,&output,now);
+    return 7U; /* SEEK LINE; recovery owns the established encoder targets */
+  }
   /* SL2 supplies only the existing sign-entry/gyro search guard. Its visible
      line table is not used for ordinary or acquired-arc steering. */
   SimpleLine_StepRoute(&c->guard, mask, route, route_command);

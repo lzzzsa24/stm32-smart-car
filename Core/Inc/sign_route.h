@@ -67,6 +67,8 @@ void SignRoute_SetProfile(SignRouteProfile profile);
 /* Mode 3 anchors its straight-road heading on completion without starting a
    turn. Mode 4 starts its drawn trajectory here only with a confirmed direction. */
 void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now);
+/* Rebase pre-entry geometry when the centered mode-3 observation finishes. */
+void SignRoute_MarkObservationSearch(void);
 /* Fresh continuous MPU yaw: positive left, millidegrees. No motor ownership. */
 void SignRoute_UpdateYaw(int64_t yaw_mdeg, uint8_t valid);
 void SignRoute_Reset(void);

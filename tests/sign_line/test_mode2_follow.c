@@ -61,8 +61,15 @@ static uint8_t sample(uint8_t mask,int32_t yaw)
   SignRoute_UpdateEncoders(counts[0],counts[1],counts[2],counts[3]);
   SignRoute_UpdateYaw(3700000LL+yaw,1);
   SimpleLine_UpdateYaw(&follower.guard,3700000LL+yaw,1,1);
+  SignRoute_GetStatus(tick,&route);
+  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD)
+  {
+    SignObservation_UpdateLine(mask,tick);
+    if (SignObservation_SeekingLine()) SignRoute_MarkObservationSearch();
+  }
   paused=SignObservation_Paused(tick);
-  SignRoute_UpdateObservationPause(paused,tick);
+  SignRoute_UpdateObservationPause(route.profile==SIGN_ROUTE_PROFILE_STANDARD ?
+      SignObservation_HoldingRoute(tick) : paused,tick);
   SignRoute_Step(mask,tick,&route_command); SignRoute_GetStatus(tick,&route);
   action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,paused);
   DriveBase_Task(tick); DriveBase_GetTelemetry(&drive);
@@ -281,7 +288,12 @@ static void late_choice(int side)
   for(i=0;i<40;++i)sample(0,0);
   assert(route.state==SIGN_ROUTE_WAIT_SIGN);
   for(i=0;i<203;++i){observe(side);sample(0,0);}
-  assert(route.state==SIGN_ROUTE_SELECTING);
+  assert(route.state==SIGN_ROUTE_WAIT_SIGN && SignObservation_SeekingLine());
+  for(i=0;i<204;++i){observe(side);sample(6,0);}
+  assert(!SignObservation_HoldingRoute(tick) && route.direction==side);
+  for(i=0;i<3;++i)sample(15,0);
+  sample(0,0);
+  assert(route.state==SIGN_ROUTE_PROBE);
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
   sample(side<0?1:8,0); /* opposite evidence cannot take back ownership */
   assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
@@ -676,7 +688,7 @@ static void manual_stop_during_observation(void)
   SignLineFollow_Stop(&follower);
   for(i=0;i<250;++i)
   {
-    sample(0,0);
+    sample(i<5?0:6,0); /* centering and its restarted deadline cannot undo STOP */
     assert(!follower.running && !follower.observation_paused);
     for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
   }
@@ -763,8 +775,63 @@ static void exit_turn_reacquires_before_alignment(int side, uint32_t origin)
   }
   puts("PASS: mode3 EXIT TURN yields on first reacquired black pattern before alignment; no reclaimed turn, stable completion and STOP");
 }
+static void center_before_observation(int side, uint32_t origin)
+{
+  unsigned i,w;
+  const int32_t centered_yaw=-side*70000;
+  init(1,origin);
+  sample(side<0?8:1,0); /* actual preceding line chooses initial search side */
+  for(i=0;i<3;++i) sample(15,0);
+  assert(route.state==SIGN_ROUTE_PROBE);
+  for(i=0;i<320;++i)
+  {
+    observe(side);
+    sample(i%3==0?0:(i%3==1?4:2),centered_yaw);
+    assert(SignObservation_SeekingLine() && SignObservation_HoldingRoute(tick));
+    assert(!SignObservation_Paused(tick) && route.state==SIGN_ROUTE_PROBE);
+    assert(drive.requested_cps[0]!=0 && drive.requested_cps[0]==-drive.requested_cps[2]);
+  }
+  assert(route.direction==side);
+  sample(6,centered_yaw); /* first double-middle contact stops immediately */
+  assert(SignObservation_Paused(tick));
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]);
+  sample(4,centered_yaw); /* isolated middle pair cannot start the 2s timer */
+  assert(SignObservation_SeekingLine() && !SignObservation_Paused(tick));
+  assert(drive.requested_cps[0]==-drive.requested_cps[2] && drive.requested_cps[0]!=0);
+  for(i=0;i<4;++i) sample(6,centered_yaw);
+  assert(!SignObservation_SeekingLine() && SignObservation_Paused(tick));
+  for(i=0;i<199;++i)
+  {
+    observe(side); sample(6,centered_yaw);
+    for(w=0;w<4;++w) assert(!drive.requested_cps[w]);
+  }
+  observe(side); sample(6,centered_yaw);
+  assert(!SignObservation_HoldingRoute(tick));
+  assert(route.direction==side && route.state==SIGN_ROUTE_PROBE);
+  assert(route.approach_from_pause && route.heading_error_mdeg==0 && route.yaw_mdeg==0);
+  assert(!route.entry_line_ready);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  sample(side<0?8:1,centered_yaw-side*20000);
+  for(i=0;i<4;++i) sample(6,centered_yaw-side*20000);
+  assert(route.state==SIGN_ROUTE_ARC);
+  SignLineFollow_Stop(&follower); sample(0,centered_yaw);
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  puts("PASS: all-white observation searches through partial contacts, stops on double middle, restarts full 2s, and rebases entry yaw");
+  init(1,origin);
+  for(i=0;i<10;++i) { observe(side); sample(0,0); }
+  assert(SignObservation_SeekingLine() && drive.requested_cps[0]!=0);
+  SignLineFollow_Stop(&follower);
+  for(i=0;i<250;++i)
+  {
+    sample(6,0);
+    for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  }
+  assert(!SignObservation_HoldingRoute(tick) && !follower.running);
+}
 int main(void)
 {
+  center_before_observation(-1,100);
+  center_before_observation(1,UINT32_MAX-120U);
   exit_turn_reacquires_before_alignment(-1,100);
   exit_turn_reacquires_before_alignment(1,UINT32_MAX-120U);
   exit_contact_must_end_blind_travel(-1,100);
