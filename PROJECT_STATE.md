@@ -10,37 +10,37 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 5ee5dbe175c0a5c256e8a654bb6abf2898d5d54f
-comprehensive_candidate_status: b43041e_integrated_line_sign_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: 891a7e193947bd9f0e33319cf4e28c1c68528d93
+comprehensive_candidate_status: 50ce17f_integrated_build_tests_COM11_readback_GO_passed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 116916
-comprehensive_candidate_bin_sha256: 6C2237B9D2A51397567B1D7E04011B6C2EA47B4CE61FC5D32F42396722BFC5B8
-comprehensive_candidate_hex_sha256: 45F89FC4F17D19E5C86FD70CAD3F13D5CECE41E595ECEB7256FE82B92E407029
+comprehensive_candidate_bin_size_bytes: 118840
+comprehensive_candidate_bin_sha256: EFFF0314DEB5296A79AA93112C824F6B9B00AD4F0D6582FACC808CD4EB76E4E4
+comprehensive_candidate_hex_sha256: FA8398BB2317ABED72C6F5C9C94641E8A240283F1A07E92650E8D2F8F96D0923
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
-flashed_source_commit: af602cf80b9f5b12405b693a57898e485702f051
-flash_record_commit: 6f0f2aa
-deployed_tag: deployed/2026-09-10-af602cf
+flashed_source_commit: 891a7e193947bd9f0e33319cf4e28c1c68528d93
+flash_record_commit: bec92db
+deployed_tag: deployed/2026-09-10-891a7e1
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 116700
-flashed_bin_sha256: 281ED549028AB60A4EAF0589739B9CF581837215550819AEF9FDF2396DD08B42
-flashed_hex_sha256: 6B2358EF7DAC107B7C9EA569B14F463EE34D8CBC95646B7A3AB99BD87F554D96
-ground_test_status: not_tested_after_af602cf_deployment
+formal_bin_size_bytes: 118840
+flashed_bin_sha256: EFFF0314DEB5296A79AA93112C824F6B9B00AD4F0D6582FACC808CD4EB76E4E4
+flashed_hex_sha256: FA8398BB2317ABED72C6F5C9C94641E8A240283F1A07E92650E8D2F8F96D0923
+ground_test_status: not_tested_after_891a7e1_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: tool_verified_af602cf_readback_GO
+user_reported_flash: tool_verified_891a7e1_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_af602cf_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_891a7e1_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: af602cf_comprehensive_flashed
+temporary_flash_selector_commit: 891a7e1_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: 891a7e1
+
+50ce17f integrated with mode4 wide-line and mode5 straight-speed update.
+Full sign suite, integration checks and ARM build passed. COM11 full118840
+bytes readback and GO passed; reserved pages excluded. No post-GO query,
+OLED/physical test or push; K210/main firmware unchanged. Evidence:
+docs/history/deployments/DEPLOYMENT_891A7E1_20260910.md.
+Supersedes older board/candidate statements below.
 
 ### Latest comprehensive candidate: 5ee5dbe (not flashed)
 
