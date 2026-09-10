@@ -166,6 +166,30 @@ static int16_t turn_speed_for_gain(int16_t normal_speed)
   return clamp_speed(speed);
 }
 
+static void update_straight_cruise(uint32_t now)
+{
+  int16_t maximum = fast_follow_enabled ? FAST_STRAIGHT_MAX_PWM :
+      (smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM);
+  if (!smooth_centered_active)
+  {
+    smooth_centered_active = 1U;
+    smooth_centered_since_ms = smooth_ramp_update_ms = now;
+    smooth_straight_pwm = follow_base_pwm();
+  }
+  else if (now - smooth_centered_since_ms >=
+           (fast_follow_enabled ? 0U : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
+           now - smooth_ramp_update_ms >= TRACKING_SMOOTH_RAMP_INTERVAL_MS)
+  {
+    smooth_ramp_update_ms = now;
+    if (smooth_straight_pwm < maximum)
+    {
+      smooth_straight_pwm = clamp_speed((int32_t)smooth_straight_pwm +
+          (fast_follow_enabled ? 40 : TRACKING_SMOOTH_RAMP_STEP_PWM));
+      if (smooth_straight_pwm > maximum) smooth_straight_pwm = maximum;
+    }
+  }
+}
+
 static void command_set_pwm(LineTrackingCommand *command,
                             int16_t left_pwm,
                             int16_t right_pwm,
@@ -771,8 +795,12 @@ static void observe_crossing(uint32_t now)
   { predicted_turn_direction = 0; direction_crossing_hold = 0U; }
   recovery_turn_direction = direction_candidate = 0;
   direction_center_active = 0U;
-  smooth_filter_valid = smooth_centered_active = 0U;
-  smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  smooth_filter_valid = 0U;
+  if (!fast_follow_enabled)
+  {
+    smooth_centered_active = 0U;
+    smooth_straight_pwm = TRACKING_SMOOTH_STRAIGHT_BASE_PWM;
+  }
 }
 static void consume_sampled_evidence(uint32_t through_ms)
 {
@@ -977,12 +1005,21 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       return command->action;
     }
     observe_crossing(now);
+    if (fast_follow_enabled && active_count >= 3U)
+    {
+      /* Wide-line detection still suppresses turns. Share normal straight
+         acceleration instead of imposing the separate 2357-CPS crossing cap. */
+      update_straight_cruise(now);
+      command_set_pwm(command, smooth_straight_pwm, smooth_straight_pwm, LINE_ACTION_FORWARD);
+      command->action = LINE_ACTION_CROSSING;
+      return command->action;
+    }
+    if (fast_follow_enabled) smooth_centered_active = 0U;
     if (middle_guard_enabled != 0U)
       command_set_cps(command, LINE_TRACKING_MIDDLE_GUARD_CPS,
                       LINE_TRACKING_MIDDLE_GUARD_CPS, LINE_ACTION_CROSSING);
     else
-      command_set_pwm(command, follow_center_pwm(),
-                      follow_center_pwm(), LINE_ACTION_CROSSING);
+      command_set_pwm(command, follow_center_pwm(), follow_center_pwm(), LINE_ACTION_CROSSING);
     return command->action;
   }
   if (middle_only) { middle_recent_valid = 1U; middle_last_ms = now; }
@@ -1208,35 +1245,13 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       int16_t curve_center;
       int16_t left_target;
       int16_t right_target;
-      int16_t straight_max = fast_follow_enabled ? FAST_STRAIGHT_MAX_PWM :
-          (smooth_straight_boost ? TRACKING_SMOOTH_BOOST_MAX_PWM : TRACKING_SMOOTH_STRAIGHT_MAX_PWM);
       uint8_t stable_center = (line_position == 0 &&
                                reading->x2_black == 0U &&
                                reading->x4_black == 0U) ? 1U : 0U;
 
       if (stable_center != 0U)
       {
-        if (smooth_centered_active == 0U)
-        {
-          smooth_centered_active = 1U;
-          smooth_centered_since_ms = now;
-          smooth_ramp_update_ms = now;
-          smooth_straight_pwm = follow_base_pwm();
-        }
-        else if (now - smooth_centered_since_ms >=
-                 (fast_follow_enabled ? 0U : TRACKING_SMOOTH_CENTER_HOLD_MS) &&
-                 now - smooth_ramp_update_ms >=
-                 TRACKING_SMOOTH_RAMP_INTERVAL_MS)
-        {
-          smooth_ramp_update_ms = now;
-          if (smooth_straight_pwm < straight_max)
-          {
-            smooth_straight_pwm = clamp_speed(
-                (int32_t)smooth_straight_pwm +
-                (fast_follow_enabled ? 40 : TRACKING_SMOOTH_RAMP_STEP_PWM));
-            if (smooth_straight_pwm > straight_max) smooth_straight_pwm = straight_max;
-          }
-        }
+        update_straight_cruise(now);
       }
       else
       {

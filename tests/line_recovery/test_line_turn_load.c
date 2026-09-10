@@ -1403,6 +1403,12 @@ static void test_fast_follow_continuity(void)
       if(phase==2 && frame>=8) assert(d.requested_cps[0]==3200 && d.requested_cps[2]==-3200);
       if(phase==0 && frame==19)
         assert(d.requested_cps[0]==(DriveBase_EquivalentCpsFromPwm(2750)*144+50)/100);
+      if(phase==4 && frame==19)
+      {
+        assert(out.action==LINE_ACTION_CROSSING);
+        assert(d.requested_cps[0]==(DriveBase_EquivalentCpsFromPwm(2750)*144+50)/100);
+        assert(d.requested_cps[0]==d.requested_cps[2]);
+      }
     }
   line_tracking_apply_command(&out,0);
   DriveBase_GetTelemetry(&d); assert(d.mode==DRIVE_BASE_STOPPED);

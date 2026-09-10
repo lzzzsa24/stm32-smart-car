@@ -106,7 +106,7 @@ static void test_fast_follow(void)
     assert(output.left_cps==-output.right_cps);
     assert((side?output.left_cps:output.right_cps)==3200);
     /* Wide interference immediately ends the spin and remains moving. */
-    sample(7,10,3000); assert(output.left_cps==2400 && output.right_cps==2400);
+    sample(7,10,3000); assert(output.left_cps>=3672 && output.left_cps==output.right_cps);
     hold(5,150); sample(0,1,3000);
     assert(LineRecovery_IsSearching() && !output.valid);
     hold(0,80); assert(LineRecovery_IsSearching() && !output.valid);
@@ -155,7 +155,7 @@ static void test_fast_no_timed_holds(void)
       assert(LineRecovery_IsSearching() && output.left_cps==-output.right_cps);
       sample(5,1,3000);
       assert(output.valid && output.left_cps>=2550);
-      sample(15,1,3000); assert(output.left_cps==2400 && output.right_cps==2400);
+      sample(15,1,3000); assert(output.left_cps>=3672 && output.left_cps==output.right_cps);
       sample(opposite,1,3000); assert(output.left_cps==(side?-3200:3200));
       sample(0,1,3000); assert(!output.valid && telemetry.requested_cps[0]==-search_left);
     }
@@ -170,6 +170,32 @@ static void test_fast_no_timed_holds(void)
   sample(5,1,3000); assert(LineRecovery_IsSearching());
   sample(5,1,3000); assert(output.valid && output.left_cps==3672);
   puts("PASS: fast no-hold 1ms sharp-corner/loss/capture/crossing sequences, inner-only direction continuity, wrap and external brake/STOP");
+}
+
+static void test_fast_wide_cruise(void)
+{
+  const unsigned wide[5]={7,11,13,14,15};
+  unsigned n,i;
+  for(n=0;n<5;++n)
+  {
+    reset(0,1); line_tracking_set_fast_follow(1);
+    sample(wide[n],1,3000);
+    assert(output.action==LINE_ACTION_CROSSING && output.left_cps==3672 && output.right_cps==3672);
+    /* Queued wide evidence must not restart acceleration on every sample. */
+    gpio_mask=wide[n];
+    for(i=0;i<150;++i) { ++tick; LineSensorSample_Tick(tick); sample(wide[n],1,3000); }
+    assert(output.left_cps==3960 && output.right_cps==3960);
+    sample(5,1,3000); assert(output.left_cps==3960 && output.right_cps==3960);
+    sample(wide[n],1,3000); assert(output.left_cps==3960 && output.right_cps==3960);
+    line_tracking_apply_command(&output,2000);
+    assert(telemetry.requested_cps[0]==2000 && telemetry.requested_cps[2]==2000);
+    line_tracking_apply_command(&output,0); assert(telemetry.mode==DRIVE_BASE_STOPPED);
+    gpio_mask=0; reset(0,1); sample(wide[n],1,3000);
+    assert(output.left_cps==2200 && output.right_cps==2200); /* Other modes unchanged. */
+  }
+  reset(0,1); line_tracking_set_fast_follow(1); sample(6,1,3000);
+  assert(output.left_cps==2400 && output.right_cps==2400); /* Separate two-island rule. */
+  puts("PASS: all mode5 three/four-black patterns share straight cruise and queue-safe ramp; centred handoff, caps, STOP and legacy wide speed retained");
 }
 
 static void assert_search(void)
@@ -1159,6 +1185,7 @@ int main(void)
 {
   test_fast_follow();
   test_fast_no_timed_holds();
+  test_fast_wide_cruise();
   unsigned smooth,forward,i;
   test_mode1_straight_boost();
   test_mode2_middle_guard();
