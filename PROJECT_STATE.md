@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
-comprehensive_candidate_status: 9eba339_integrated_build_tests_passed_not_flashed
+comprehensive_candidate_status: b32e03a_COM11_full_readback_GO_passed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 119440
 comprehensive_candidate_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
@@ -19,28 +19,28 @@ comprehensive_candidate_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97
 integration_branch: main
 repository_head_at_update: b48e9e04a89c995f23f162af332e7022044dad61
 latest_code_commit: b48e9e04a89c995f23f162af332e7022044dad61
-flashed_source_commit: e9049bbe5b1d7b51990584dd6e1743c4858587b8
-flash_record_commit: 3271e81
-deployed_tag: deployed/2026-09-10-e9049bb
+flashed_source_commit: b32e03aa5957dcafa2e24390a618d6c2b2224c09
+flash_record_commit: 3465a92
+deployed_tag: deployed/2026-09-10-b32e03a
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 120184
-flashed_bin_sha256: B9CB6328CB60F73C7BF8844382B959589AD5CA47D00EF34EE694171F831C04B4
-flashed_hex_sha256: 75B0F7C32957EF07DFB9EAA5217F510D6521977B5FB1F897C5BDB7AB6438B783
-ground_test_status: not_tested_after_e9049bb_deployment
+formal_bin_size_bytes: 119440
+flashed_bin_sha256: 401A6D6BAB855CAF504E709D743DE27039F9F040CEAE567CF89EDBFB4CA9049D
+flashed_hex_sha256: F1F51E076F2B213AD5FA9B7086E24FE94C6ED1E62E97306D3BA77DE5E1BA58A7
+ground_test_status: not_tested_after_b32e03a_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: b48e9e04a89c995f23f162af332e7022044dad61
 candidate_bin_size_bytes: 137532
 candidate_bin_sha256: 1F60ABB0C8595EDF10767F2169163B9D1E217467E16134C31CC9E02A9F96DB50
 candidate_hex_sha256: 877DA7A24AE1B71EA869EB63445E4A6702AA2B4483F05FDAAB1BA49503AFCAEC
-user_reported_flash: tool_verified_e9049bb_readback_GO
+user_reported_flash: tool_verified_b32e03a_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: main_mode35_sync_via_PR18_check_live_GitHub_for_merge_status
 remote_sync_branch: integration/main-mode35-sync-20260910
-stm32_runtime_status: COM11_e9049bb_full_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_b32e03a_full_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: e9049bb_comprehensive_flashed
+temporary_flash_selector_commit: b32e03a_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,14 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: b32e03a
+
+COM11 full119440-byte write/readback and GO passed, exit0, before the
+interruption. No repeat flash needed. Audio/calibration pages excluded;
+K210 unchanged, no post-GO query or physical test. Evidence:
+docs/history/deployments/DEPLOYMENT_B32E03A_20260910.md.
+This supersedes older board/unflashed candidate statements below.
 
 ### Latest comprehensive candidate: b32e03a and GitHub synchronization
 
