@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 55486e6cf07d513697b75c38303283828be4faf7
-comprehensive_candidate_status: 55486e6_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: f1301b2310db67306a930ef1845e5c375ecc9449
+comprehensive_candidate_status: f1301b2_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120648
-comprehensive_candidate_bin_sha256: BCDDE0FF18AD216DBCF8B973E3BB3B956C389D7F32D56E4A5E8EEAD84EC51BE6
-comprehensive_candidate_hex_sha256: 8B2FE2F13D95F0AA64C6BD6C0EDF2B8303BFA4A04FAC0C1BD96582CB776298B8
+comprehensive_candidate_bin_size_bytes: 120784
+comprehensive_candidate_bin_sha256: 2B4429BCC21AED81E8DC77372879E40ADE30E0194EF57D0713876AD9765474EC
+comprehensive_candidate_hex_sha256: A2B3520A79B473AD1B7AA96A76BA43C5467CEA01849B209215D473ADEDC24735
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: f1301b2 (not flashed)
+
+26af686 merged without conflicts. Mode3 direction confirmation now requires
+one same-class vote scoring at least22 in the current window, preventing
+20/21-only votes from suppressing first observation. Mode4 policy unchanged.
+Full sign suite, mode12/mode5 integration checks, diff check and ARM build
+passed. BIN120784 bytes; candidate hashes above. Artifacts remain under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-26af686 ->55486e6.
+No serial/flash/physical test/push. Board stays55486e6, K210/main unchanged.
+Supersedes older comprehensive candidate entries, not deployed evidence.
 
 ### Latest comprehensive deployment: 55486e6
 
