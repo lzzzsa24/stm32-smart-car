@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: d01ab4c621cfa16436ada7139805db8224db1123
-comprehensive_candidate_status: d01ab4c_build_tests_COM11_full_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
+comprehensive_candidate_status: 2fb4f35_876e9b6_integrated_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115456
-comprehensive_candidate_bin_sha256: CC55536F52C4C959653154545694D7E1548D130DC21C87EDF8AE417CC969C4D9
-comprehensive_candidate_hex_sha256: 962377807BAE1855F0C59E2EEC62D477B2D985630D4E1C58F9FC9A9083D6885F
+comprehensive_candidate_bin_size_bytes: 115920
+comprehensive_candidate_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
+comprehensive_candidate_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31300A617E838E29365F46
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,19 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 98a4a8f (not flashed)
+
+2fb4f35 and876e9b6 merged onto d01ab4c, including dependency c35df1a.
+Mode4 accepts first fallback contact with saved-side guidance; mode3 aligned
+exit yields immediately to live tracking/search. Observation resume consumes
+live inner evidence and excludes paused time from route deadlines. Conflict
+resolution retains mode3 stopped-heading reference plus mode4 fallback hint.
+Mode5 constrained pulse steering retained. Full sign suite, mode1/2, gyro
+and mode5 integration checks and formal build passed. BIN115920 bytes;
+hashes above. Artifacts in worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-2fb4f35-876e9b6. No serial, flash,
+physical test or push; board remains d01ab4c, K210/main firmware unchanged.
 
 ### Latest deployment: d01ab4c
 
