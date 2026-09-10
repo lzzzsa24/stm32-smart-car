@@ -45,8 +45,9 @@ static void begin_entry_turn(int side)
   SignRoute_UpdateObservationPause(0U,now);
   step(6,0,1,0);
   assert(status.state==SIGN_ROUTE_PROBE && command.active && !command.gentle_arc);
-  assert(side<0 ? (command.left_pwm==0 && command.right_pwm>0) :
-                  (command.right_pwm==0 && command.left_pwm>0));
+  assert(side<0 ? (command.left_pwm<0 && command.right_pwm>0) :
+                  (command.right_pwm<0 && command.left_pwm>0));
+  assert(command.left_pwm==-command.right_pwm);
 }
 
 static void reach_arc(int side)

@@ -204,6 +204,20 @@ void line_tracking_make_route_command(int8_t direction, int16_t base_speed,
   }
 }
 
+void line_tracking_make_route_spin_command(int8_t direction, int16_t base_speed,
+                                           LineTrackingCommand *command)
+{
+  int16_t turn;
+  if (!command) return;
+  if (base_speed <= 0 || !direction) { command_stop(command); return; }
+  turn = base_speed > TRACKING_SETTLE_CENTER_PWM ?
+      TRACKING_SETTLE_CENTER_PWM : base_speed;
+  command_set_pwm(command,
+      direction < 0 ? (int16_t)-turn : turn,
+      direction < 0 ? turn : (int16_t)-turn,
+      direction < 0 ? LINE_ACTION_LEFT_SHARP : LINE_ACTION_RIGHT_SHARP);
+}
+
 void line_tracking_make_slow_arc_command(int8_t direction, int16_t base_speed,
                                          LineTrackingCommand *command)
 {

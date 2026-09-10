@@ -47,6 +47,7 @@ assert "line_tracking_compute_slow(reading, base_speed, &output)" in adapter
 assert "line_tracking_compute_arc(reading, base_speed, &output)" in adapter
 assert "line_tracking_apply_command(&output, MOTOR_PWM_PERIOD);" in adapter
 assert "line_tracking_make_route_command(" in adapter
+assert "line_tracking_make_route_spin_command(steer, base_speed, &output)" in adapter
 assert "SignSlowdown" not in adapter
 assert "override = paused || route_command->active || guarded_search;" in adapter
 assert "SignObservation_ObserveDetection(&detection, HAL_GetTick());" in detection_task

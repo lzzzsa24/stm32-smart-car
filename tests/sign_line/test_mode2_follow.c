@@ -303,8 +303,9 @@ static void mode4_drawn_drive(int side)
   init(1,100); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_GYRO_TANGENT);
   for(i=0;i<203;++i) { observe(side); sample(6,0); }
   assert(route.state==SIGN_ROUTE_PROBE && route_command.active && !route_command.gentle_arc);
-  assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]>0 :
-                  drive.requested_cps[2]==0 && drive.requested_cps[0]>0);
+  assert(side<0 ? drive.requested_cps[0]<0 && drive.requested_cps[2]>0 :
+                  drive.requested_cps[2]<0 && drive.requested_cps[0]>0);
+  assert(drive.requested_cps[0]==-drive.requested_cps[2]);
   sample(6,-side*SIGN_GYRO_TANGENT_ENTRY_MDEG);
   assert(route.state==SIGN_ROUTE_SELECTING && route_command.active);
   assert(drive.requested_cps[0]==drive.requested_cps[2] && drive.requested_cps[0]>0);
