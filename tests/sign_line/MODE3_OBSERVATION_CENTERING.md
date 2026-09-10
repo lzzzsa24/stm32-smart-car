@@ -1,5 +1,8 @@
 # Mode 3: center the line before timed sign observation
 
+Historical record: superseded by `MODE3_DIRECT_OBSERVATION.md`. Mode 3 no
+longer turns to find the middle pair before its fixed two-second observation.
+
 Base: `947794dec76d649c55c1d3588fefafd01c6772f5` (the recorded flashed composite).
 Rollback: `rollback/mode3-before-observation-center-947794d`.
 
