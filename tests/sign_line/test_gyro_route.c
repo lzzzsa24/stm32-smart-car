@@ -63,7 +63,7 @@ static void test(int side)
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* no yaw: not completed */
   for(i=0;i<4;++i) step(0,0,1);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
-  assert(c.active && c.left_pwm==c.right_pwm && c.left_pwm>0);
+  assert(!c.active && c.left_pwm==0 && c.right_pwm==0);
   SignRoute_UpdateEncoders(2500,2500,2500,2500);
   for(i=0;i<4;++i) step(6,0,1);
   assert(s.state==SIGN_ROUTE_LOCKED);
@@ -83,7 +83,7 @@ static void test(int side)
   assert(s.state==SIGN_ROUTE_EXIT_SELECT); /* 20-degree miss must not drive straight */
   assert(side<0 ? c.left_pwm>0 && c.right_pwm==0 : c.right_pwm>0 && c.left_pwm==0);
   step(0,-side*5000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && c.left_pwm==c.right_pwm);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
   start(side);
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
   for(i=0;i<4;++i) step(6,entry+side*170000,1);
@@ -132,7 +132,7 @@ static void natural_exit(int side)
   for(i=0;i<4;++i) step(6,side*90000,1);
   assert(s.state==SIGN_ROUTE_EXIT_SELECT && c.active);
   step(0,side*10000,1);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && c.active && c.left_pwm==c.right_pwm);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active && c.left_pwm==0 && c.right_pwm==0);
   puts("PASS: signed road heading controls exit independently of the estimated entry apex; live rejoin and divergence bounds");
 }
 static void pause_reference_lifetime(void)
@@ -166,8 +166,33 @@ static void pause_reference_lifetime(void)
   SignRoute_GetStatus(now,&s); assert(!s.approach_from_pause);
   puts("PASS: stopped-heading capture, no continuous overwrite, repeat/expiry/reset and invalid-gyro fallback");
 }
+static void observation_preserves_driving_deadline(void)
+{
+  unsigned i;
+  SignRoute_Reset(); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
+  now=UINT32_MAX-1900U;
+  SignRoute_UpdateEncoders(0,0,0,0);
+  for(i=0;i<3;++i) step(15,0,1);
+  assert(s.state==SIGN_ROUTE_PROBE && s.direction==0);
+  now+=1500U; step(15,0,1);
+  SignRoute_UpdateObservationPause(1,now);
+  for(i=0;i<200;++i)
+  {
+    step(15,0,1);
+    assert(s.state==SIGN_ROUTE_PROBE && !s.fault && !c.active);
+  }
+  SignRoute_UpdateObservationPause(0,now);
+  for(i=0;i<25;++i) step(15,0,1);
+  assert(s.state==SIGN_ROUTE_PROBE && !s.fault);
+  /* Preserve remaining driving time, rather than spending it while stopped
+     or restarting an entire new timeout window at resumption. */
+  now+=100U; step(15,0,1);
+  assert(s.state==SIGN_ROUTE_IDLE && s.fault==1 && !c.active);
+  puts("PASS: observation pause excludes stopped time from navigation deadline; remaining bounded timeout and clock wrap retained");
+}
 int main(void)
 {
+  observation_preserves_driving_deadline();
   test(-1); test(1);
   natural_exit(-1); natural_exit(1);
   pause_reference_lifetime();

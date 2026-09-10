@@ -177,12 +177,12 @@ static void check_early_arc(int side)
     assert(command.active && (side<0 ? left==0 && right>0 : right==0 && left>0));
   }
   now+=90; step(0,-side*12000,1,0); /* crosses over the entire +/-10-degree band */
-  assert(status.state==SIGN_ROUTE_EXIT_CLEAR && left==right && left>0);
+  assert(status.state==SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
   for(i=0;i<20;++i)
   {
     counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);
     now+=40; step(0,-side*12000,1,0);
-    assert(status.state==SIGN_ROUTE_EXIT_CLEAR && left==right && left>0);
+    assert(status.state==SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
   }
   for(i=0;i<2;++i) { now+=40; step(6,-side*12000,1,0); }
   assert(status.state==SIGN_ROUTE_LOCKED);

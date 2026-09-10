@@ -42,7 +42,6 @@ typedef struct
   uint8_t junction_active;
   uint8_t departed;
   uint8_t entry_edge_seen, entry_center_active, entry_line_ready;
-  uint8_t exit_line_seen;
   uint8_t exit_region_seen;
   uint8_t arc_lower_seen, exit_straight_active;
   uint32_t exit_straight_since_ms;
@@ -57,6 +56,7 @@ typedef struct
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   uint8_t observation_pause_active, observation_pause_seen, fallback_arc_hint;
+  uint32_t observation_pause_since_ms;
   uint8_t approach_from_pause;
   uint32_t pause_reference_ms;
   int32_t travel_mm, yaw_mdeg;
@@ -223,6 +223,17 @@ void SignRoute_SetProfile(SignRouteProfile profile)
 void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now)
 {
   paused = paused ? 1U : 0U;
+  if (paused && !route.observation_pause_active)
+    route.observation_pause_since_ms=now;
+  if (!paused && route.observation_pause_active &&
+      route.profile == SIGN_ROUTE_PROFILE_STANDARD)
+  {
+    /* Recognition time is not elapsed driving/search time. Restart short
+       sensor confirmations from a live moving sample; preserve the choice. */
+    uint32_t stopped_ms=now-route.observation_pause_since_ms;
+    route.phase_ms+=stopped_ms;
+    if (route.probe_hold_started) route.probe_hold_since_ms+=stopped_ms;
+  }
   if (route.profile != SIGN_ROUTE_PROFILE_GYRO_TANGENT)
   {
     /* The caller supplies the actual fixed-two-second observation flag after
@@ -380,7 +391,6 @@ static void enter_phase(SignRouteState state, uint32_t now)
     route.exit_best_error_mdeg = heading_error();
     if (route.exit_best_error_mdeg < 0) route.exit_best_error_mdeg = -route.exit_best_error_mdeg;
   }
-  if (state == SIGN_ROUTE_EXIT_CLEAR) route.exit_line_seen=0U;
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -863,6 +873,15 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   }
 #endif
 
+  if (route.observation_pause_active)
+  {
+    /* Camera voting continues in ObserveDetection, but stationary sensor
+       samples cannot enter PROBE/ARC or prepare a hidden motor command. */
+    route.junction_active=route.capture_active=route.entry_center_active=0U;
+    route.exit_straight_active=0U;
+    return;
+  }
+
   /* All-white belongs to SL2's continuous counter-rotation search. Neither
      elapsed time nor a fresh sign is allowed to replace it with a zero target. */
   if (route.state == SIGN_ROUTE_ARMED &&
@@ -1053,9 +1072,11 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
       {
         enter_phase(SIGN_ROUTE_EXIT_CLEAR, now);
         command->gentle_arc=0U;
-        route.exit_line_seen=is_track_line(line_mask);
-        command->active=(line_mask==0U);
-        command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+        /* Heading alignment ends route motor ownership immediately. Current
+           line correction or actual line-loss search now belongs to tracking;
+           there is no separate mode-3 blind straight segment to latch. */
+        command->active=0U;
+        command->left_pwm=command->right_pwm=0;
         return;
       }
       return; /* Entry's minimum-turn/capture rules do not apply to exit alignment. */
@@ -1215,11 +1236,14 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
     if (route.profile == SIGN_ROUTE_PROFILE_STANDARD)
     {
       exit_min_mm=0L;
-      if (is_track_line(line_mask)) route.exit_line_seen=1U;
-      command->active=(line_mask==0U && !route.exit_line_seen);
+      /* Completion confirmation is passive: never take the motors back,
+         including on white, a broad mark, or a failed line capture. */
     }
-    else command->active=1U;
-    command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+    else
+    {
+      command->active=1U;
+      command->left_pwm=command->right_pwm=SIGN_ROUTE_PWM;
+    }
 #endif
     if (stable(center && route.travel_mm >= exit_min_mm, now))
     {
