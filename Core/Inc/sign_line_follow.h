@@ -6,7 +6,7 @@
 typedef struct
 {
   SimpleLineController guard;
-  uint8_t running, override_active;
+  uint8_t running, override_active, observation_paused;
 } SignLineFollowController;
 
 void SignLineFollow_Init(SignLineFollowController *controller);

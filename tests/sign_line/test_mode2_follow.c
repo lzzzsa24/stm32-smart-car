@@ -619,8 +619,70 @@ static void earlier_exit_timing(int side, uint32_t origin, uint8_t edge_contact)
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: upper-half 55-degree edge / 65-degree gyro exit, ambiguous-line rejection, debounce, aligned release and STOP");
 }
+static void observation_resume_uses_live_line(int side, uint32_t origin, uint8_t at_probe)
+{
+  unsigned i,w,unexpected=0;
+  uint8_t inner=side<0?2:4;
+  init(1,origin);
+  if(at_probe)
+  {
+    for(i=0;i<3;++i) sample(15,0);
+    assert(route.state==SIGN_ROUTE_PROBE && route.direction==0);
+  }
+  /* Stop on a crossbar, with one inner sensor carrying the straight line
+     after a small chassis offset. Neither wheel advances during the pause. */
+  for(i=0;i<199;++i)
+  {
+    observe(side); sample(i<8?15:inner,0);
+    for(w=0;w<4;++w) assert(!drive.requested_cps[w]);
+    if(i>=4 && route.state!=(at_probe?SIGN_ROUTE_PROBE:SIGN_ROUTE_ARMED)) unexpected=1;
+  }
+  if(unexpected) fprintf(stderr,"Navigation advanced while observation was stopped: side=%d state=%d\n",side,route.state);
+  /* Resumption must correct the visible inner line, not pretend it is white
+     just because the pending sign points to the other side. */
+  for(i=0;i<12;++i)
+  {
+    observe(side); sample(inner,0);
+    if(drive.requested_cps[0]<=0 || drive.requested_cps[2]<=0)
+    {
+      fprintf(stderr,"Pause resume ignores inner line: side=%d mask=%u state=%d targets=%ld/%ld\n",
+          side,inner,route.state,(long)drive.requested_cps[0],(long)drive.requested_cps[2]);
+      unexpected=1;break;
+    }
+  }
+  assert(unexpected==0 && route.direction==side && route.approach_from_pause);
+  /* Live branch evidence after resumption still authorizes the chosen entry. */
+  for(i=0;i<3;++i) sample(15,0);
+  sample(side<0?8:1,-side*20000);
+  assert(route_command.active);
+  for(i=0;i<4;++i) sample(6,-side*20000);
+  assert(route.state==SIGN_ROUTE_ARC && route.entry_line_ready);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  puts("PASS: stationary observation cannot select a branch; resume follows the actual inner line; confirmed entry and STOP retained");
+}
+static void manual_stop_during_observation(void)
+{
+  unsigned i,w;
+  init(1,UINT32_MAX-120U);
+  for(i=0;i<10;++i) { observe(1); sample(6,0); }
+  assert(follower.observation_paused);
+  SignLineFollow_Stop(&follower);
+  for(i=0;i<250;++i)
+  {
+    sample(0,0);
+    assert(!follower.running && !follower.observation_paused);
+    for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  }
+  puts("PASS: manual STOP during observation remains authoritative after the two-second deadline");
+}
 int main(void)
 {
+  manual_stop_during_observation();
+  observation_resume_uses_live_line(1,100,0);
+  observation_resume_uses_live_line(-1,UINT32_MAX-120U,0);
+  observation_resume_uses_live_line(1,UINT32_MAX-120U,1);
+  observation_resume_uses_live_line(-1,100,1);
   earlier_exit_timing(-1,100,0); earlier_exit_timing(1,UINT32_MAX-120U,0);
   earlier_exit_timing(-1,UINT32_MAX-120U,1); earlier_exit_timing(1,100,1);
   naturally_departed_before_gate(-1,100,0);

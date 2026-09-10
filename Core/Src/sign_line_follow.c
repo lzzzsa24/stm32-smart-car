@@ -19,7 +19,7 @@ void SignLineFollow_Start(SignLineFollowController *c)
 void SignLineFollow_Stop(SignLineFollowController *c)
 {
   if (!c->running) return;
-  c->running = c->override_active = 0U;
+  c->running = c->override_active = c->observation_paused = 0U;
   SimpleLine_Stop(&c->guard);
   line_tracking_yield_to_route();
   DriveBase_Stop(DRIVE_STOP_COAST);
@@ -34,6 +34,20 @@ static uint8_t display_action(LineTrackingAction action)
   if (action == LINE_ACTION_LEFT_SHARP || action == LINE_ACTION_RIGHT_SHARP)
     return SIMPLE_LINE_TURN;
   return SIMPLE_LINE_TRACK;
+}
+
+static void resume_observation(SignLineFollowController *c)
+{
+  /* Keep the MPU sample just supplied by the caller, but drop the old
+     filtered line/search sector. First resumed GPIO evidence owns recovery. */
+  int64_t yaw=c->guard.yaw_mdeg;
+  uint32_t generation=c->guard.yaw_generation;
+  uint8_t configured=c->guard.yaw_configured, valid=c->guard.yaw_valid;
+  SimpleLine_Stop(&c->guard);
+  SimpleLine_Start(&c->guard);
+  if (configured) SimpleLine_UpdateYaw(&c->guard,yaw,valid,generation);
+  line_tracking_yield_to_route();
+  c->observation_paused=c->override_active=0U;
 }
 
 uint8_t SignLineFollow_Step(SignLineFollowController *c,
@@ -52,12 +66,24 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     SignLineFollow_Stop(c);
     return SIMPLE_LINE_STOP;
   }
+  if (paused)
+  {
+    if (!c->observation_paused) line_tracking_yield_to_route();
+    c->observation_paused=c->override_active=1U;
+    DriveBase_SetSpeedLimitCps(0L);
+    DriveBase_SetLineFaultObservation(1U,mask,5U);
+    output.valid=1U;
+    output.action=LINE_ACTION_FORWARD; /* same explicit zero targets as before */
+    line_tracking_apply_command(&output,MOTOR_PWM_PERIOD);
+    return 6U;
+  }
+  if (c->observation_paused) resume_observation(c);
   /* SL2 supplies only the existing sign-entry/gyro search guard. Its visible
      line table is not used for ordinary or acquired-arc steering. */
   SimpleLine_StepRoute(&c->guard, mask, route, route_command);
   guarded_search = c->guard.mode == SIMPLE_LINE_SEARCH &&
       (c->guard.entry_guard_active || arc);
-  override = paused || route_command->active || guarded_search;
+  override = route_command->active || guarded_search;
   if (override != c->override_active)
   {
     line_tracking_yield_to_route();
@@ -72,8 +98,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     output.valid = 1U;
     output.action = LINE_ACTION_FORWARD;
     DriveBase_SetLineFaultObservation(1U, mask, 5U);
-    if (paused) action = 6U;
-    else if (route_command->active)
+    if (route_command->active)
     {
       /* Route chooses heading; KEY2's slow rejoin profile chooses wheel CPS. */
       if (route_command->left_pwm > 0 || route_command->right_pwm > 0)

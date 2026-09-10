@@ -166,8 +166,33 @@ static void pause_reference_lifetime(void)
   SignRoute_GetStatus(now,&s); assert(!s.approach_from_pause);
   puts("PASS: stopped-heading capture, no continuous overwrite, repeat/expiry/reset and invalid-gyro fallback");
 }
+static void observation_preserves_driving_deadline(void)
+{
+  unsigned i;
+  SignRoute_Reset(); SignRoute_SetProfile(SIGN_ROUTE_PROFILE_STANDARD);
+  now=UINT32_MAX-1900U;
+  SignRoute_UpdateEncoders(0,0,0,0);
+  for(i=0;i<3;++i) step(15,0,1);
+  assert(s.state==SIGN_ROUTE_PROBE && s.direction==0);
+  now+=1500U; step(15,0,1);
+  SignRoute_UpdateObservationPause(1,now);
+  for(i=0;i<200;++i)
+  {
+    step(15,0,1);
+    assert(s.state==SIGN_ROUTE_PROBE && !s.fault && !c.active);
+  }
+  SignRoute_UpdateObservationPause(0,now);
+  for(i=0;i<25;++i) step(15,0,1);
+  assert(s.state==SIGN_ROUTE_PROBE && !s.fault);
+  /* Preserve remaining driving time, rather than spending it while stopped
+     or restarting an entire new timeout window at resumption. */
+  now+=100U; step(15,0,1);
+  assert(s.state==SIGN_ROUTE_IDLE && s.fault==1 && !c.active);
+  puts("PASS: observation pause excludes stopped time from navigation deadline; remaining bounded timeout and clock wrap retained");
+}
 int main(void)
 {
+  observation_preserves_driving_deadline();
   test(-1); test(1);
   natural_exit(-1); natural_exit(1);
   pause_reference_lifetime();

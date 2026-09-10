@@ -144,10 +144,11 @@ void SimpleLine_StepRoute(SimpleLineController *controller, uint8_t raw_mask,
   if (entry_guard)
   {
     uint8_t opposite = route->direction < 0 ?
-        (tracking_mask == 1U || tracking_mask == 2U || tracking_mask == 3U) :
-        (tracking_mask == 8U || tracking_mask == 4U || tracking_mask == 12U);
-    /* Wrong-branch contact is not a capture and cannot move the yaw anchor.
-       Search from the last trusted line towards the requested branch. */
+        (tracking_mask == 1U || tracking_mask == 3U) :
+        (tracking_mask == 8U || tracking_mask == 12U);
+    /* An opposing outer branch is not capture. A lone inner sensor still
+       describes the approach line and must permit normal forward correction,
+       including immediately after observation; it is not imaginary white. */
     if (opposite) tracking_mask=0U;
     SimpleLine_SetDirection(controller, route->direction);
   }
