@@ -109,9 +109,10 @@ static void parity(uint32_t origin)
   unsigned pass,i,j,w;
   const uint8_t patterns[]={0,6,4,6,2,6,8,8,12,0,6,1,1,3,0,6,15,0,7,14,5,10,9,11,13};
   const unsigned dt[]={1,2,10,20,40,80};
-  for(pass=0;pass<2;++pass) /* shared slow baseline, then the sole KEY3 sign binding */
+  for(pass=0;pass<4;++pass) /* actual KEY2, then mode3 approach/ARC/EXIT LINE */
   {
     init(pass!=0,origin);
+    if(!pass) line_tracking_set_middle_guard(1U);
     for(i=0;i<2000;++i)
     {
       uint8_t mask=patterns[(i/17) % sizeof(patterns)],action;
@@ -131,10 +132,7 @@ static void parity(uint32_t origin)
         LineTrackingCommand normal;
         LineTrackingAction a;
         reading=line_tracking_read();
-        a=line_tracking_compute_slow(&reading,3000,&normal);
-        /* Shared slow profile; recovery may supply its own straight command. */
-        if(normal.valid && (a==LINE_ACTION_FORWARD || a==LINE_ACTION_CROSSING))
-          normal.left_cps=normal.right_cps=DriveBase_EquivalentCpsFromPwm(2200);
+        a=line_tracking_compute(&reading,3000,&normal);
         line_tracking_apply_command(&normal,3599);
         action=normalized(a);
       }
@@ -144,6 +142,11 @@ static void parity(uint32_t origin)
         SignRoute_UpdateYaw(0,1);
         SignRoute_UpdateEncoders(counts[0],counts[1],counts[2],counts[3]);
         SignRoute_Step(mask,tick,&route_command); SignRoute_GetStatus(tick,&route);
+        if(pass>=2)
+        {
+          route.state=pass==2?SIGN_ROUTE_ARC:SIGN_ROUTE_EXIT_CLEAR;
+          route.direction=1; route_command.active=0;
+        }
         SimpleLine_UpdateYaw(&follower.guard,0,1,1);
         /* Exercise the actual sign owner with no temporary caps. */
         action=SignLineFollow_Step(&follower,&reading,3000,&route,&route_command,0);
@@ -157,7 +160,7 @@ static void parity(uint32_t origin)
       if(!pass)baseline[i].action=action; else assert(baseline[i].action==action);
     }
   }
-  puts("PASS: 2000 sign samples match shared slow tracking/search, all wheel outputs and actions");
+  puts("PASS: 2000 samples per mode3 approach/ARC/EXIT LINE match actual mode2 middle guard, all requested/controlled/PWM outputs and actions");
 }
 static uint8_t key2_step(uint8_t mask)
 {
@@ -178,9 +181,9 @@ static void slow_profile_matches_key2_settle(void)
   uint8_t action;
   for(mask=0;mask<16;++mask)
   {
-    /* The ordinary KEY2 API in its actual rejoin/settle state is the oracle,
-       not the new slow-profile entry. The same first contact precedes each mask. */
-    init(0,100); line_tracking_rejoin_from_bypass(6);
+    /* Actual KEY2 middle guard is the oracle. The same first contact
+       precedes each mask. */
+    init(0,100); line_tracking_set_middle_guard(1U);
     key2_step(6); action=key2_step((uint8_t)mask);
     memcpy(expected,drive.requested_cps,sizeof(expected));
     init(1,100); sample(6,0);
@@ -191,20 +194,20 @@ static void slow_profile_matches_key2_settle(void)
   for(i=0;i<3000;++i)
   {
     sample(6,0);
-    for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   }
-  /* A sign-mode run must not force KEY2 to stay slow after a mode switch. */
+  /* A fresh generic follower must clear the mode-specific middle guard. */
   SignLineFollow_Stop(&follower); line_tracking_start_following();
   for(i=0;i<100;++i) key2_step(6);
   for(w=0;w<4;++w)
     assert(drive.requested_cps[w]==DriveBase_EquivalentCpsFromPwm(2700));
-  puts("PASS: all 16 masks match actual KEY2 settle targets, 30s steady slow travel, KEY2 cruise restored on switch");
+  puts("PASS: all 16 masks match KEY2 middle guard, 30s steady speed, generic restart clears profile");
 }
 static void slow_speed_and_recognition(void)
 {
   unsigned i;
   uint32_t pause_start;
-  const int32_t cruise=DriveBase_EquivalentCpsFromPwm(2200);
+  const int32_t cruise=LINE_TRACKING_MIDDLE_GUARD_CPS;
   init(1,100);
   sample(6,0); assert(drive.requested_cps[0]==cruise);
   pause_start=tick;
@@ -225,6 +228,7 @@ static void slow_speed_and_recognition(void)
   }
   for(i=0;i<40;++i) sample(0,0);
   assert(drive.requested_cps[0]==-drive.requested_cps[2]);
+  assert(follower.last_owner==SIGN_FOLLOW_OWNER_GUARD); /* sign selection still constrains entry */
   assert(drive.requested_cps[0]==LINE_SEARCH_TARGET_CPS||drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
   observe(1);
   sample(0,0);
@@ -251,14 +255,14 @@ static void ring(int side,uint32_t origin)
   for(i=0;i<4;++i)sample(6,-side*20000);
   assert(route.state==SIGN_ROUTE_ARC && route.entry_line_ready);
   sample(0,-side*20000);
-  assert(side<0?drive.requested_cps[0]<0:drive.requested_cps[2]<0);
+  assert(!follower.override_active && drive.requested_cps[0]==-1800); /* mode2 fallback without a lateral hint */
   for(angle=21;angle<=80;++angle)
   {
     for(w=0;w<4;++w)counts[w]+=22;
     tick+=40; sample(selected,-side*angle*1000);
     assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
-    assert(drive.requested_cps[0]>=0&&drive.requested_cps[2]>=0);
-    assert(drive.requested_cps[0]+drive.requested_cps[2]==2200);
+    assert(drive.requested_cps[0]==-1800); /* same persistent mode2 recovery begun at the preceding white sample */
+    assert(drive.requested_cps[2]==-drive.requested_cps[0]);
   }
   for(angle=1;angle<=171;++angle)
   {
@@ -289,7 +293,7 @@ static void ring(int side,uint32_t origin)
   sample(6,-side*12000); assert(drive.requested_cps[0]>1200);
   SignLineFollow_Stop(&follower); sample(selected,0);
   for(w=0;w<4;++w)assert(!pins[w]&&!drive.requested_cps[w]);
-  puts("PASS: real route -> KEY2 follower -> DriveBase, selected branch, forward arc, gyro exit, rejoin and STOP");
+  puts("PASS: real route -> KEY2 follower -> DriveBase, selected branch, ARC recovery, gyro exit, rejoin and STOP");
 }
 static void late_choice(int side)
 {
@@ -404,22 +408,22 @@ static void arc_feedback_and_entry_search(void)
     enter_test_arc(side,100);
     sample(15,-side*20000);
     sample(opposite,-side*20000);
-    if (!(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
-                  drive.requested_cps[0]==0 && drive.requested_cps[2]==2200))
+    if (!(side<0 ? drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800 :
+                  drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800))
     {
       fprintf(stderr,"ARC bar->outer lost feedback side=%d targets=%ld/%ld\n",
           side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
     }
     assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
 
-    /* Both middle sensors cannot describe curve direction. Fresh yaw shows
-       the actual curvature has reversed after the entry apex. */
+    /* ARC loss uses the same mode2 direction evidence as ordinary tracking.
+       With no lateral line hint, gyro trend cannot install another search owner. */
     enter_test_arc(side,UINT32_MAX-120U);
     for(angle=1;angle<=6;++angle) sample(6,side*(angle-20)*1000);
     sample(0,-side*14000);
-    if (!(side<0 ? drive.requested_cps[0]>0 : drive.requested_cps[2]>0))
+    if (drive.requested_cps[0]!=-1800 || follower.override_active)
     {
-      fprintf(stderr,"ARC loss reused entry direction side=%d targets=%ld/%ld\n",
+      fprintf(stderr,"ARC loss bypassed mode2 direction rules side=%d targets=%ld/%ld\n",
           side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
     }
 
@@ -439,7 +443,7 @@ static void arc_feedback_and_entry_search(void)
     for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   }
   assert(failures==0);
-  puts("PASS: ARC single owner, raw-line priority, forward white fallback, entry sweep beyond 25 degrees and STOP");
+  puts("PASS: ARC uses KEY2 edge/white search; pre-entry direction guard and STOP retained");
 }
 static void exit_releases_direction(int side, uint32_t origin)
 {
@@ -455,7 +459,7 @@ static void exit_releases_direction(int side, uint32_t origin)
   assert(!route_command.active);
   assert(!follower.override_active && !follower.guard.entry_guard_active);
   assert(!follower.guard.route_hint && !follower.guard.curve_yaw_valid);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
 
   /* A new bend on the ordinary line points opposite to the old sign. Its
      current sensor contact, not the completed route, must choose the wheels. */
@@ -463,17 +467,17 @@ static void exit_releases_direction(int side, uint32_t origin)
   {
     sample(opposite,0);
     assert(!route_command.active && route.direction==0);
-    assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
-                   drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+    assert(side<0 ? drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800 :
+                   drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800);
   }
   for(i=0;i<40;++i) sample(0,side*100000);
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
   assert(!follower.override_active); /* old ARC's +/-25-degree sector cannot intervene */
-  assert(side<0 ? drive.requested_cps[0]==LINE_SEARCH_TARGET_CPS :
-                 drive.requested_cps[0]==-LINE_SEARCH_TARGET_CPS);
+  assert(side<0 ? drive.requested_cps[0]==LINE_TRACKING_MIDDLE_GUARD_CPS :
+                 drive.requested_cps[0]==-LINE_TRACKING_MIDDLE_GUARD_CPS);
   assert(drive.requested_cps[0]==-drive.requested_cps[2]);
   for(i=0;i<10;++i) sample(6,0);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
 
   /* Active exit alignment also relinquishes ownership at the FIRST real
      contact, including a contact in the alignment-to-clear transition. */
@@ -494,7 +498,7 @@ static void exit_releases_direction(int side, uint32_t origin)
   /* No extra 60 mm of straight motion may keep R alive after capture. */
   for(i=0;i<4;++i) sample(6,side*5000);
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   SignLineFollow_Stop(&follower); sample(0,side*100000);
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: exit clears L/R and route motor ownership; opposite bend/re-loss use shared follower; no delayed exit turn");
@@ -530,7 +534,7 @@ static void continuous_line_exit(int side, uint32_t origin, uint8_t early_edge)
   }
   for(i=0;i<5;++i) sample(6,side*10000);
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   for(i=0;i<40;++i) sample(0,side*120000);
   assert(route.state==SIGN_ROUTE_LOCKED && !route_command.active && !follower.override_active);
   SignLineFollow_Stop(&follower); sample(0,0);
@@ -563,7 +567,7 @@ static void paused_heading_reference(int side, uint32_t origin)
   for(i=0;i<25;++i)
   { for(w=0;w<4;++w) counts[w]+=22; sample(6,stopped_yaw); }
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && route.heading_error_mdeg==0);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   puts("PASS: stopped reference survives later approach correction; midpoint zero does not end the arc");
 }
 static void naturally_departed_before_gate(int side, uint32_t origin, int32_t outgoing)
@@ -587,7 +591,7 @@ static void naturally_departed_before_gate(int side, uint32_t origin, int32_t ou
   }
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !follower.override_active);
   sample(6,side*outgoing);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   sample(side<0?1:8,side*outgoing);
   for(i=0;i<40;++i) sample(0,side*100000);
   assert(route.state==SIGN_ROUTE_LOCKED && !route_command.active && !follower.override_active);
@@ -680,7 +684,7 @@ static void earlier_exit_timing(int side, uint32_t origin, uint8_t edge_contact)
   for(angle=heading-5000;angle>25000;angle-=5000) sample(6,side*angle);
   for(i=0;i<5;++i) sample(6,side*10000);
   assert(route.state==SIGN_ROUTE_LOCKED && route.direction==0 && !route_command.active);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   SignLineFollow_Stop(&follower); sample(0,0);
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: upper-half 45-degree edge / 55-degree stopped-heading exit, ambiguous-line rejection, debounce, aligned release and STOP");
@@ -760,8 +764,8 @@ static void exit_contact_must_end_blind_travel(int side, uint32_t origin)
   enter_exit_line(side,origin);
   sample(15,side*5000);
   sample(outer,side*5000);
-  if (!(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
-                 drive.requested_cps[0]==2200 && drive.requested_cps[2]==0))
+  if (!(side<0 ? drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800 :
+                 drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800))
   {
     fprintf(stderr,"Exit crossing tail ignored live edge: side=%d targets=%ld/%ld\n",
         side,(long)drive.requested_cps[0],(long)drive.requested_cps[2]); ++failures;
@@ -807,8 +811,8 @@ static void exit_turn_reacquires_before_alignment(int side, uint32_t origin)
           (long)drive.requested_cps[0],(long)drive.requested_cps[2]);
     assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active);
     assert(!follower.override_active && route.direction==side);
-    if(mask==8) assert(drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
-    if(mask==1) assert(drive.requested_cps[0]==2200 && drive.requested_cps[2]==0);
+    if(mask==8) assert(drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800);
+    if(mask==1) assert(drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800);
     /* A later loss cannot re-enable the old gyro turn. A broad reacquisition
        is enough to release motors, but is not proof of route completion. */
     for(i=0;i<15;++i)
@@ -858,7 +862,7 @@ static void center_before_observation(int side, uint32_t origin)
   assert(route.direction==side && route.state==SIGN_ROUTE_PROBE);
   assert(route.approach_from_pause && route.heading_error_mdeg==0 && route.yaw_mdeg==0);
   assert(!route.entry_line_ready);
-  for(w=0;w<4;++w) assert(drive.requested_cps[w]==1412);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
   sample(side<0?8:1,centered_yaw-side*20000);
   for(i=0;i<4;++i) sample(6,centered_yaw-side*20000);
   assert(route.state==SIGN_ROUTE_ARC);
@@ -908,8 +912,8 @@ static void biased_stop_exit(int side, int32_t skew, uint8_t pretravel)
   assert(!follower.guard.entry_guard_active && !follower.guard.curve_yaw_valid);
   /* Even before completion, opposite current line owns the wheels. */
   sample(side<0?1:8,side*20000);
-  assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
-                 drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+  assert(side<0 ? drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800 :
+                 drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800);
   for(i=0;i<30;++i)
   {
     for(w=0;w<4;++w) counts[w]+=12;
@@ -920,8 +924,8 @@ static void biased_stop_exit(int side, int32_t skew, uint8_t pretravel)
   {
     sample(side<0?1:8,side*90000);
     assert(!route_command.active && !follower.override_active);
-    assert(side<0 ? drive.requested_cps[0]==2200 && drive.requested_cps[2]==0 :
-                   drive.requested_cps[0]==0 && drive.requested_cps[2]==2200);
+    assert(side<0 ? drive.requested_cps[0]==1800 && drive.requested_cps[2]==-1800 :
+                   drive.requested_cps[0]==-1800 && drive.requested_cps[2]==1800);
   }
   for(i=0;i<40;++i) { sample(0,side*100000); assert(!follower.override_active); }
   assert(drive.requested_cps[0]!=0 && drive.requested_cps[0]==-drive.requested_cps[2]);

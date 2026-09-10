@@ -53,7 +53,9 @@ assert "line_tracking_make_route_spin_command(steer, base_speed, &output)" in ad
 assert "SignSlowdown" not in adapter
 assert "override = route_command->active || guarded_search;" in adapter
 assert adapter.index("if (paused)") < adapter.index("SimpleLine_StepRoute(")
-assert "!gyro_arc && (c->guard.entry_guard_active || (arc && mask == 0U))" in adapter
+assert "guarded_search = c->guard.mode == SIMPLE_LINE_SEARCH &&\n      c->guard.entry_guard_active;" in adapter
+assert "line_tracking_set_middle_guard(mode3);" in adapter
+assert "line_action=line_tracking_compute(reading,base_speed,&output);" in adapter
 assert "gyro_arc && (mask == 0U || symmetric_arc_contact(mask))" in adapter
 assert "SIGN_FOLLOW_OWNER_ARC_FALLBACK" in adapter
 assert "line_tracking_compute_arc_fallback(reading,base_speed," in adapter

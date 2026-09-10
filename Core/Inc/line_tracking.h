@@ -99,7 +99,8 @@ void line_tracking_set_no_line_forward(uint8_t enable);
 /* enable=1: use filtered PD differential steering as the line-position outer
    loop. Wheel-speed feedback remains in DriveBase. */
 void line_tracking_set_smooth_mode(uint8_t enable);
-/* Mode-2-only precision profile.  While enabled, forward travel is allowed
+/* Mode2 precision profile, also used by mode3's shared line owner.
+   While enabled, forward travel is allowed
    only while X1 or X3 still sees black.  A sole middle sensor receives an
    early low-speed inward correction; outer-only/all-white input immediately
    hands off to a mode-specific low-speed rolling recovery. Reset clears it. */

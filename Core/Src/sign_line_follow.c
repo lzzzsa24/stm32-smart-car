@@ -73,6 +73,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
       (reading->x1_black ? 4U : 0U) | (reading->x3_black ? 2U : 0U) |
       (reading->x4_black ? 1U : 0U));
   uint8_t arc = route->state == SIGN_ROUTE_ARC;
+  uint8_t mode3 = route->profile == SIGN_ROUTE_PROFILE_STANDARD;
   uint8_t gyro_arc = arc && route->profile == SIGN_ROUTE_PROFILE_GYRO_TANGENT;
   uint8_t exit_follow = route->profile == SIGN_ROUTE_PROFILE_STANDARD &&
       route->state == SIGN_ROUTE_EXIT_CLEAR;
@@ -141,7 +142,7 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
      line table is not used for ordinary or acquired-arc steering. */
   SimpleLine_StepRoute(&c->guard, mask, route, route_command);
   guarded_search = c->guard.mode == SIMPLE_LINE_SEARCH &&
-      !gyro_arc && (c->guard.entry_guard_active || (arc && mask == 0U));
+      c->guard.entry_guard_active;
   override = route_command->active || guarded_search;
   if (override != c->override_active)
   {
@@ -151,6 +152,9 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
 
   /* Never carry a prior forward cap into shared recovery's signed targets. */
   DriveBase_SetSpeedLimitCps(0L);
+  /* Reapply after route/observation yield resets the shared follower. This
+     selection is idempotent and never resets live mode2 recovery each frame. */
+  line_tracking_set_middle_guard(mode3);
 
   if (override)
   {
@@ -190,7 +194,14 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     /* Mode 3's aligned exit is already live tracking, with the same slow
        targets. An old crossing tail must not hide a current outer contact. */
     LineTrackingAction line_action;
-    if (gyro_arc && (mask == 0U || symmetric_arc_contact(mask)))
+    if (mode3)
+    {
+      /* Same compute/recovery/encoder application as comprehensive KEY2.
+         Once on the arc, no separate gyro search owner can replace it. */
+      line_action=line_tracking_compute(reading,base_speed,&output);
+      c->last_owner=SIGN_FOLLOW_OWNER_LINE;
+    }
+    else if (gyro_arc && (mask == 0U || symmetric_arc_contact(mask)))
     {
       /* ARC has one continuous owner. A white gap or directionless broad
          contact uses the last forward curvature without route/guard takeover,
@@ -218,14 +229,14 @@ uint8_t SignLineFollow_Step(SignLineFollowController *c,
     action = display_action(line_action);
     /* One slow straight target for bars, gaps, rejoin and exit travel, including
        commands supplied by recovery. No timed acceleration or recognition cap. */
-    if (output.valid && (line_action == LINE_ACTION_FORWARD || line_action == LINE_ACTION_CROSSING))
+    if (!mode3 && output.valid && (line_action == LINE_ACTION_FORWARD || line_action == LINE_ACTION_CROSSING))
     {
       line_tracking_make_route_command(0, base_speed, &output);
       output.action = line_action;
     }
     /* A captured semicircle has no hairpin. Retain KEY2's initial outer-probe
        pivot when its persistent-edge escalation would counter-rotate. */
-    if (arc && (mask == 8U || mask == 1U) && output.valid &&
+    if (gyro_arc && (mask == 8U || mask == 1U) && output.valid &&
         ((output.left_cps < 0 && output.right_cps > 0) ||
          (output.left_cps > 0 && output.right_cps < 0)))
     {
