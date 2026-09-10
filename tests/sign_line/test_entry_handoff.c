@@ -149,7 +149,7 @@ static void check_early_arc(int side)
      makes a smooth early capture miss every subsequent exit decision. */
   assert(status.state==SIGN_ROUTE_ARC);
   /* 20-degree line capture, entry keeps turning to its 80-degree apex.
-     The opposite semicircle must be measured from that apex, not capture. */
+     Exit uses signed road heading; early capture must still reach ARC. */
   step(0,-side*20000,1,0);
   expect_search(side); /* entering ARC alone must not invent opposite curvature */
   for(angle=21;angle<=80;++angle)
@@ -163,14 +163,16 @@ static void check_early_arc(int side)
   {
     counts+=22; SignRoute_UpdateEncoders(counts,counts,counts,counts);
     now+=40; step(6,side*(angle-80)*1000,1,0);
-    if(angle<171) assert(status.state==SIGN_ROUTE_ARC);
+    if(status.state==SIGN_ROUTE_EXIT_SELECT) break;
+    assert(status.state==SIGN_ROUTE_ARC);
   }
   assert(status.state==SIGN_ROUTE_EXIT_SELECT);
+  assert(angle-80<=66);
   /* Low-speed alignment takes four seconds; the former 2.5s timer cancelled
      it before a target heading could be reached. */
-  for(angle=90;angle>=12;--angle)
+  for(angle=angle-80;angle>=12;--angle)
   {
-    now+=40; step(0,side*angle*1000,1,0);
+    now+=60; step(0,side*angle*1000,1,0);
     assert(status.state==SIGN_ROUTE_EXIT_SELECT);
     assert(command.active && (side<0 ? left==0 && right>0 : right==0 && left>0));
   }

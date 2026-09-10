@@ -101,7 +101,7 @@ static void natural_exit(int side)
   long entry=-side*80000;
   start(side);
   SignRoute_UpdateEncoders(2000,2000,2000,2000);
-  for(i=0;i<4;++i) step(6,entry+side*160000,1);
+  step(6,entry+side*160000,1); /* natural rejoin before turn debounce completes */
   assert(s.state==SIGN_ROUTE_ARC && s.arc_peak_mdeg==160000);
   for(i=0;i<4;++i) step(6,0,1);
   assert(s.state==SIGN_ROUTE_LOCKED && !c.active && s.direction==0 && s.heading_error_mdeg==0);
