@@ -81,8 +81,51 @@ static void rejected_frames(void)
   puts("PASS: stale, non-arrow and malformed frames cannot trigger an observation stop");
 }
 
+static void centered_observation(void)
+{
+  VisionDetection f={0};
+  unsigned i;
+  uint32_t now=UINT32_MAX-999U, restarted;
+  SignObservation_Reset(); SignObservation_AllowPause(1);
+  f.class_id=0; f.score=26; f.center_x=160; f.center_y=120;
+  f.sequence=1; f.received_ms=now;
+  SignObservation_ObserveDetection(&f,now);
+  SignObservation_UpdateLine(0,now);
+  assert(SignObservation_SeekingLine() && !SignObservation_Paused(now));
+  for(i=0;i<100;++i)
+  {
+    now+=40U; f.sequence++; f.received_ms=now;
+    SignObservation_ObserveDetection(&f,now);
+    SignObservation_UpdateLine(i%3==0?0:(i%3==1?2:4),now);
+    assert(SignObservation_SeekingLine() && !SignObservation_Paused(now));
+    assert(SignObservation_HoldingRoute(now));
+  }
+  SignObservation_AllowPause(0); /* confirmed direction cannot bypass restart */
+  now+=10U; SignObservation_UpdateLine(6,now);
+  assert(SignObservation_Paused(now) && SignObservation_SeekingLine());
+  now+=60U; SignObservation_UpdateLine(6,now); /* gap restarts stability evidence */
+  assert(SignObservation_SeekingLine());
+  for(i=0;i<3;++i) {now+=10U; SignObservation_UpdateLine(6,now);}
+  restarted=now;
+  assert(!SignObservation_SeekingLine() && SignObservation_Paused(now));
+  assert(SignObservation_Paused(restarted+1999U));
+  /* White at the exact deadline is checked BEFORE letting the pause end. */
+  SignObservation_UpdateLine(0,restarted+2000U);
+  assert(SignObservation_SeekingLine() && !SignObservation_Paused(restarted+2000U));
+  now=restarted+2010U;
+  for(i=0;i<4;++i) {SignObservation_UpdateLine(15,now);now+=10U;}
+  restarted=now-10U;
+  assert(!SignObservation_SeekingLine()); /* both middle sensors also in 1111 */
+  assert(SignObservation_Paused(restarted+1999U));
+  SignObservation_UpdateLine(6,restarted+2000U);
+  assert(!SignObservation_HoldingRoute(restarted+2000U));
+  SignObservation_Reset();
+  assert(!SignObservation_SeekingLine() && !SignObservation_HoldingRoute(now));
+  puts("PASS: centering holds navigation, ignores partial contact/camera renewal, validates middle pair, restarts 2s and handles deadline loss/reset/wrap");
+}
 int main(void)
 {
+  centered_observation();
   observation_pause();
   rejected_frames();
   return 0;

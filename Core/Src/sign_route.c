@@ -57,6 +57,7 @@ typedef struct
   uint8_t odometry_valid, step_valid, fault, frame_valid, last_line_mask;
   uint8_t capture_kind;
   uint8_t observation_pause_active, observation_pause_seen, fallback_arc_hint;
+  uint8_t observation_search_seen;
   uint32_t observation_pause_since_ms;
   uint8_t approach_from_pause;
   uint32_t pause_reference_ms;
@@ -221,6 +222,11 @@ void SignRoute_SetProfile(SignRouteProfile profile)
       SIGN_ROUTE_PROFILE_GYRO_TANGENT : SIGN_ROUTE_PROFILE_STANDARD;
 }
 
+void SignRoute_MarkObservationSearch(void)
+{
+  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD) route.observation_search_seen=1U;
+}
+
 void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now)
 {
   paused = paused ? 1U : 0U;
@@ -249,7 +255,15 @@ void SignRoute_UpdateObservationPause(uint8_t paused, uint32_t now)
       route.approach_yaw=route.imu_yaw;
       route.approach_from_pause=1U;
       route.pause_reference_ms=now;
+      if (route.observation_search_seen)
+      {
+        /* Centering yaw is not entry-turn progress. Keep the sign but start
+           pre-entry geometry from the newly centered observation-stop pose. */
+        enter_phase(route.state,now);
+        if (route.direction) route.armed_ms=now;
+      }
     }
+    if (!paused) route.observation_search_seen=0U;
     route.observation_pause_active = paused;
     route.observation_pause_seen = 0U;
     return;

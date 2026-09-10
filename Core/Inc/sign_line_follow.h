@@ -7,6 +7,8 @@ typedef struct
 {
   SimpleLineController guard;
   uint8_t running, override_active, observation_paused;
+  uint8_t observation_cycle;
+  int8_t observation_search_direction;
 } SignLineFollowController;
 
 void SignLineFollow_Init(SignLineFollowController *controller);

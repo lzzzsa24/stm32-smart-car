@@ -147,6 +147,7 @@ static LineRecoveryResult step_recovery(const LineTrackingReading *r,
 {
   DriveBaseTelemetry telemetry;
   uint8_t visible = (r->x1_black || r->x3_black) && !r->x2_black && !r->x4_black;
+  if (immediate_capture==3U) visible=0U; /* observation owns stricter capture */
   command->valid = 0U;
   command->left_cps = command->right_cps = 0;
   command->action = side < 0 ? LINE_ACTION_SEARCH_LEFT : LINE_ACTION_SEARCH_RIGHT;
@@ -195,7 +196,8 @@ static LineRecoveryResult step_recovery(const LineTrackingReading *r,
       center_last_ms = now;
     }
   }
-  if (phase == REC_SEARCH && !(r->x1_black || r->x2_black || r->x3_black || r->x4_black))
+  if (phase == REC_SEARCH && (immediate_capture==3U ||
+      !(r->x1_black || r->x2_black || r->x3_black || r->x4_black)))
   {
     int32_t left = side < 0 ? -LINE_SEARCH_TARGET_CPS : LINE_SEARCH_TARGET_CPS;
     DriveBase_PrepareLineTurnAssist(left, -left);
@@ -215,3 +217,7 @@ LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *r,
 LineRecoveryResult LineRecovery_StepRolling(const LineTrackingReading *r,
                                            LineTrackingCommand *command, uint32_t now)
 { return step_recovery(r, command, now, 2U); }
+
+LineRecoveryResult LineRecovery_StepCentering(const LineTrackingReading *r,
+                                             LineTrackingCommand *command, uint32_t now)
+{ return step_recovery(r, command, now, 3U); }

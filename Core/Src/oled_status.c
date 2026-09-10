@@ -645,6 +645,8 @@ static void build_sign_line_screen(uint8_t mode_number,
   index = append_string(line, 0U, "ROUTE:");
   if (line_action == 6U)
     index = append_string(line, index, "OBSERVE");
+  else if (mode_number == 3U && line_action == 7U)
+    index = append_string(line, index, "SEEK LINE");
   else switch (route_state)
   {
     case 1U: index = append_string(line, index, "ARM"); break;
@@ -664,7 +666,7 @@ static void build_sign_line_screen(uint8_t mode_number,
     case 13U: index = append_string(line, index, "FALLBACK LINE"); break;
     default: index = append_string(line, index, "IDLE"); break;
   }
-  if (route_direction != 0)
+  if (route_direction != 0 && !(mode_number==3U && line_action==7U))
   {
     index = append_char(line, index, ' ');
     index = append_char(line, index, route_direction < 0 ? 'L' : 'R');
