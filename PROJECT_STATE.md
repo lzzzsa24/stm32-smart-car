@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 4eda8fe800e29cd347a8cc2730cccd4d1310873b
-comprehensive_candidate_status: 4eda8fe_build_tests_COM11_full_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: af34e325c2af3ebd4abfc9e02651745864e85022
+comprehensive_candidate_status: a051788_integrated_line_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115184
-comprehensive_candidate_bin_sha256: 7089519FF32B50F97EF7C847CB1242A685075C92B399A5C696E4AB229F5B0E7C
-comprehensive_candidate_hex_sha256: C9331E411F54927CDB99E77F33458438D3E4BFCC7EA8262E78A76A88B09B1912
+comprehensive_candidate_bin_size_bytes: 115352
+comprehensive_candidate_bin_sha256: EB1E21BE8EDB4B4300C4B272FD8D1D27AD9C13D970182F7DE31C958E675B10F0
+comprehensive_candidate_hex_sha256: 7C185BAE7D0522586496F64A03132B52CBEEF345E39AD28AA6790749DC6A82A0
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: af34e32 (not flashed)
+
+a051788 replayed onto4eda8fe. Mode5 bounds forward steering and requires
+two distinct nearby middle snapshots for rolling capture, preserving its
+recovery direction and moving correction until centered. Mode3/4 fixes retained.
+Full line suite (both speeds), full sign suite, mode5 integration and formal
+build passed. BIN115352 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-a051788. No serial, flash, physical test
+or push. Board remains4eda8fe; K210/main firmware unchanged.
 
 ### Latest deployment: 4eda8fe
 
