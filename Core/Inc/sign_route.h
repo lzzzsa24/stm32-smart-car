@@ -18,7 +18,9 @@ typedef enum
   SIGN_ROUTE_EXIT_CLEAR,
   SIGN_ROUTE_FAULT,       /* reserved legacy state; no timed line-loss hold */
   SIGN_ROUTE_SEARCHING,   /* display-only; search keeps the underlying route phase */
-  SIGN_ROUTE_CANCELLED    /* route withdrawn; line controller still runs */
+  SIGN_ROUTE_CANCELLED,   /* route withdrawn; line controller still runs */
+  SIGN_ROUTE_ENTRY_RETURN,
+  SIGN_ROUTE_ENTRY_FALLBACK
 } SignRouteState;
 
 typedef enum

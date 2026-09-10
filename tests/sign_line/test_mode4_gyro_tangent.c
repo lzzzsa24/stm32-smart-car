@@ -108,6 +108,34 @@ static void mode4_drawn_trajectory(int side)
   assert(status.state==SIGN_ROUTE_LOCKED && !command.active);
 }
 
+static void entry_miss_returns_to_heading(int side)
+{
+  unsigned i;
+  int64_t entry_yaw=-side*SIGN_GYRO_TANGENT_ENTRY_MDEG;
+  begin_entry_turn(side);
+  step(6,entry_yaw,1,0);
+  assert(status.state==SIGN_ROUTE_SELECTING);
+
+  /* About 82 mm of encoder travel with no narrow line must end the diagonal
+     probe and start an equal-and-opposite spin back toward the original yaw. */
+  step(0,entry_yaw,1,600);
+  if(status.state!=SIGN_ROUTE_ENTRY_RETURN)
+    fprintf(stderr,"miss fallback side=%d state=%d fault=%u mm=%ld yaw=%ld\n",
+        side,(int)status.state,status.fault,(long)status.travel_mm,(long)status.yaw_mdeg);
+  assert(status.state==SIGN_ROUTE_ENTRY_RETURN && command.active);
+  assert(side<0 ? (command.left_pwm>0 && command.right_pwm<0) :
+                  (command.left_pwm<0 && command.right_pwm>0));
+  assert(command.left_pwm==-command.right_pwm);
+
+  step(0,0,1,0);
+  assert(status.state==SIGN_ROUTE_ENTRY_FALLBACK && command.active);
+  assert(command.left_pwm==command.right_pwm && command.left_pwm>0);
+
+  step(0,0,1,300);
+  for(i=0;i<4;++i) step(6,0,1,0);
+  assert(status.state==SIGN_ROUTE_LOCKED && !command.active);
+}
+
 static void profile_isolation_and_invalid_gyro(void)
 {
   unsigned i;
@@ -131,6 +159,8 @@ int main(void)
   SignRoute_Init();
   mode4_drawn_trajectory(-1); mode4_drawn_trajectory(1);
   puts("PASS: mirrored fixed-angle turn, straight entry, live arc, turn and straight exit");
+  entry_miss_returns_to_heading(-1); entry_miss_returns_to_heading(1);
+  puts("PASS: 8-cm missed arc reverses 45 degrees and resumes bounded straight travel");
   profile_isolation_and_invalid_gyro();
   return 0;
 }
