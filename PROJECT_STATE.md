@@ -39,12 +39,12 @@ temporary_flash_selector_commit: 2b4fc1f_four_mode_main
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
 k210_candidate_status: paired_script_in_K210_sign_mode34_py_for_new_mode3_only
-remote_sync_status: four_mode_main_merged_PR19_release_rc6_published
-remote_sync_branch: integration/main-four-mode-20260910
-github_release_tag: v1.2.0-rc.6
-github_release_source_commit: ce503cae2875bacc6fa79a7b9032f41fef35c298
-github_release_firmware_commit: c2ed15dc77c65f1cd6ee22833d460565a202ae3e
-github_release_status: prerelease_published_7_assets_size_SHA256_verified_not_flashed
+remote_sync_status: final_main_merged_PR21_v1_2_0_published
+remote_sync_branch: integration/final-v1.2.0
+github_release_tag: v1.2.0
+github_release_source_commit: 2ba7892b96b4efa0ec3597785afd12ff3ccbff1d
+github_release_firmware_commit: 2b4fc1f27b9b405be48ce3e2c6d4f9212f5ff85e
+github_release_status: final_published_7_assets_size_SHA256_verified_matches_flashed_firmware
 ```
 
 The repository anchor is the latest firmware commit. Newer documentation-only
@@ -52,6 +52,14 @@ commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
 ## Latest board update
+
+Final publication: user explicitly approved public source/history/firmware
+upload to lzzzsa24/test-exp7-unified-motion-v1. PR21 merged main as2ba7892;
+v1.2.0 published as the latest non-prerelease, all7 asset sizes/SHA256 checked.
+Firmware exactly matches deployed2b4fc1f. No new flash or ground-test claim.
+https://github.com/lzzzsa24/test-exp7-unified-motion-v1/releases/tag/v1.2.0
+Old releases and rollback tags retained. See docs/releases/RELEASE_V1.2.0.md.
+This final-publication entry supersedes older no-push/rc.6-current statements.
 
 After reconnect, four-mode main2b4fc1f passed COM11 full132156-byte readback
 and GO. Audio/calibration pages preserved; K210 unchanged. No post-GO query,
@@ -142,7 +150,7 @@ SHA256 B472A5C45FBB2060CD794BEC7C972D9F58FB40D7DCA27DFE6545125B8E02B901.
 Mode4 needs no K210; do not deploy historical K210/main.py visual-line code
 for this four-mode release. This task did not rewrite K210 hardware.
 
-Published v1.2.0-rc.6 from main merge ce503ca (PR19); firmware c2ed15d.
+Previous release v1.2.0-rc.6 from main merge ce503ca (PR19); firmware c2ed15d.
 https://github.com/lzzzsa24/test-exp7-unified-motion-v1/releases/tag/v1.2.0-rc.6
 All7 assets verified against GitHub sizes/SHA256: BIN/HEX, checksums, paired
 script, model/manifest and release notes. Release manifest filename is adapted
