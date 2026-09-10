@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
-comprehensive_candidate_status: 831fb06_integrated_build_tests_passed_not_flashed_not_pushed
+comprehensive_candidate_status: 5940727_flash_failed_after_erase_USB_replug_required
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 120112
 comprehensive_candidate_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
@@ -38,9 +38,9 @@ k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_891a7e1_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_5940727_attempt_erased_59_pages_write_unconfirmed_USB_device_error
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 891a7e1_comprehensive_flashed
+temporary_flash_selector_commit: 5940727_pending_recovery_after_erase
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,21 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current board warning: 5940727 deployment interrupted after erase
+
+Latest authorized flash targeted exact5940727 BIN120112 bytes, SHA256
+031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB.
+Fresh enumeration identified CH340K COM11. PowerShell7 programmer at57600
+with PreserveLastPage reported BOOTLOADER ACK and ERASE OK for59 pages,
+then exited1 with device-not-functioning error during Close. No WRITE OK,
+VERIFY OK or GO was received. Application contents/execution are unconfirmed;
+the old891a7e1 cannot be assumed runnable after this erase. Reserved audio
+and calibration pages were excluded. Re-enumeration still showedCOM11,
+but one recovery retry failed at Open with the same device error, before
+another erase/write. USB replug is required before retrying exact5940727.
+flashed_source_commit/deployed_tag retain the LAST SUCCESSFUL verification,
+not the current executable state. K210 untouched; no motion or push.
 
 ### Latest comprehensive candidate: 5940727 (not flashed)
 
