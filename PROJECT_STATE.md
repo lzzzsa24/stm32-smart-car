@@ -10,37 +10,37 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: d7218e14362e7952a4571f1c239dabf646d8fd33
-comprehensive_candidate_status: 768bc53_integrated_sign_line_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: e047c13a2157dc76a0816f9fa69da2c1b6fafde4
+comprehensive_candidate_status: 01e8008_integrated_build_tests_COM11_readback_GO_passed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 111792
-comprehensive_candidate_bin_sha256: 8993B2F832AA19928605875136372004A264A886B595CEC61B34F448567FA056
-comprehensive_candidate_hex_sha256: 08C6FA3DC54FDBD6E2F22B93EFBD83B5F8FFEEB8101F3DEFF44D94338AA04A3B
+comprehensive_candidate_bin_size_bytes: 112144
+comprehensive_candidate_bin_sha256: 79F4F972961B97BEE2F047F6B823699F795D792BDD28F3533DF39077C13B639A
+comprehensive_candidate_hex_sha256: B129539EB385D5B73FC40358C8CEC81CCC0D91A0D34712589E4C02C560208F7E
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
-flashed_source_commit: ed7eb3b8dbe9301b61374ad3a81fa32f18050203
-flash_record_commit: 9a1ee4f
-deployed_tag: deployed/2026-09-10-ed7eb3b
+flashed_source_commit: e047c13a2157dc76a0816f9fa69da2c1b6fafde4
+flash_record_commit: ff8f619
+deployed_tag: deployed/2026-09-10-e047c13
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 111280
-flashed_bin_sha256: 6F168BB950249E82D809E9CC07A60C408A66615135C3632CC42B67F03AC43E06
-flashed_hex_sha256: 5868BA95057AEA96A19B36D91AF0B48B3A56717790FD7D97020D679026C4BD76
-ground_test_status: not_tested_after_ed7eb3b_deployment
+formal_bin_size_bytes: 112144
+flashed_bin_sha256: 79F4F972961B97BEE2F047F6B823699F795D792BDD28F3533DF39077C13B639A
+flashed_hex_sha256: B129539EB385D5B73FC40358C8CEC81CCC0D91A0D34712589E4C02C560208F7E
+ground_test_status: not_tested_after_e047c13_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: tool_verified_ed7eb3b_readback_GO
+user_reported_flash: tool_verified_e047c13_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_ed7eb3b_readback_GO_no_post_GO_query
+stm32_runtime_status: COM11_e047c13_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: ed7eb3b_mode345_comprehensive_flashed
+temporary_flash_selector_commit: e047c13_mode345_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive deployment: e047c13
+
+01e8008 integrated with mode4 spin and mode5 no-hold following. Mode3 uses
+the two-second stopped heading as exit reference; shared observation gate26%.
+Full sign tests, integration checks and build passed; COM11 full112144-byte
+readback and GO passed. Reserved pages preserved, K210/main code unchanged.
+No post-GO query, motion test or push. See
+docs/history/deployments/DEPLOYMENT_E047C13_20260910.md.
+Supersedes older board/candidate statements below.
 
 ### Latest comprehensive candidate: d7218e1 (not flashed)
 
