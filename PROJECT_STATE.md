@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: e047c13a2157dc76a0816f9fa69da2c1b6fafde4
-comprehensive_candidate_status: 01e8008_integrated_build_tests_COM11_readback_GO_passed_not_pushed
+comprehensive_candidate_source_commit: 4d5f8c7deec31ea5c741de15609db69beb884f0f
+comprehensive_candidate_status: c37ed64_integrated_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 112144
-comprehensive_candidate_bin_sha256: 79F4F972961B97BEE2F047F6B823699F795D792BDD28F3533DF39077C13B639A
-comprehensive_candidate_hex_sha256: B129539EB385D5B73FC40358C8CEC81CCC0D91A0D34712589E4C02C560208F7E
+comprehensive_candidate_bin_size_bytes: 112632
+comprehensive_candidate_bin_sha256: 5EE308C2772BCAB5FA1A54AFD0BD396AC803B2964EF77E2CAB0C981CEBE85B46
+comprehensive_candidate_hex_sha256: 192BA5AB38C0CCE327108FCE8D8E4EDA56CF62712370C551E6C37C76CE576652
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 4d5f8c7 (not flashed)
+
+c37ed64 and prerequisite dff6f74 merged ontoe047c13 without conflicts.
+Mode4 missed-arc recovery: after8-cm diagonal probe, return to road heading,
+advance to reacquire the arc, then keep ARC/gyro-exit navigation instead of
+premature LOCK. Mode3 stopped-heading exit and mode5 no-hold follow retained.
+Full sign suite, mode1/2, gyro and mode5 integration checks and ARM build
+passed. BIN112632 bytes; hashes above. Artifacts in
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-c37ed64. No flash, serial, physical test
+or push; board remainse047c13, K210/main code unchanged.
 
 ### Latest comprehensive deployment: e047c13
 
