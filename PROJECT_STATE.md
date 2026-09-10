@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: f399de7138e6538e943709600cef505be6fa596b
-comprehensive_candidate_status: f399de7_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: b0e5461f9e86299be967abc766a680b3e0266893
+comprehensive_candidate_status: b0e5461_ready_COM11_Open_device_error_before_erase
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120008
-comprehensive_candidate_bin_sha256: DEA054353CE2773F55B44CCE11C6D9318311002A1E7A6EFF7C70E1D4B4DAEA2B
-comprehensive_candidate_hex_sha256: 10B1E3184877FE06828146E03F127F6ED8A459B9969A43144B10C39CD08DE972
+comprehensive_candidate_bin_size_bytes: 120024
+comprehensive_candidate_bin_sha256: C80901F7BD61276F474AD2D932DBF7BFB4F300EBF70AFA97436442C0B5CBA86E
+comprehensive_candidate_hex_sha256: C1E614F3396DC20AADFE7633727A0BBA7B51B271090C4A458F8F1C3E222B1D76
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: b0e5461; USB reconnect required
+
+9f232cd merged without conflicts: mode3 observation search1800 CPS, retaining
+encoder feedback and matched turn assistance; ordinary recovery unchanged.
+Full sign and line suites, mode5 integration check and ARM build passed.
+BIN120024 bytes, hashes above; artifacts in comprehensive-v15-sign-horn
+worktree/manual-build-unified-motion. Rollback before-9f232cd ->f399de7.
+Fresh CH340K COM11 enumerated, but programmer Open failed with Windows device
+not functioning error, exit1, before bootloader/erase/write. No Flash changes;
+last verified board remainsf399de7. K210 unchanged, no physical test or push.
+Replug USB before retry. Supersedes older comprehensive candidate entries.
 
 ### f399de7 repeated deployment after USB reconnect
 
