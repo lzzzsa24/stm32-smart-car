@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 52a67b61be4795c8011d96c068c8bbd5d8747bf2
-comprehensive_candidate_status: 89e78e2_0c32484_integrated_build_tests_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: 59407274e55efd292b187e393ddcf28d0dd40474
+comprehensive_candidate_status: 831fb06_integrated_build_tests_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 119264
-comprehensive_candidate_bin_sha256: 3A5D785D962F810E4A29965E8B5FEC6E852411C80102CB346E5FE68C808F84D2
-comprehensive_candidate_hex_sha256: 4C188A3959660B16AD8A4F28C0D74A1D08B8D54826681E4A7BF18E2BE982EA9D
+comprehensive_candidate_bin_size_bytes: 120112
+comprehensive_candidate_bin_sha256: 031479C70C40B5B7EF57A54D80E67558220BE5150343C49EE61540B8A84B6BAB
+comprehensive_candidate_hex_sha256: 8FB971ADF64180CC2A5E34BB09007C259ACB6D6B6B58CADF90160BE91D59E0F9
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,20 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 5940727 (not flashed)
+
+Merged831fb06 onto52a67b6 without conflicts. Mode4 acquired ARC retains
+the follower across white/symmetric contacts, using its remembered forward
+curvature rather than switching route/guard owners and resetting tracking.
+Trace now records line action, motor owner and route-active state changes.
+Mode2 middle guard, mode3 stopped-heading policy and mode5 fast profile retained.
+Full line suite (both speeds), full sign suite, mode5 integration and formal
+ARM build/link passed; BIN120112 bytes, hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-831fb06 ->52a67b6.
+No flash, serial access, physical test or push. Board remains891a7e1;
+K210/main firmware unchanged. Supersedes older candidate entries below.
 
 ### Latest comprehensive candidate: 52a67b6 (not flashed)
 
