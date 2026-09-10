@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 19420eaed5fff3d7244dcc41fc1608e1d24ff641
-comprehensive_candidate_status: 19420ea_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: 55486e6cf07d513697b75c38303283828be4faf7
+comprehensive_candidate_status: 55486e6_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120984
-comprehensive_candidate_bin_sha256: B3F46577809D8FDAC3B938B3218E9762701DB0E4981C25CDAC49AAAC2CC7FF84
-comprehensive_candidate_hex_sha256: CAA4AAE9D69F3C9E4FE7F455C08639801DDEFD9D009CCDAA2EC86CADBF2FE970
+comprehensive_candidate_bin_size_bytes: 120648
+comprehensive_candidate_bin_sha256: BCDDE0FF18AD216DBCF8B973E3BB3B956C389D7F32D56E4A5E8EEAD84EC51BE6
+comprehensive_candidate_hex_sha256: 8B2FE2F13D95F0AA64C6BD6C0EDF2B8303BFA4A04FAC0C1BD96582CB776298B8
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -27,7 +27,7 @@ formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
 formal_bin_size_bytes: 120984
 flashed_bin_sha256: B3F46577809D8FDAC3B938B3218E9762701DB0E4981C25CDAC49AAAC2CC7FF84
 flashed_hex_sha256: CAA4AAE9D69F3C9E4FE7F455C08639801DDEFD9D009CCDAA2EC86CADBF2FE970
-ground_test_status: not_tested_after_19420ea_deployment
+ground_test_status: user_reports_19420ea_apparently_no_exit_steering_55486e6_unflashed
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: b387042d83390f866e1305c99c2687e60b118624
 candidate_bin_size_bytes: 137692
@@ -52,6 +52,19 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 55486e6 (not flashed)
+
+6caa1c6 merged without conflicts. Removes two shortcuts that could bypass
+mode3 active exit steering without full natural-departure evidence. Selected
+outer clear-to-black completion remains. Full sign suite (including real
+DriveBase mirrored dispatch), mode12/mode5 integration and ARM build passed.
+BIN120648 bytes, candidate hashes above; artifacts in the comprehensive-v15
+worktree's manual-build-unified-motion. Rollback:
+rollback/2026-09-10-before-6caa1c6 ->19420ea.
+User reports apparent missing exit steering on19420ea; exact physical cause
+not established. No serial/flash/push or physical test in this merge task.
+Board stays19420ea; K210 and main firmware unchanged. Supersedes older candidate.
 
 ### Latest comprehensive deployment: 19420ea
 
