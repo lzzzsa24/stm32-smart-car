@@ -11,7 +11,7 @@ or physical test.
 state_schema_version: 1
 state_updated_at: 2026-09-10
 comprehensive_candidate_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
-comprehensive_candidate_status: 98a4a8f_OLED_black_reported_rolled_back_d01ab4c_OLED_restored
+comprehensive_candidate_status: 98a4a8f_reflashed_readback_GO_OLED_retest_pending
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
 comprehensive_candidate_bin_size_bytes: 115920
 comprehensive_candidate_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
@@ -19,28 +19,28 @@ comprehensive_candidate_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
-flashed_source_commit: d01ab4c621cfa16436ada7139805db8224db1123
-flash_record_commit: 06e385a
-deployed_tag: deployed/2026-09-10-d01ab4c
+flashed_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
+flash_record_commit: 264785f
+deployed_tag: deployed/2026-09-10-98a4a8f
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 115456
-flashed_bin_sha256: CC55536F52C4C959653154545694D7E1548D130DC21C87EDF8AE417CC969C4D9
-flashed_hex_sha256: 962377807BAE1855F0C59E2EEC62D477B2D985630D4E1C58F9FC9A9083D6885F
-ground_test_status: OLED_restored_after_d01ab4c_rollback_user_report_no_motion_test
+formal_bin_size_bytes: 115920
+flashed_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
+flashed_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31300A617E838E29365F46
+ground_test_status: no_motion_test_98a4a8f_OLED_retest_pending
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: d01ab4c_readback_GO_user_reports_OLED_restored
+user_reported_flash: tool_verified_98a4a8f_reflash_OLED_comparison
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_d01ab4c_readback_GO_OLED_restored_user_report
+stm32_runtime_status: COM11_98a4a8f_readback_GO_OLED_retest_pending
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: d01ab4c_OLED_comparison_rollback
+temporary_flash_selector_commit: 98a4a8f_OLED_retest
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,15 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current board: 98a4a8f OLED retest
+
+User requested latest again after OLED returned on d01ab4c. Reflashed exact
+98a4a8f; COM11 full115920-byte readback and GO passed, reserved pages excluded.
+OLED result pending user observation; no hardware root-cause claim. K210
+unchanged; no post-GO query, motion or push. Evidence:
+docs/history/deployments/OLED_RETEST_98A4A8F_20260910.md.
+Supersedes the board rollback below, preserving its user-observed OLED result.
 
 ### Current board: OLED comparison rollback to d01ab4c
 
