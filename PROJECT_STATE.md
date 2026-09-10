@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: ec15dda6608a2a492d9e2cd2fd76eda435d8e177
-comprehensive_candidate_status: ec15dda_COM11_full_readback_GO_passed
+comprehensive_candidate_source_commit: 7936efd4d681eb130acc585d4b555131507b10d9
+comprehensive_candidate_status: 7936efd_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 120784
-comprehensive_candidate_bin_sha256: A1F7EE526F97BA56725F947A71B223E83F5699DC567820071A9077A3FFC61B28
-comprehensive_candidate_hex_sha256: 6DA83DC066371A41BEA0043BC50B5F2717A954BD58A3E26F8233177257962EDD
+comprehensive_candidate_bin_size_bytes: 119992
+comprehensive_candidate_bin_sha256: 4FC03DBA13FD29FC9977DA879631C98011453FC582400BEF1B5061AA244B58F9
+comprehensive_candidate_hex_sha256: 2BCDEEC98F0E6C8234F65F3D5CEDD4A354E9E7F260DD96FA77D41E9D2667DF72
 integration_branch: main
 repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
 latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 7936efd (not flashed)
+
+edb7c1b merged without conflicts. Mode3 ARC exit starts at signed40-degree
+stopped-reference heading without line/travel/debounce gates; removed natural
+departure bypass. Selected outer clear-to-black completion, IMU/STOP protections
+and mode4 retained. Full sign suite, mode12/mode5 checks and ARM build passed.
+BIN119992 bytes; candidate hashes above. Artifacts in comprehensive-v15-sign-horn
+worktree/manual-build-unified-motion. Rollback:
+rollback/2026-09-10-before-edb7c1b ->ec15dda.
+No serial/flash/physical test/push; board staysec15dda, K210/main unchanged.
+Supersedes older comprehensive candidates, not deployed evidence.
 
 ### Latest comprehensive deployment: ec15dda
 
