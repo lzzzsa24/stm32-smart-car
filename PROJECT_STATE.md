@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 4d5f8c7deec31ea5c741de15609db69beb884f0f
-comprehensive_candidate_status: c37ed64_integrated_sign_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: f5a91a6d2da31fc33fcaef92f1a5500e4716b924
+comprehensive_candidate_status: 4335b19_integrated_line_sign_gyro_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 112632
-comprehensive_candidate_bin_sha256: 5EE308C2772BCAB5FA1A54AFD0BD396AC803B2964EF77E2CAB0C981CEBE85B46
-comprehensive_candidate_hex_sha256: 192BA5AB38C0CCE327108FCE8D8E4EDA56CF62712370C551E6C37C76CE576652
+comprehensive_candidate_bin_size_bytes: 114448
+comprehensive_candidate_bin_sha256: 575DFA6AD74F8F0FFA66BCB7BDF2E4AC9A16536BF84DBB39D9ECA8A11AF92F0F
+comprehensive_candidate_hex_sha256: A16F71EA9770E6B7E9E3E3847ADEA65A9C3B4C282D3EC26D37A2CEBE8EA9DC3D
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: f5a91a6 (not flashed)
+
+4335b19 replayed onto4d5f8c7. Mode5 normal steering uses3300-PWM macro
+pulses, max24ms drive per40ms cycle, ratio/encoder cutoff and1ms OFF-only
+deadline hook. Straight/search/bypass/ordinary modes retain their ownership.
+Composite mode5 runner adapted to its existing gyro/bypass suite; sign host
+links include the new pulse module. Full line (both speeds), mode5/gyro and
+sign suites and ARM build passed. BIN114448 bytes; hashes above. Artifacts
+in worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4335b19. Mode3/4 fixes retained; no serial,
+flash, ground test or push. Board remainse047c13; K210/main firmware unchanged.
 
 ### Latest comprehensive candidate: 4d5f8c7 (not flashed)
 
