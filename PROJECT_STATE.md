@@ -17,8 +17,8 @@ comprehensive_candidate_bin_size_bytes: 120208
 comprehensive_candidate_bin_sha256: 0766AFE443540AA29845D17056199BF523303013EE106991E80A94684B93ADA6
 comprehensive_candidate_hex_sha256: 1014132700B31959840DEF496BC733263A1C107E561C12707D2B9D76AA1C5C92
 integration_branch: main
-repository_head_at_update: 52c635b30de91bee6ee3db21d6f4404320b258a9
-latest_code_commit: 52c635b30de91bee6ee3db21d6f4404320b258a9
+repository_head_at_update: b387042d83390f866e1305c99c2687e60b118624
+latest_code_commit: b387042d83390f866e1305c99c2687e60b118624
 flashed_source_commit: 5605916dc610432370c8831b5333beaaffdb55ed
 flash_record_commit: 496cb8efb4f5b71cfc1f46ec023a099266663f9d
 deployed_tag: deployed/2026-09-10-5605916
@@ -29,10 +29,10 @@ flashed_bin_sha256: 0766AFE443540AA29845D17056199BF523303013EE106991E80A94684B93
 flashed_hex_sha256: 1014132700B31959840DEF496BC733263A1C107E561C12707D2B9D76AA1C5C92
 ground_test_status: not_tested_after_5605916_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
-candidate_source_commit: 52c635b30de91bee6ee3db21d6f4404320b258a9
-candidate_bin_size_bytes: 136932
-candidate_bin_sha256: AA69209CA6238941533A293CF0B6F47FE82BBC094AE7712093775227F7FF899E
-candidate_hex_sha256: 15A868669DB5C05F8FBF8A57D29EA64C432E0C8FA213C9F2CFCFFE4E098BA121
+candidate_source_commit: b387042d83390f866e1305c99c2687e60b118624
+candidate_bin_size_bytes: 137692
+candidate_bin_sha256: B9C92B0E8C0FED3CBD4EF9D0DDE8295D8703F75439157BDA6B73D0DE18F4D5B2
+candidate_hex_sha256: B47FDBF115F95E0B95129433344D9DC5D0D5818F7DD1442181666D86B8B4D507
 user_reported_flash: tool_verified_5605916_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Current local main: b387042 mode5 updated to5605916
+
+Mode5 now normal straight capped4000 CPS, wide3600 CPS and rolling fixed
+bypass handoffs. Mode1 adaptive parameters/stopped APIs retained; mode2/4
+legacy and mode3 direct-observation b32e03a retained. Source/scope check,
+promoted line/drive/sign, legacy gyro and mode5 bypass regressions passed;
+ARM build passed, BIN137692 bytes with candidate hashes above.
+Details: docs/history/candidates/MAIN_MODE5_5605916_20260910.md.
+Rollback: rollback/2026-09-10-before-main-mode5-5605916 ->6d63c19.
+No flash/push/release or physical test; board remains full composite5605916,
+K210 unchanged. Supersedes older local-main statements below.
 
 ### Latest deployment: 5605916 after reconnect
 
