@@ -55,7 +55,7 @@
    drive straight to the selected arc, follow that arc with live sensors, turn
    back to the approach heading, then drive straight to the outgoing line. */
 #define SIGN_GYRO_TANGENT_ENTRY_MDEG 45000L
-#define SIGN_GYRO_TANGENT_ARC_MDEG 90000L
+#define SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG 60000L
 #define SIGN_GYRO_TANGENT_INNER_PWM 2200
 #define SIGN_GYRO_TANGENT_OUTER_PWM 2400
 #define SIGN_GYRO_TANGENT_ENTRY_MIN_MM 40L

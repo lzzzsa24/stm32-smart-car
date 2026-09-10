@@ -673,8 +673,8 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
     if (stable((uint8_t)(narrow_line(line_mask) &&
                          route.travel_mm >= SIGN_GYRO_TANGENT_FALLBACK_MIN_MM), now))
     {
-      /* Reacquisition here is the circle sought by the fallback leg. Keep the
-         route direction and enter ARC so gyro exit handling still runs. */
+      /* The fallback reaches the chosen side of the lower arc. Let the live
+         sensors acquire its curvature; no invented fixed-angle turn here. */
       enter_phase(SIGN_ROUTE_ARC, now);
       route.entry_line_ready = 1U;
       command->active = 0U;
@@ -686,6 +686,8 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
   if (route.state == SIGN_ROUTE_ARC)
   {
     int32_t arc_yaw = route.direction * route.yaw_mdeg;
+    int64_t exit_heading = route.direction *
+        (route.imu_yaw - route.approach_yaw);
     if (now - route.phase_ms > SIGN_ARC_TIMEOUT_MS ||
         route.travel_mm > SIGN_ARC_MAX_MM || arc_yaw < -30000L ||
         arc_yaw > SIGN_GYRO_ARC_MAX_MDEG)
@@ -694,7 +696,7 @@ static uint8_t gyro_tangent_step(uint8_t line_mask, uint32_t now,
       return 1U;
     }
     if (stable((uint8_t)(route.travel_mm >= SIGN_ARC_MIN_MM &&
-                         arc_yaw >= SIGN_GYRO_TANGENT_ARC_MDEG), now))
+                         exit_heading >= SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG), now))
     {
       enter_phase(SIGN_ROUTE_EXIT_SELECT, now);
       route.departed = 1U;
@@ -1152,7 +1154,7 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
 #endif
     if (stable(route.travel_mm >= SIGN_ARC_MIN_MM && directed_arc_yaw >=
 #if SIGN_ROUTE_REQUIRE_IMU
-               SIGN_GYRO_TANGENT_ARC_MDEG, now))
+               SIGN_GYRO_TANGENT_EXIT_HEADING_MDEG, now))
 #else
                SIGN_ARC_MIN_YAW_MDEG &&
                line_mask == (exit_side == 8U ? 12U : 3U), now))
