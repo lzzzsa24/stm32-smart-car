@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: a05d73c91f4557006a338225ebceaa1d2371eb40
-comprehensive_candidate_status: 609f29b_integrated_sign_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: d01ab4c621cfa16436ada7139805db8224db1123
+comprehensive_candidate_status: 4ec5bd5_integrated_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115356
-comprehensive_candidate_bin_sha256: E7E90C3329B939D47748A4E57387CA452EE901351CEB7738C513AAF49C4472C3
-comprehensive_candidate_hex_sha256: 274D431163DB1F7DD4F5ACBAB4441B997F830DEB935EAE6B7A7B3A046D42E058
+comprehensive_candidate_bin_size_bytes: 115456
+comprehensive_candidate_bin_sha256: CC55536F52C4C959653154545694D7E1548D130DC21C87EDF8AE417CC969C4D9
+comprehensive_candidate_hex_sha256: 962377807BAE1855F0C59E2EEC62D477B2D985630D4E1C58F9FC9A9083D6885F
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,18 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: d01ab4c (not flashed)
+
+4ec5bd5 merged ontoa05d73c, including40f8888 history but its fixed fallback
+turn is superseded. Mode4 fallback self-tracks the arc and triggers exit at
+signed60 degrees from approach heading. Mode3's latest55/65-degree selection
+and natural completion retained when resolving the shared exit-block conflict.
+Mode5 constrained pulse steering retained. Full sign suite, mode1/2, gyro and
+mode5 integration checks and ARM build passed. BIN115456 bytes; hashes above.
+Artifacts: worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-4ec5bd5. No serial/flash/physical test/push;
+board remains4eda8fe, K210/main firmware unchanged.
 
 ### Latest comprehensive candidate: a05d73c (not flashed)
 
