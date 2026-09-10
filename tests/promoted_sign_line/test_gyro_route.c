@@ -14,7 +14,7 @@ static void step(unsigned mask, long angle, unsigned valid)
 static void finish_outer(int side)
 {
   int32_t yaw=last_input_yaw;
-  if(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT || s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR)
+  if(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR || s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR)
   {
     step(6,yaw,1);
     step(side<0?14:7,yaw,1);
@@ -60,8 +60,8 @@ static void test(int side)
   for(mask=0;mask<16;++mask) {
     start(side);
     step(mask,side*39999,1); assert(s.state==Promoted_SIGN_ROUTE_ARC && !c.active);
-    step(mask,side*40000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
-    step(mask,side*25000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+    step(mask,side*40000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR);
+    step(mask,side*25000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active && c.heading_drive && s.direction==side);
     step(0,side*25000,1);
     step(mask|(side<0?8U:1U),side*25000,1);
     assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction && !c.active);
@@ -69,26 +69,34 @@ static void test(int side)
   start(side); step(6,-side*80000,0);
   assert(s.state==Promoted_SIGN_ROUTE_CANCELLED && s.fault==6 && !c.active);
   start(side); step(6,side*121000,1);
-  assert(s.state==Promoted_SIGN_ROUTE_CANCELLED && !c.active);
-  start(side); step(6,side*40000,1); now+=6100; step(6,side*40000,1);
-  assert(s.state==Promoted_SIGN_ROUTE_CANCELLED && !c.active);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive && !c.drive_heading_error_mdeg);
+  /* Trigger wins even when one sample jumps beyond the old upper bound. */
+  now+=6100; step(6,side*121000,1);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive);
+  step(0,side*121000,0); /* stale IMU cannot switch an active exit to spin search */
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive && !c.drive_heading_error_mdeg);
+  step(0,side*126000,1);
+  assert(c.drive_heading_error_mdeg==side*5000);
+  finish_outer(side);
+  assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !c.heading_drive);
+
 }
 static void natural_exit(int side)
 {
   unsigned i;
   start(side);
-  step(6,side*52000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
+  step(6,side*52000,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active);
   for(i=0;i<30;++i) step(6,side*35000,1);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_SELECT && c.active);
-  step(0,0,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active);
+  step(0,0,1); assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active && c.heading_drive && s.direction==side);
   finish_outer(side); assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !c.active && !s.direction);
   for(i=0;i<20;++i) { step(i%2?0:15,side*90000,1); assert(!c.active); }
   start(side); step(6,side*90000,1); step(6,side*106000,1);
-  assert(s.state==Promoted_SIGN_ROUTE_CANCELLED && !c.active);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.heading_drive);
   start(side); step(0,side*40000,1); step(0,-side*30000,1);
-  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !c.active && s.direction==side);
+  assert(s.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && c.active && c.heading_drive && s.direction==side);
   finish_outer(side); assert(s.state==Promoted_SIGN_ROUTE_LOCKED && !s.direction);
-  puts("PASS: angle-only start; reference alignment releases steering but not direction; outer completion and IMU/timeout/divergence protections retained");
+  puts("PASS: angle-only start; immediate trigger-heading drive; only outer finishes; stale IMU drops trim, no exit timeout");
 }
 static void pause_reference_lifetime(void)
 {

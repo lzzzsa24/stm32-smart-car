@@ -169,26 +169,21 @@ static void check_early_arc(int side)
   {
     counts+=22; Promoted_SignRoute_UpdateEncoders(counts,counts,counts,counts);
     now+=40; step(6,side*(angle-80)*1000,1,0);
-    if(status.state==Promoted_SIGN_ROUTE_EXIT_SELECT) break;
+    if(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR) break;
     assert(status.state==Promoted_SIGN_ROUTE_ARC);
   }
-  assert(status.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
+  assert(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR);
   assert(angle-80<=56);
-  /* Low-speed alignment takes four seconds; the former 2.5s timer cancelled
-     it before a target heading could be reached. */
-  for(angle=angle-80;angle>=26;--angle)
-  {
-    now+=120; step(0,side*angle*1000,1,0);
-    assert(status.state==Promoted_SIGN_ROUTE_EXIT_SELECT);
-    assert(command.active && (side<0 ? left==0 && right>0 : right==0 && left>0));
-  }
-  now+=90; step(0,-side*12000,1,0); /* enters the widened alignment band */
-  assert(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
+  /* Angle trigger commands forward immediately. The production adapter's
+     encoder outputs are exercised by test_mode2_follow, not this SL2 fixture. */
+  assert(command.active && command.heading_drive && command.drive_heading_error_mdeg==0);
+  now+=90; step(0,side*(angle-80)*1000,1,0);
+  assert(command.active && command.heading_drive && command.drive_heading_error_mdeg==0);
   for(i=0;i<20;++i)
   {
     counts+=22; Promoted_SignRoute_UpdateEncoders(counts,counts,counts,counts);
     now+=40; step(0,-side*12000,1,0);
-    assert(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && !command.active && left==-right && left!=0);
+    assert(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR && command.active && command.heading_drive);
   }
   for(i=0;i<2;++i) { now+=40; step(6,-side*12000,1,0); }
   assert(status.state==Promoted_SIGN_ROUTE_EXIT_CLEAR); /* middle alone is not success */

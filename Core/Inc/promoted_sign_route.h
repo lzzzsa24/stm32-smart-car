@@ -38,6 +38,8 @@ typedef struct
   int16_t left_pwm;
   int16_t right_pwm;
   uint8_t gentle_arc;     /* both sides forward at KEY2 settle turn speeds */
+  uint8_t heading_drive;  /* mode3 EXIT LINE: forward CPS with gyro correction */
+  int32_t drive_heading_error_mdeg; /* relative to EXIT LINE entry, not the stop */
 } Promoted_SignRouteCommand;
 
 typedef struct
