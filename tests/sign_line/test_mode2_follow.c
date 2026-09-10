@@ -870,6 +870,32 @@ static void ring_recontact_is_not_exit(int side, uint32_t origin)
   for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
   puts("PASS: outer held black when exit starts cannot finish until clear then black; full-black return succeeds, no angle gate");
 }
+static void brief_heading_return_must_not_skip_exit(int side, uint32_t origin)
+{
+  unsigned i,w;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(w=0;w<4;++w) counts[w]+=12;
+  sample(6,side*55000);
+  for(w=0;w<4;++w) counts[w]+=12;
+  sample(6,side*35000); /* one inward correction, not a proven outgoing straight */
+  if(route.state!=SIGN_ROUTE_ARC)
+    fprintf(stderr,"brief return skipped turn side=%d state=%d reason=%u owner=%u targets=%ld/%ld\n",
+        side,route.state,route.exit_reason,follower.last_owner,
+        (long)drive.requested_cps[0],(long)drive.requested_cps[2]);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  for(i=0;i<4;++i) sample(6,side*55000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+  assert(follower.last_owner==SIGN_FOLLOW_OWNER_ROUTE);
+  assert(side<0 ? drive.requested_cps[0]==0 && drive.requested_cps[2]==2200 :
+                 drive.requested_cps[0]==2200 && drive.requested_cps[2]==0);
+  sample(side<0?8:1,side*55000); /* previously clear outer now black: user exit rule */
+  assert(route.state==SIGN_ROUTE_LOCKED && !route.direction && !route_command.active);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!drive.requested_cps[w]&&!pins[w]);
+  puts("PASS: brief 55-to-35 heading correction cannot skip exit; 55-degree return dispatches real forward pivot and selected outer finishes");
+}
 static void direct_observation(int side, uint32_t origin)
 {
   unsigned i,w,mask;
@@ -976,6 +1002,12 @@ static void biased_stop_exit(int side, int32_t skew, uint8_t pretravel)
   sample(6,skew+side*52000);
   for(w=0;w<4;++w) counts[w]+=12;
   sample(6,0);
+  assert(route.state==SIGN_ROUTE_ARC && !route_command.active);
+  for(i=0;i<30;++i)
+  {
+    for(w=0;w<4;++w) counts[w]+=12;
+    sample(6,0); assert(!route_command.active);
+  }
   assert(route.state==SIGN_ROUTE_EXIT_CLEAR && route.exit_reason==2);
   assert(!route_command.active && !follower.override_active);
   assert(!follower.guard.entry_guard_active && !follower.guard.curve_yaw_valid);
@@ -1008,6 +1040,8 @@ int main(void)
     for(pretravel=0;pretravel<=1;++pretravel) biased_stop_exit(side,skew,(uint8_t)pretravel);
   puts("PASS: actual motor pipeline handles biased stops, passive departure, opposite normal bend, re-loss and STOP with/without preceding straight travel");
   direct_observation(-1,100);
+  brief_heading_return_must_not_skip_exit(-1,100);
+  brief_heading_return_must_not_skip_exit(1,UINT32_MAX-120U);
   ring_recontact_is_not_exit(-1,100);
   ring_recontact_is_not_exit(1,UINT32_MAX-120U);
   direct_observation(1,UINT32_MAX-120U);

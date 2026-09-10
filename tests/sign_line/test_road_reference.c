@@ -79,12 +79,15 @@ static void natural_exit(int side,int32_t stopped)
   start(side,stopped); step(6,stopped-side*80000,1500);
   step(6,stopped+side*52000,12);
   step(6,stopped+side*35000,12);
-  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.exit_reason==2 && !c.active);
+  assert(s.state==SIGN_ROUTE_ARC && !c.active); /* one return cannot skip the turn */
   for(i=0;i<30;++i) { step(6,stopped+side*35000,12); assert(!c.active); }
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.exit_reason==2);
   finish_outer(side);  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
   for(i=0;i<100;++i) { step(i%2?0:8,stopped+side*90000,12); assert(!c.active); }
   start(side,stopped); step(6,stopped-side*80000,1500);
   step(6,stopped+side*52000,12); step(6,stopped+side*35000,12);
+  for(i=0;i<30;++i) step(6,stopped+side*35000,12);
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR);
   for(i=0;i<80;++i) { step(i%2?0:(side<0?7:14),stopped+side*35000,2); assert(!c.active); }
   assert(s.state==SIGN_ROUTE_CANCELLED && !s.direction); /* no late turn */
 }
