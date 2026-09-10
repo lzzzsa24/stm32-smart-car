@@ -16,7 +16,7 @@ static LineBypassTurnState state;
 static WheelEncoderCounts start_counts;
 static int32_t target_counts, turn_cps, turn_sign, achieved_mdeg;
 static uint32_t started_ms, timeout_ms, stopped_ms;
-static uint8_t settling, fault_mask;
+static uint8_t settling, fault_mask, rolling;
 
 static int64_t travel_sum(int32_t *minimum)
 {
@@ -57,7 +57,7 @@ static void fail(uint8_t drive_fault)
   state = LINE_BYPASS_TURN_FAULT;
 }
 
-static uint8_t encoder_Start(int32_t angle_mdeg, int32_t cps)
+static uint8_t encoder_Start(int32_t angle_mdeg, int32_t cps, uint8_t continuous)
 {
   DriveBaseTelemetry drive;
   int64_t angle = angle_mdeg;
@@ -67,7 +67,8 @@ static uint8_t encoder_Start(int32_t angle_mdeg, int32_t cps)
   if (!angle || angle > 360000 || cps < 1412 || cps > 3600 ||
       state == LINE_BYPASS_TURN_RUNNING) return 0U;
   DriveBase_GetTelemetry(&drive);
-  if (drive.fault_mask || drive.mode != DRIVE_BASE_STOPPED) return 0U;
+  if (drive.fault_mask || (drive.mode != DRIVE_BASE_STOPPED &&
+      !(continuous && drive.mode == DRIVE_BASE_SPEED))) return 0U;
   target_counts = (int32_t)((angle * LINE_SEARCH_EFFECTIVE_TRACK_MM *
       LINE_SEARCH_COUNTS_PER_REV + LINE_SEARCH_CPS_DENOMINATOR / 2) /
       LINE_SEARCH_CPS_DENOMINATOR);
@@ -76,6 +77,7 @@ static uint8_t encoder_Start(int32_t angle_mdeg, int32_t cps)
   turn_cps = cps;
   achieved_mdeg = 0;
   fault_mask = settling = 0U;
+  rolling = continuous;
   started_ms = HAL_GetTick();
   timeout_ms = (uint32_t)((int64_t)target_counts * 3000 / cps) + 1500U;
   if (timeout_ms < 2500U) timeout_ms = 2500U;
@@ -130,7 +132,8 @@ static void encoder_Task(void)
      No per-wheel endpoint pulses, reversals or low-speed tail corrections. */
   if (sum >= (int64_t)target_counts * 4 && minimum >= target_counts / 2)
   {
-    (void)encoder_RequestStop();
+    if (rolling) state = LINE_BYPASS_TURN_DONE;
+    else (void)encoder_RequestStop();
     return;
   }
   if (now - started_ms >= timeout_ms) { fail(0U); return; }
@@ -139,9 +142,10 @@ static void encoder_Task(void)
 
 static void encoder_Stop(void)
 {
-  if (state == LINE_BYPASS_TURN_RUNNING) DriveBase_Stop(DRIVE_STOP_COAST);
+  if (state == LINE_BYPASS_TURN_RUNNING || (rolling && state == LINE_BYPASS_TURN_DONE))
+    DriveBase_Stop(DRIVE_STOP_COAST);
   state = LINE_BYPASS_TURN_IDLE;
-  settling = fault_mask = 0U;
+  settling = fault_mask = rolling = 0U;
 }
 
 static LineBypassTurnState encoder_GetState(void) { return state; }
@@ -160,7 +164,7 @@ uint8_t LineBypassTurn_UsingGyro(void)
   return 0U;
 #endif
 }
-uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
+static uint8_t start_turn(int32_t angle_mdeg, int32_t cps, uint8_t continuous)
 {
   if (LineBypassTurn_GetState() == LINE_BYPASS_TURN_RUNNING ||
       !angle_mdeg || angle_mdeg < -360000 || angle_mdeg > 360000 ||
@@ -169,10 +173,26 @@ uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
   if (gyro_cooldown && HAL_GetTick() - gyro_failed_ms >= 10000U) gyro_cooldown = 0U;
   MpuYaw_Refresh(HAL_GetTick());
   using_gyro = !gyro_cooldown && !GyroTurn_GetFault() && MpuYaw_IsReady(HAL_GetTick());
-  if (using_gyro) return GyroTurn_Start(angle_mdeg, cps);
+  if (using_gyro)
+  {
+    if (continuous) return GyroTurn_StartRolling(angle_mdeg, cps);
+    return GyroTurn_Start(angle_mdeg, cps);
+  }
 #endif
   /* Select once per action. Encoder travel is an estimate, never IMU yaw. */
-  return encoder_Start(angle_mdeg, cps);
+  return encoder_Start(angle_mdeg, cps, continuous);
+}
+uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps)
+{ return start_turn(angle_mdeg, cps, 0U); }
+uint8_t LineBypassTurn_StartRolling(int32_t angle_mdeg, int32_t cps)
+{ return start_turn(angle_mdeg, cps, 1U); }
+void LineBypassTurn_ReleaseDone(void)
+{
+#if MPU6050_BYPASS_ENABLED
+  if (using_gyro) { GyroTurn_ReleaseDone(); return; }
+#endif
+  if (state == LINE_BYPASS_TURN_DONE && rolling)
+  { state = LINE_BYPASS_TURN_IDLE; rolling = 0U; }
 }
 void LineBypassTurn_Task(void)
 {

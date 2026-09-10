@@ -1007,11 +1007,13 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     observe_crossing(now);
     if (fast_follow_enabled && active_count >= 3U)
     {
-      /* Wide-line detection still suppresses turns. Share normal straight
-         acceleration instead of imposing the separate 2357-CPS crossing cap. */
+      /* Wide-line speed is an exact CPS target, independent of the normal
+         straight multiplier and nonlinear PWM calibration. */
       update_straight_cruise(now);
-      command_set_pwm(command, smooth_straight_pwm, smooth_straight_pwm, LINE_ACTION_FORWARD);
+      command->left_cps = command->right_cps = 3600L;
+      prepare_follow_assist(command->left_cps, command->right_cps);
       command->action = LINE_ACTION_CROSSING;
+      command->valid = 1U;
       return command->action;
     }
     if (fast_follow_enabled) smooth_centered_active = 0U;

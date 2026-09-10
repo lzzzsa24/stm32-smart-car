@@ -23,6 +23,11 @@ enum { GYRO_TURN_SENSOR = 1, GYRO_TURN_DRIVE, GYRO_TURN_TIMEOUT,
    Rejection need not set FAULT: caller must check the return value.
    Call only on an explicit action event, never repeatedly each loop. */
 uint8_t GyroTurn_Start(int32_t angle_mdeg, int32_t maximum_cps);
+/* Fixed bypass only, exclusive motor owner. Also accepts SPEED. DONE keeps
+   the last target active: ReleaseDone and command the next leg immediately
+   in the same main-loop iteration. This does not certify settled yaw. */
+uint8_t GyroTurn_StartRolling(int32_t angle_mdeg, int32_t maximum_cps);
+void GyroTurn_ReleaseDone(void);
 /* Active owner calls every main-loop iteration; never wait in a while loop.
    RUNNING includes braking/settling. DONE/FAULT persist until Stop, accepted
    next Start or explicit fault clear. Task never auto-starts an action. */

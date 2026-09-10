@@ -16,6 +16,11 @@ uint8_t LineBypassTravel_Start(int32_t distance_mm, int32_t cps);
 /* Fixed route's positive-distance legs may cruise at up to 4000 CPS.
    Short adaptive probes keep the original Start() cap. */
 uint8_t LineBypassTravel_StartFixed(int32_t distance_mm, int32_t cps);
+/* Fixed-route handoff: accepts SPEED; positive legs up to 4000 CPS finish
+   without braking. ReleaseDone and command the next leg in the same loop.
+   Stop cancels both RUNNING and unconsumed rolling DONE. */
+uint8_t LineBypassTravel_StartRolling(int32_t distance_mm, int32_t cps);
+void LineBypassTravel_ReleaseDone(void);
 void LineBypassTravel_Task(void);
 void LineBypassTravel_Stop(void);
 LineBypassTravelState LineBypassTravel_GetState(void);

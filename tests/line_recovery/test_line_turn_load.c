@@ -1406,7 +1406,7 @@ static void test_fast_follow_continuity(void)
       if(phase==4 && frame==19)
       {
         assert(out.action==LINE_ACTION_CROSSING);
-        assert(d.requested_cps[0]==(DriveBase_EquivalentCpsFromPwm(2750)*144+50)/100);
+        assert(d.requested_cps[0]==3600);
         assert(d.requested_cps[0]==d.requested_cps[2]);
       }
     }

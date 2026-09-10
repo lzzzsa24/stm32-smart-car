@@ -15,6 +15,11 @@ typedef enum
    ten-second post-failure cooldown selects encoder-estimated endpoints for
    the next action. Never switch angle coordinates during an active turn. */
 uint8_t LineBypassTurn_Start(int32_t angle_mdeg, int32_t cps);
+/* Fixed bypass only: accepts SPEED, finishes without brake/settle. Consume
+   DONE with ReleaseDone and issue the next leg in the same iteration.
+   Stop remains cancellation, including an unconsumed rolling DONE. */
+uint8_t LineBypassTurn_StartRolling(int32_t angle_mdeg, int32_t cps);
+void LineBypassTurn_ReleaseDone(void);
 void LineBypassTurn_Task(void);
 uint8_t LineBypassTurn_RequestStop(void);
 void LineBypassTurn_Stop(void);
