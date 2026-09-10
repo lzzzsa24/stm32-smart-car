@@ -92,7 +92,7 @@ int main(void)
   for(i=0;i<8;++i) step(i%2?15:9,55000,12);
   assert(s.state==SIGN_ROUTE_ARC && !c.active);
   for(i=0;i<4;++i) step(6,55000,12);
-  step(0,45000,0); step(8,45000,12);
+  step(0,45000,0); step(8,40000,12);
   assert(s.state==SIGN_ROUTE_EXIT_CLEAR && !c.active); /* reacquisition before alignment */
   puts("PASS: stopped pose is primary, moving/entry yaw cannot replace it; mirrored 30/40 exit, 25 alignment, 35 natural return and no sweep gates");
   return 0;

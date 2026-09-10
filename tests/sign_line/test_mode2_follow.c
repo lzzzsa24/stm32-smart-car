@@ -834,6 +834,49 @@ static void exit_turn_reacquires_before_alignment(int side, uint32_t origin)
   }
   puts("PASS: mode3 EXIT TURN yields on first reacquired black pattern before alignment; no reclaimed turn, stable completion and STOP");
 }
+static void ring_recontact_is_not_exit(int side, uint32_t origin)
+{
+  unsigned i,w;
+  enter_test_arc(side,origin);
+  sample(6,-side*80000);
+  for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(6,side*65000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active);
+  sample(0,side*55000);
+  for(i=0;i<3;++i)
+  {
+    sample(6,side*55000);
+    assert(route.state==SIGN_ROUTE_EXIT_SELECT && route.direction==side);
+    assert(!route_command.active && !follower.override_active);
+    for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
+  }
+  sample(6,side*55000);
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route_command.active && route.direction==side);
+  assert(drive.requested_cps[0]>=0 && drive.requested_cps[2]>=0);
+  assert(drive.requested_cps[0]+drive.requested_cps[2]==2200);
+  sample(0,side*45000); sample(6,side*35000);
+  assert(route.state==SIGN_ROUTE_EXIT_CLEAR && !route_command.active);
+  /* First real near-heading line releases control. A subsequent large
+     heading error cannot silently complete or restart a delayed exit turn. */
+  for(i=0;i<5;++i) sample(6,side*55000);
+  assert(route.state==SIGN_ROUTE_EXIT_CLEAR && route.direction==side && !route_command.active);
+  for(i=0;i<4;++i) sample(6,side*25000);
+  assert(route.state==SIGN_ROUTE_LOCKED && !route.direction && !route_command.active);
+  for(i=0;i<20;++i) sample(0,side*90000);
+  assert(!route_command.active && !follower.override_active);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+
+  /* Repeated ambiguous contacts cannot reset the original 6s turn deadline. */
+  enter_test_arc(side,origin);
+  sample(6,-side*80000); for(w=0;w<4;++w) counts[w]+=2000;
+  for(i=0;i<4;++i) sample(6,side*65000);
+  sample(0,side*55000); sample(15,side*55000);
+  assert(!route_command.active);
+  tick+=6100; sample(15,side*55000);
+  assert(route.state==SIGN_ROUTE_CANCELLED && !route.direction && !route_command.active);
+  puts("PASS: 55-degree ring recontact cannot finish exit; immediate feedback then bounded correction, near-heading release, no delayed turn and timeout");
+}
 static void direct_observation(int side, uint32_t origin)
 {
   unsigned i,w,mask;
@@ -972,6 +1015,8 @@ int main(void)
     for(pretravel=0;pretravel<=1;++pretravel) biased_stop_exit(side,skew,(uint8_t)pretravel);
   puts("PASS: actual motor pipeline handles biased stops, passive departure, opposite normal bend, re-loss and STOP with/without preceding straight travel");
   direct_observation(-1,100);
+  ring_recontact_is_not_exit(-1,100);
+  ring_recontact_is_not_exit(1,UINT32_MAX-120U);
   direct_observation(1,UINT32_MAX-120U);
   seek_one_middle_before_observation(-1,2,100);
   seek_one_middle_before_observation(1,4,UINT32_MAX-120U);
