@@ -41,7 +41,8 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
 LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *reading,
                                              LineTrackingCommand *command, uint32_t now);
 void LineRecovery_Commit(void);
-/* Opt-in mode3 observation search: caller owns middle-contact stopping. */
+/* Opt-in mode3 observation search at KEY2's slow CPS, with normal DriveBase
+   feedback/turn assistance. Caller owns middle-contact stopping. */
 LineRecoveryResult LineRecovery_StepCentering(const LineTrackingReading *reading,
                                              LineTrackingCommand *command, uint32_t now);
 /* Two distinct nearby live snapshots, with no stationary confirmation wait. */
