@@ -10,12 +10,12 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 4ac67d84eebcf6de2dedb783ef23ba2a968cb4f2
-comprehensive_candidate_status: 4940f2f_integrated_sign_line_tests_build_passed_not_flashed_not_pushed
+comprehensive_candidate_source_commit: 5ee5dbe175c0a5c256e8a654bb6abf2898d5d54f
+comprehensive_candidate_status: b43041e_integrated_line_sign_tests_build_passed_not_flashed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 116836
-comprehensive_candidate_bin_sha256: B7B018A9CFFEB38FCD0C4F67E67E90F5D67BB471E300E0E1D03DE8D9BAB92C9D
-comprehensive_candidate_hex_sha256: 8FE780D0AAB473A67B7FC8F7FD8670C86CB9682D6C86827A512AA5FC88815F9A
+comprehensive_candidate_bin_size_bytes: 116916
+comprehensive_candidate_bin_sha256: 6C2237B9D2A51397567B1D7E04011B6C2EA47B4CE61FC5D32F42396722BFC5B8
+comprehensive_candidate_hex_sha256: 45F89FC4F17D19E5C86FD70CAD3F13D5CECE41E595ECEB7256FE82B92E407029
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
@@ -52,6 +52,17 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest comprehensive candidate: 5ee5dbe (not flashed)
+
+b43041e replayed onto4ac67d8. Mode5 equal positive normal-forward CPS
+targets scale120%, retaining downstream caps and corner/crossing/rejoin
+targets. Real speed gain remains unverified. Mode3/4 fixes retained. Full
+line (both speeds) and sign suites, mode5 integration and ARM build passed.
+BIN116916 bytes; hashes above. Artifacts under
+worktrees/comprehensive-v15-sign-horn/manual-build-unified-motion.
+Rollback: rollback/2026-09-10-before-b43041e. No serial/flash/physical test
+or push; board remainsaf602cf, K210/main firmware unchanged.
 
 ### Latest comprehensive candidate: 4ac67d8 (not flashed)
 
