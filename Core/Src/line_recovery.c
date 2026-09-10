@@ -182,9 +182,9 @@ static LineRecoveryResult step_recovery(const LineTrackingReading *r,
     {
       /* Require repeated nearby observations, not one isolated sample or
          an assumed 20-ms-wide stripe. Switch to rolling capture immediately. */
-      if (immediate_capture || (center_candidate &&
+      if (immediate_capture == 1U || (center_candidate &&
           now - center_last_ms <= SENSOR_MAX_SAMPLE_GAP_MS &&
-          now - center_since >= SENSOR_CONFIRM_MS))
+          (immediate_capture == 2U ? now != center_last_ms : now - center_since >= SENSOR_CONFIRM_MS)))
       {
         phase = REC_CAPTURED;
         exit_edge_seen = 0U;
@@ -211,3 +211,7 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *r,
 LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *r,
                                              LineTrackingCommand *command, uint32_t now)
 { return step_recovery(r, command, now, 1U); }
+
+LineRecoveryResult LineRecovery_StepRolling(const LineTrackingReading *r,
+                                           LineTrackingCommand *command, uint32_t now)
+{ return step_recovery(r, command, now, 2U); }

@@ -1401,7 +1401,7 @@ static void test_fast_follow_continuity(void)
       for(wheel=0;wheel<4;++wheel) assert(absolute(d.output_pwm[wheel])<=3599);
       if(phase==1 && frame>=8) assert(d.requested_cps[0]==-3200 && d.requested_cps[2]==3200);
       if(phase==2 && frame>=8) assert(d.requested_cps[0]==3200 && d.requested_cps[2]==-3200);
-      if(phase==0 && frame==19) assert(d.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(3050));
+      if(phase==0 && frame==19) assert(d.requested_cps[0]==DriveBase_EquivalentCpsFromPwm(2750));
     }
   line_tracking_apply_command(&out,0);
   DriveBase_GetTelemetry(&d); assert(d.mode==DRIVE_BASE_STOPPED);
@@ -1413,6 +1413,30 @@ static void test_fast_follow_continuity(void)
   }
   line_tracking_reset(); reset();
   puts("PASS: mode5 real four-wheel 1000-frame centre/left/right/wide sequence has no brake/stop commands; cap and legacy reentry retained");
+}
+
+static void test_fast_forward_steering_no_pulse(void)
+{
+  unsigned ms, side, w;
+  DriveBaseTelemetry d;
+  LineTrackingCommand out;
+  for(side=0;side<2;++side)
+  {
+    LineTrackingReading r={side?0:1,0,side?1:0,0};
+    reset(); line_tracking_start_following(); line_tracking_set_fast_follow(1);
+    for(ms=0;ms<160;++ms)
+    {
+      ++tick; DriveBase_Task(tick);
+      line_tracking_compute(&r,3000,&out); line_tracking_apply_command(&out,3599);
+      DriveBase_GetTelemetry(&d);
+      assert(d.mode==DRIVE_BASE_SPEED);
+      if(ms>=40) for(w=0;w<4;++w) assert(pins[w]>0); /* no 16ms pulse-off tail */
+    }
+    assert((side?d.requested_cps[0]:d.requested_cps[2])>
+           (side?d.requested_cps[2]:d.requested_cps[0]));
+  }
+  line_tracking_reset(); reset();
+  puts("PASS: mode5 forward steering keeps four-wheel continuous PI, mirrored correction and no macro pulse coast");
 }
 
 static void test_macro_turn_pulse(void)
@@ -1521,6 +1545,7 @@ int main(void)
   unsigned i;
   test_fast_turn_assist();
   test_fast_follow_continuity();
+  test_fast_forward_steering_no_pulse();
   test_macro_turn_pulse();
   test_bypass_contact_handoff();
   test_mode1_boost_real_drive();

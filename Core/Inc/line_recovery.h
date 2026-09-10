@@ -41,4 +41,7 @@ LineRecoveryResult LineRecovery_Step(const LineTrackingReading *reading,
 LineRecoveryResult LineRecovery_StepImmediate(const LineTrackingReading *reading,
                                              LineTrackingCommand *command, uint32_t now);
 void LineRecovery_Commit(void);
+/* Two distinct nearby live snapshots, with no stationary confirmation wait. */
+LineRecoveryResult LineRecovery_StepRolling(const LineTrackingReading *reading,
+                                           LineTrackingCommand *command, uint32_t now);
 #endif

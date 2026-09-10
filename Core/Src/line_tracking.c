@@ -102,8 +102,8 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
 
 /* Faster mode-5 following keeps edge priority and crossing/gap evidence.
    These are target profiles, not raw motor PWM overrides. */
-#define FAST_STRAIGHT_BASE_PWM                 2800
-#define FAST_STRAIGHT_MAX_PWM                  3050
+#define FAST_STRAIGHT_BASE_PWM                 2550
+#define FAST_STRAIGHT_MAX_PWM                  2750
 #define FAST_EDGE_CPS                          3200L
 
 static int16_t follow_base_pwm(void)
@@ -112,7 +112,8 @@ static int16_t follow_center_pwm(void)
 { return fast_follow_enabled ? 2400 : TRACKING_SETTLE_CENTER_PWM; }
 static void prepare_follow_assist(int32_t left, int32_t right)
 {
-  if (fast_follow_enabled && recovery_state != LINE_RECOVERY_ACTIVE)
+  if (fast_follow_enabled && recovery_state != LINE_RECOVERY_ACTIVE &&
+      ((left < 0L && right > 0L) || (left > 0L && right < 0L)))
     DriveBase_PreparePulsedLineTurn(left, right);
   else if (fast_follow_enabled) DriveBase_PrepareFastLineTurnAssist(left, right);
   else DriveBase_PrepareLineTurnAssist(left, right);
@@ -831,7 +832,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   if (recovery_state == LINE_RECOVERY_ACTIVE)
   {
     LineRecoveryResult result = fast_follow_enabled ?
-        LineRecovery_StepImmediate(reading, command, now) : LineRecovery_Step(reading, command, now);
+        LineRecovery_StepRolling(reading, command, now) : LineRecovery_Step(reading, command, now);
     if (result != LINE_RECOVERY_FAILED && LineRecovery_GetDirection() != last_logged_side)
     {
       recovery_turn_direction = LineRecovery_GetDirection();
@@ -864,7 +865,18 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
       {
         DriveBaseTelemetry telemetry;
         DriveBase_GetTelemetry(&telemetry);
-        if (telemetry.mode != DRIVE_BASE_BRAKING) command_visible_adjust(reading, command);
+        if (telemetry.mode != DRIVE_BASE_BRAKING)
+        {
+          if (fast_follow_enabled && middle_only)
+          {
+            /* A provisional middle contact is not permission to lunge forward.
+               Keep turning gently while a second fresh snapshot confirms it. */
+            command->left_cps = LineRecovery_GetDirection() < 0 ? -1800L : 1800L;
+            command->right_cps = -command->left_cps;
+            command->valid = 1U;
+          }
+          else command_visible_adjust(reading, command);
+        }
       }
       return command->action;
     }
@@ -915,7 +927,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
     recovery_state = LINE_RECOVERY_ACTIVE;
     /* Issue the new spin targets in this same iteration. Repeated narrow-line
        captures/losses must not insert a brake or a generic zero-speed command. */
-    if ((fast_follow_enabled ? LineRecovery_StepImmediate(reading, command, now) :
+    if ((fast_follow_enabled ? LineRecovery_StepRolling(reading, command, now) :
          LineRecovery_Step(reading, command, now)) == LINE_RECOVERY_FAILED)
     {
       recovery_stop(LineRecovery_GetStopReason());
@@ -936,6 +948,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
         recovery_state = LINE_RECOVERY_NORMAL;
         recovery_turn_direction = 0;
       }
+      else settling = 1U; /* Moving correction until the centre is actually crossed. */
     }
     else if (now - recovery_state_started_ms >= TRACKING_REACQUIRE_SETTLE_MS &&
         middle_recent_valid && now - middle_last_ms <= TRACKING_NARROW_GAP_MS)
@@ -953,7 +966,10 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
   {
     if (fast_follow_enabled)
     {
-      command_visible_adjust(reading, command);
+      command->left_cps = reading->x1_black ? 1412L : 2200L;
+      command->right_cps = reading->x3_black ? 1412L : 2200L;
+      command->action = reading->x1_black ? LINE_ACTION_LEFT_ADJUST : LINE_ACTION_RIGHT_ADJUST;
+      command->valid = 1U;
       return command->action;
     }
     /* Single-side outer evidence already returned to continuous turning.
@@ -1082,7 +1098,7 @@ static LineTrackingAction line_tracking_compute_profile(const LineTrackingReadin
 
       magnitude = smooth_error_q8 < 0
                 ? (int16_t)-smooth_error_q8 : smooth_error_q8;
-      curve_center = (fast_follow_enabled ? 2900 : TRACKING_SMOOTH_CURVE_CENTER_PWM) -
+      curve_center = (fast_follow_enabled ? 2700 : TRACKING_SMOOTH_CURVE_CENTER_PWM) -
           (int16_t)(((int32_t)magnitude *
                      TRACKING_SMOOTH_CURVE_SLOWDOWN_PWM) / 256);
       left_target = clamp_speed((int32_t)curve_center + steering);
