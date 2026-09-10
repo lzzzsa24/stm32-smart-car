@@ -47,6 +47,8 @@ typedef struct
   uint8_t exit_region_seen;
   uint8_t exit_line_lost;
   uint8_t exit_outer_clear_seen;
+  uint8_t exit_started;
+  uint32_t exit_started_ms;
   uint8_t arc_lower_seen, exit_straight_active;
   uint32_t exit_straight_since_ms;
   int64_t exit_straight_origin_counts;
@@ -430,6 +432,7 @@ static void enter_phase(SignRouteState state, uint32_t now)
     route.entry_extreme_yaw = route.imu_yaw;
   if (state == SIGN_ROUTE_ARC)
   {
+    route.exit_started=route.exit_outer_clear_seen=0U;
     /* Do not seed departure evidence from an earlier in-place search extreme. */
     route.sweep_min_yaw=route.sweep_max_yaw=route.direction*route.imu_yaw;
     route.arc_sweep_mdeg=0L; route.exit_reason=0U;
@@ -455,14 +458,17 @@ static void enter_phase(SignRouteState state, uint32_t now)
   if (state == SIGN_ROUTE_EXIT_SELECT)
   {
     route.exit_line_lost=0U;
-    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
+    /* Only later live samples may arm completion, not the ARC->EXIT sample. */
+    route.exit_started=1U;
+    route.exit_started_ms=now;
+    route.exit_outer_clear_seen=0U;
     route.exit_previous_error = route.direction * (route.profile == SIGN_ROUTE_PROFILE_STANDARD ?
         heading_error() : route.imu_yaw-route.approach_yaw);
     route.exit_best_error_mdeg = heading_error();
     if (route.exit_best_error_mdeg < 0) route.exit_best_error_mdeg = -route.exit_best_error_mdeg;
   }
   if (state==SIGN_ROUTE_EXIT_CLEAR && previous_state!=SIGN_ROUTE_EXIT_SELECT)
-    route.exit_outer_clear_seen=(route.last_line_mask & (route.direction<0?8U:1U))==0U;
+    route.exit_started=route.exit_outer_clear_seen=0U;
   route.capture_active = route.departed = 0U;
   route.entry_edge_seen = route.entry_center_active = route.entry_line_ready = 0U;
   route.fault = 0U;
@@ -523,6 +529,7 @@ static uint8_t stable(uint8_t condition, uint32_t now)
 static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command)
 {
   route.state = SIGN_ROUTE_CANCELLED;
+  route.exit_started=route.exit_outer_clear_seen=0U;
   route.fault = reason;
   route.direction = 0;
   route.finished_ms = now;
@@ -537,6 +544,7 @@ static void cancel_route(uint8_t reason, uint32_t now, SignRouteCommand *command
 static void complete_route(uint32_t now, SignRouteCommand *command)
 {
   route.state=SIGN_ROUTE_LOCKED;
+  route.exit_started=route.exit_outer_clear_seen=0U;
   route.direction=0;
   route.finished_ms=now;
   route.approach_from_pause=0U;
@@ -907,7 +915,8 @@ void SignRoute_Step(uint8_t line_mask, uint32_t now, SignRouteCommand *command)
   route.last_step_ms = now;
   update_geometry();
 #if SIGN_ROUTE_REQUIRE_IMU
-  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD && route.direction &&
+  if (route.profile==SIGN_ROUTE_PROFILE_STANDARD && route.direction && route.exit_started &&
+      now-route.exit_started_ms>0U &&
       (route.state==SIGN_ROUTE_EXIT_SELECT || route.state==SIGN_ROUTE_EXIT_CLEAR))
   {
     uint8_t outer=route.direction<0?8U:1U;

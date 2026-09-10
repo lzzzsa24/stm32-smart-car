@@ -941,8 +941,32 @@ static void observation_search_closed_loop(void)
         side,(long)tracking,(long)lagging,(long)stalled,(long)lower_battery);
   }
 }
+static void exit_completion_requires_post_entry_clear(int side,uint32_t origin)
+{
+  unsigned i,w;
+  uint8_t outer=side<0?8:1;
+  enter_test_arc(side,origin);
+  for(i=0;i<3;++i) {
+    sample(0,side*20000); sample(outer,side*20000);
+    assert(route.state==SIGN_ROUTE_ARC && route.direction==side);
+  }
+  sample(6,side*40000); /* outer clear on the transition frame must not arm completion */
+  assert(route.state==SIGN_ROUTE_EXIT_SELECT && route.direction==side);
+  sample(outer,side*40000);
+  assert(route.state!=SIGN_ROUTE_LOCKED && route.direction==side);
+  sample(0,side*40000); /* first NEW clear after exit started */
+  sample(outer,side*40000);
+  assert(route.state==SIGN_ROUTE_LOCKED && !route.direction && !route_command.active);
+  sample(6,0);
+  for(w=0;w<4;++w) assert(drive.requested_cps[w]==LINE_TRACKING_MIDDLE_GUARD_CPS);
+  SignLineFollow_Stop(&follower); sample(0,0);
+  for(w=0;w<4;++w) assert(!pins[w]&&!drive.requested_cps[w]);
+  puts("PASS: pre-exit and transition-frame outer clear cannot complete; only a new clear then black after EXIT entry completes");
+}
 int main(void)
 {
+  exit_completion_requires_post_entry_clear(-1,100);
+  exit_completion_requires_post_entry_clear(1,UINT32_MAX-120U);
   observation_search_closed_loop();
 
   weak_votes_must_not_skip_observation(-1,100);

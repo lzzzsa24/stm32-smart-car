@@ -115,6 +115,25 @@ static void adjustable_exit(void)
   set_exit_angle(40);
   puts("PASS: all adjustable30..90 boundaries mirror on all16 masks; reset preserves value, live lowering starts ARC exit, completion remains outer-only");
 }
+static void post_entry_samples_only(int side)
+{
+  uint8_t outer=side<0?8:1;
+  start(side,0);
+  step(6,side*40000,0);
+  assert(s.state==SIGN_ROUTE_EXIT_SELECT);
+  /* Repeated calls in the transition tick cannot invent post-entry evidence. */
+  SignRoute_Step(0,now,&c);
+  SignRoute_Step(outer,now,&c);
+  SignRoute_GetStatus(now,&s);
+  assert(s.direction==side && s.state!=SIGN_ROUTE_LOCKED);
+  step(outer,side*40000,0);
+  assert(s.direction==side && s.state!=SIGN_ROUTE_LOCKED);
+  step(0,side*20000,0); /* a new clear, including passive alignment handoff */
+  assert(s.state==SIGN_ROUTE_EXIT_CLEAR && s.direction==side);
+  step(outer,side*20000,0);
+  assert(s.state==SIGN_ROUTE_LOCKED && !s.direction);
+  puts("PASS: transition-tick calls cannot arm completion; only subsequent clear/black completes across EXIT TURN to EXIT LINE");
+}
 int main(void)
 {
   int side,offset,apex; unsigned mask;
@@ -126,5 +145,6 @@ int main(void)
   }
   puts("PASS: stopped reference and biased poses; all16 masks start at40 with zero travel and sample gap; completion still requires outer clear/black");
   adjustable_exit();
+  post_entry_samples_only(-1); post_entry_samples_only(1);
   return 0;
 }

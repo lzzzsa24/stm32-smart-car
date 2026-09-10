@@ -1,5 +1,8 @@
 # Mode 3: angle starts exit, selected outer completes it
 
+Completion sequencing update: MODE3_POST_EXIT_COMPLETION.md requires a fresh
+outer-clear observation after exit entry; the transition sample no longer counts.
+
 Later update: MODE3_ADJUSTABLE_EXIT.md makes the40-degree default adjustable
 30..90 using the independent remote +/- keys; the completion rule below remains.
 
