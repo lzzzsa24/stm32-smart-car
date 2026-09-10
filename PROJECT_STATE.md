@@ -10,37 +10,37 @@ or physical test.
 ```text
 state_schema_version: 1
 state_updated_at: 2026-09-10
-comprehensive_candidate_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
-comprehensive_candidate_status: 98a4a8f_reflashed_readback_GO_OLED_normal_user_report
+comprehensive_candidate_source_commit: 947794dec76d649c55c1d3588fefafd01c6772f5
+comprehensive_candidate_status: 79d4e9d_integrated_build_tests_COM11_readback_GO_passed_not_pushed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 115920
-comprehensive_candidate_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
-comprehensive_candidate_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31300A617E838E29365F46
+comprehensive_candidate_bin_size_bytes: 115996
+comprehensive_candidate_bin_sha256: F7A8EED9F861F7E88129669B8D2F6F02951F58C5A4D49BA77DE6C7E8B6C6DE9F
+comprehensive_candidate_hex_sha256: 1333C95B9ED36D49863946509660F824F4EFA00992DA8FF63493AF2D0B5A2F62
 integration_branch: main
 repository_head_at_update: 71b2e7f
 latest_code_commit: cd44bb0
-flashed_source_commit: 98a4a8fecd0153977ff768bab3d3cf65958ecfdc
-flash_record_commit: 264785f
-deployed_tag: deployed/2026-09-10-98a4a8f
+flashed_source_commit: 947794dec76d649c55c1d3588fefafd01c6772f5
+flash_record_commit: bf78839
+deployed_tag: deployed/2026-09-10-947794d
 formal_bin_path: manual-build-unified-motion/exp7_unified_motion.bin
 formal_hex_path: manual-build-unified-motion/exp7_unified_motion.hex
-formal_bin_size_bytes: 115920
-flashed_bin_sha256: 1E58F28F729DD3484D48701C2609D09DFFE2706B29316D967101D2475EC3E574
-flashed_hex_sha256: 789E14B8E7029473DCC0393C03CBA137FB7E8838EA31300A617E838E29365F46
-ground_test_status: no_motion_test_98a4a8f_OLED_normal_user_report
+formal_bin_size_bytes: 115996
+flashed_bin_sha256: F7A8EED9F861F7E88129669B8D2F6F02951F58C5A4D49BA77DE6C7E8B6C6DE9F
+flashed_hex_sha256: 1333C95B9ED36D49863946509660F824F4EFA00992DA8FF63493AF2D0B5A2F62
+ground_test_status: not_tested_after_947794d_deployment
 k210_status: COM14_20e8c72_7527_bytes_readback_model_verified_STARTUP_threshold_0_15
 candidate_source_commit: 71b2e7f41f52c200e62de0c183f6ab09fd885abd
 candidate_bin_size_bytes: 102264
 candidate_bin_sha256: 79776C89C9F26262EA395DFFD451082599FC200BBB94BF459D248356B845F088
 candidate_hex_sha256: 938034772165C2C0774D4D70DAF682709C9D79205C09EC1DC14CAD359928E81A
-user_reported_flash: tool_verified_98a4a8f_reflash_OLED_comparison
+user_reported_flash: tool_verified_947794d_readback_GO
 k210_candidate_source_commit: 20e8c726dc24006d20477754f3c7eb9aa71c3609
 k210_candidate_status: deployed_7527_bytes_D5263ED9_readback_startup_verified
 remote_sync_status: github_PR15_merged_rc5_published_7_assets_verified
 remote_sync_branch: integration/mode5-fixed-bypass-rc5
-stm32_runtime_status: COM11_98a4a8f_readback_GO_OLED_normal_user_report
+stm32_runtime_status: COM11_947794d_readback_GO_no_post_GO_query
 k210_requested_deployment: SIGN34_modes3_4_complete_20e8c72
-temporary_flash_selector_commit: 98a4a8f_OLED_retest
+temporary_flash_selector_commit: 947794d_comprehensive_flashed
 github_release_tag: v1.2.0-rc.5
 github_release_source_commit: 71b2e7f
 github_release_firmware_commit: 71b2e7f
@@ -52,6 +52,16 @@ snapshot was written. Documentation-only governance commits may be newer; the
 checker requires the anchor to remain an ancestor and prints the live HEAD.
 
 ## Canonical repository layout
+
+### Latest deployment: 947794d
+
+79d4e9d integrated; mode3 yields exit turn on reacquired black after white.
+Full sign tests, integration checks and build passed. COM11 full115996-byte
+readback and GO passed; reserved pages excluded, K210/main code unchanged.
+No post-GO query, OLED/physical test or push. Previous OLED normal report
+applies to98a4a8f, not automatically to this new image. Evidence:
+docs/history/deployments/DEPLOYMENT_947794D_20260910.md.
+Supersedes older board/candidate statements below.
 
 ### OLED retest outcome: normal on latest98a4a8f
 
