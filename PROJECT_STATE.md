@@ -28,12 +28,12 @@ flashed_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A
 ground_test_status: new_four_mode_main_not_flashed_or_physically_tested
 user_reported_flash: tool_verified_a217df8_readback_GO
 stm32_runtime_status: last_verified_a217df8_full_readback_GO_no_new_hardware_access
-comprehensive_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
-comprehensive_candidate_status: historical_source_for_four_mode_main_not_future_integration_target
+comprehensive_candidate_source_commit: 62b0de2e121cbe199b29c599f32779b7d6881423
+comprehensive_candidate_status: explicit_five_mode_test_update_build_tests_passed_not_flashed
 comprehensive_remote_branch: test/comprehensive-v15-sign-horn-20260909
-comprehensive_candidate_bin_size_bytes: 121028
-comprehensive_candidate_bin_sha256: 308736418B9C96F2BC12B4AB7A06BADD4B1A63584781B6900B01CE120C958079
-comprehensive_candidate_hex_sha256: 2D4C8181B4A53832F5779DDE9C94A7B41DCAE6BC6ED2B019403559B5BE1A76FA
+comprehensive_candidate_bin_size_bytes: 121068
+comprehensive_candidate_bin_sha256: 03B838FC37450E47146746219B0B86D1C65C077BAE971CB856D25530631FD3AB
+comprehensive_candidate_hex_sha256: 75F6EEA70FBFF97312F168B5042B52B92BEB84CB5E3687D6EAC5C5C4CE573B3B
 temporary_flash_selector_commit: a217df8_previous_five_mode_board
 k210_status: unchanged_last_verified_COM14_20e8c72_SIGN34_threshold_0_15
 k210_candidate_source_commit: a217df81e807f54a7b95fc8c8541876cdc59bfc8
@@ -51,6 +51,14 @@ commits are expected. The formal/candidate files in main are NOT the older
 flashed image: candidate hashes and flashed hashes are intentionally separate.
 
 ## Current four-mode mapping
+
+Explicit test-only update: user requested62aeda3 into the retained five-mode
+comprehensive branch, merged as62b0de2. Mode3 exit completion requires fresh
+post-entry outer clear/black evidence. Full sign suite and ARM build passed,
+BIN121068 with hashes above, artifacts in comprehensive-v15-sign-horn worktree.
+Rollback: rollback/2026-09-10-before-62aeda3 ->a217df8. No flash/push/K210 access.
+This increment is NOT promoted to four-mode main or rc.6; board remainsa217df8.
+Only this status record changed in canonical main, not its firmware.
 
 | Input | Controller source | Behavior |
 |---|---|---|
