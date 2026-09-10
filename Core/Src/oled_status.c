@@ -7,6 +7,7 @@
 #include "oled_status.h"
 
 #include "main.h"
+#include "mpu6050_yaw.h"
 
 #define OLED_WIDTH                 128U
 #define OLED_PAGES                   4U
@@ -620,10 +621,38 @@ static void build_sign_line_screen(uint8_t mode_number,
   clear_framebuffer();
   draw_battery_header(mode_number == 3U ? "M3 LINE" : "M4 GYRO");
 
-  index = append_string(line, 0U, "LINE:");
-  index = append_line_mask(line, index, line_mask);
-  index = append_string(line, index, " A:");
-  index = append_unsigned(line, index, line_action);
+  if (mode_number == 3U)
+  {
+    MpuYawReading imu;
+    /* Cached status only: drawing must not service or restart the IMU. */
+    MpuYaw_GetReading(&imu);
+    index = append_string(line, 0U, "IMU:");
+    switch (imu.state)
+    {
+      case MPU_YAW_STARTING:
+        index = append_string(line, index, "INIT"); break;
+      case MPU_YAW_WAIT_STATIONARY:
+        index = append_string(line, index, "WAIT STOP"); break;
+      case MPU_YAW_CALIBRATING:
+        index = append_string(line, index, "CAL ");
+        index = append_unsigned(line, index, imu.calibration_samples); break;
+      case MPU_YAW_READY:
+        index = append_string(line, index, MpuYaw_IsReady(HAL_GetTick()) ?
+            "CAL OK" : "CAL OK WAIT"); break;
+      case MPU_YAW_FAULT:
+        index = append_string(line, index, "ERR ");
+        index = append_unsigned(line, index, imu.fault); break;
+      default:
+        index = append_string(line, index, "UNKNOWN"); break;
+    }
+  }
+  else
+  {
+    index = append_string(line, 0U, "LINE:");
+    index = append_line_mask(line, index, line_mask);
+    index = append_string(line, index, " A:");
+    index = append_unsigned(line, index, line_action);
+  }
   finish_text(line, index);
   draw_text(1U, 0U, line);
 
