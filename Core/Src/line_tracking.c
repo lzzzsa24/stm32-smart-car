@@ -106,6 +106,7 @@ static uint32_t held_outer_since_ms, held_outer_last_ms;
    These are target profiles, not raw motor PWM overrides. */
 #define FAST_STRAIGHT_BASE_PWM                 2550
 #define FAST_STRAIGHT_MAX_PWM                  2750
+#define FAST_STRAIGHT_MAX_CPS                  4000L
 #define FAST_EDGE_CPS                          3200L
 
 static int16_t follow_base_pwm(void)
@@ -204,6 +205,8 @@ static void command_set_pwm(LineTrackingCommand *command,
       command->left_cps > 0L && command->left_cps == command->right_cps)
   {
     command->left_cps = (command->left_cps * 144L + 50L) / 100L;
+    if (command->left_cps > FAST_STRAIGHT_MAX_CPS)
+      command->left_cps = FAST_STRAIGHT_MAX_CPS;
     command->right_cps = command->left_cps;
   }
   /* Preparing does not own the motors. DriveBase accepts only exact targets;

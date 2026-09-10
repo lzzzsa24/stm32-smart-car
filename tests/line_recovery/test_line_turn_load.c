@@ -1401,8 +1401,12 @@ static void test_fast_follow_continuity(void)
       for(wheel=0;wheel<4;++wheel) assert(absolute(d.output_pwm[wheel])<=3599);
       if(phase==1 && frame>=8) assert(d.requested_cps[0]==-3200 && d.requested_cps[2]==3200);
       if(phase==2 && frame>=8) assert(d.requested_cps[0]==3200 && d.requested_cps[2]==-3200);
-      if(phase==0 && frame==19)
-        assert(d.requested_cps[0]==(DriveBase_EquivalentCpsFromPwm(2750)*144+50)/100);
+      if(out.action==LINE_ACTION_FORWARD && out.left_cps==out.right_cps)
+        assert(out.left_cps<=4000 && d.requested_cps[0]<=4000);
+      /* Real PWM calibration already exceeds 4000 at the old ramp's entry:
+         enforce the cap at entry as well as at the final cruise level. */
+      if(phase==0 && (frame==0 || frame==19))
+        assert(d.requested_cps[0]==4000 && d.requested_cps[2]==4000);
       if(phase==4 && frame==19)
       {
         assert(out.action==LINE_ACTION_CROSSING);
