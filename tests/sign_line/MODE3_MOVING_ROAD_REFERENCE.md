@@ -1,5 +1,10 @@
 # Mode 3: road reference and irrevocable exit handoff
 
+Historical design, superseded by the user's stopped-heading-first instruction.
+See [MODE3_STOP_HEADING_PRIMARY.md](MODE3_STOP_HEADING_PRIMARY.md) for current
+mode3 reference ownership and exit gates. The passive exit handoff remains;
+the moving-reference prerequisite and relative-sweep exit decisions do not.
+
 Base: `af602cf80b9f5b12405b693a57898e485702f051`, the recorded flashed composite.
 Rollback: `rollback/mode3-before-road-reference-af602cf`.
 
