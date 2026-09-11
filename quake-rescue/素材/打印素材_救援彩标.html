@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>救援车识别素材打印（颜色圆 / 数字盘 / 人像）</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "SimHei", sans-serif;
+    color: #222;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  h1 { font-size: 6mm; margin: 0 0 2mm; }
+  .note { font-size: 3.4mm; color: #c33; margin: 0 0 5mm; line-height: 1.5; }
+  .section { margin-bottom: 8mm; }
+  .sec-title { font-size: 4.4mm; font-weight: 700; margin: 0 0 3mm; border-left: 3mm solid #555; padding-left: 2.5mm; }
+  .grid { display: flex; flex-wrap: wrap; gap: 3mm 4mm; justify-content: flex-start; }
+  .cell { width: 60mm; text-align: center; page-break-inside: avoid; }
+  .circle { width: 60mm; height: 60mm; border-radius: 50%; margin: 0 auto; border: 0.35mm dashed #999; }
+  .label { font-size: 3.2mm; margin-top: 1.6mm; color: #333; }
+  .num { display: flex; align-items: center; justify-content: center; background: #fff; font-weight: 900;
+         font-family: "Arial Black", "SimHei", sans-serif; color: #000; font-size: 30mm; line-height: 60mm; }
+  .img-cell { display: inline-block; width: 80mm; text-align: center; margin: 0 3mm; page-break-inside: avoid; }
+  .img-cell img { width: 80mm; height: auto; display: block; border: 0.35mm dashed #999; }
+</style>
+</head>
+<body>
+
+<h1>地震灾后救援小车 —— 识别素材打印（A4 / 100% 比例 / 6cm 圆）</h1>
+<p class="note">
+  打印时务必选「纸张：A4」「缩放：100% / 实际大小」（不要“适应页面”否则圆会变小）。
+  建议用哑光相纸或厚卡纸打印；颜色圆尽量用纯色、无光面，避免反光影响 K210 颜色识别。
+  沿每张圆/人像的虚线剪下，贴上支架后朝向车头使用。
+</p>
+
+<!-- ============ 颜色识别圆（6cm×3组） ============ -->
+<section class="section">
+  <div class="sec-title">1. 颜色识别圆（直径 6cm，每种 3 个）</div>
+  <div class="grid" id="colorGrid"></div>
+</section>
+
+<!-- ============ 数字盘（6cm×3组） ============ -->
+<section class="section" style="break-before: page;">
+  <div class="sec-title">2. 数字盘（直径 6cm，黑色加粗，每个数字 3 个）</div>
+  <div class="grid" id="numGrid"></div>
+</section>
+
+<!-- ============ 人员识别：人像×2 ============ -->
+<section class="section" style="break-before: page;">
+  <div class="sec-title">3. 人员识别人像（VOC20「人」，共 2 份）</div>
+  <div style="text-align:center;">
+    <div class="img-cell"><img src="图片素材/人像.png" alt="人像"><div class="label">人像 1</div></div>
+    <div class="img-cell"><img src="图片素材/人像.png" alt="人像"><div class="label">人像 2</div></div>
+  </div>
+</section>
+
+<script>
+  // 颜色：名 + 打印色值（尽量纯色，便于 K210 识别）
+  var colors = [
+    { name: "红", hex: "#FF0000" },
+    { name: "橙", hex: "#FF8000" },
+    { name: "黄", hex: "#FFD400" },
+    { name: "绿", hex: "#00A800" },
+    { name: "蓝", hex: "#0055FF" },
+    { name: "紫", hex: "#8000FF" },
+    { name: "粉", hex: "#FF69B4" }
+  ];
+  var cg = document.getElementById("colorGrid");
+  colors.forEach(function (c) {
+    for (var i = 0; i < 3; i++) {
+      var cell = document.createElement("div");
+      cell.className = "cell";
+      cell.innerHTML = '<div class="circle" style="background:' + c.hex + ';"></div>' +
+                       '<div class="label">' + c.name + '</div>';
+      cg.appendChild(cell);
+    }
+  });
+
+  // 数字：1~4，黑色加粗
+  var ng = document.getElementById("numGrid");
+  for (var n = 1; n <= 4; n++) {
+    for (var j = 0; j < 3; j++) {
+      var cell = document.createElement("div");
+      cell.className = "cell";
+      cell.innerHTML = '<div class="circle num">' + n + '</div>' +
+                       '<div class="label">数字 ' + n + '</div>';
+      ng.appendChild(cell);
+    }
+  }
+</script>
+
+</body>
+</html>
